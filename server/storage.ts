@@ -142,6 +142,7 @@ export class DatabaseStorage implements IStorage {
       password: row.password,
       isActive: row.isActive === false ? false : true,
       isAiAutoReplyEnabled: row.isAiAutoReplyEnabled === false ? false : true,
+      isPushEnabled: row.isPushEnabled === false ? false : true,
       weight: Number(row.weight ?? 1),
       createdAt: row.createdAt,
     } as Agent;
@@ -201,6 +202,10 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`
       ALTER TABLE agents
       ADD COLUMN IF NOT EXISTS is_ai_auto_reply_enabled BOOLEAN NOT NULL DEFAULT true
+    `);
+    await db.execute(sql`
+      ALTER TABLE agents
+      ADD COLUMN IF NOT EXISTS is_push_enabled BOOLEAN NOT NULL DEFAULT true
     `);
     this.agentAiColumnEnsured = true;
   }
@@ -566,6 +571,7 @@ export class DatabaseStorage implements IStorage {
           password,
           is_active AS "isActive",
           true AS "isAiAutoReplyEnabled",
+          true AS "isPushEnabled",
           weight,
           created_at AS "createdAt"
         FROM agents
@@ -590,6 +596,7 @@ export class DatabaseStorage implements IStorage {
           password,
           is_active AS "isActive",
           true AS "isAiAutoReplyEnabled",
+          true AS "isPushEnabled",
           weight,
           created_at AS "createdAt"
         FROM agents
@@ -616,6 +623,7 @@ export class DatabaseStorage implements IStorage {
           password,
           is_active AS "isActive",
           true AS "isAiAutoReplyEnabled",
+          true AS "isPushEnabled",
           weight,
           created_at AS "createdAt"
         FROM agents
@@ -636,8 +644,8 @@ export class DatabaseStorage implements IStorage {
       if (!this.isMissingAgentAiColumnError(error)) throw error;
 
       const rows = await db.execute(sql`
-        INSERT INTO agents (name, username, password, is_active, weight)
-        VALUES (${agent.name}, ${agent.username}, ${agent.password}, ${agent.isActive ?? true}, ${agent.weight ?? 1})
+        INSERT INTO agents (name, username, password, is_active, is_push_enabled, weight)
+        VALUES (${agent.name}, ${agent.username}, ${agent.password}, ${agent.isActive ?? true}, ${(agent as any).isPushEnabled ?? true}, ${agent.weight ?? 1})
         RETURNING
           id,
           name,
@@ -645,6 +653,7 @@ export class DatabaseStorage implements IStorage {
           password,
           is_active AS "isActive",
           true AS "isAiAutoReplyEnabled",
+          is_push_enabled AS "isPushEnabled",
           weight,
           created_at AS "createdAt"
       `);
@@ -670,6 +679,7 @@ export class DatabaseStorage implements IStorage {
       const nextUsername = agent.username ?? current.username;
       const nextPassword = agent.password ?? current.password;
       const nextIsActive = agent.isActive ?? current.isActive ?? true;
+      const nextIsPushEnabled = (agent as any).isPushEnabled ?? (current as any).isPushEnabled ?? true;
       const nextWeight = agent.weight ?? current.weight ?? 1;
 
       const rows = await db.execute(sql`
@@ -679,6 +689,7 @@ export class DatabaseStorage implements IStorage {
           username = ${nextUsername},
           password = ${nextPassword},
           is_active = ${nextIsActive},
+          is_push_enabled = ${nextIsPushEnabled},
           weight = ${nextWeight}
         WHERE id = ${id}
         RETURNING
@@ -688,6 +699,7 @@ export class DatabaseStorage implements IStorage {
           password,
           is_active AS "isActive",
           true AS "isAiAutoReplyEnabled",
+          is_push_enabled AS "isPushEnabled",
           weight,
           created_at AS "createdAt"
       `);
@@ -724,6 +736,7 @@ export class DatabaseStorage implements IStorage {
           password,
           is_active AS "isActive",
           true AS "isAiAutoReplyEnabled",
+          is_push_enabled AS "isPushEnabled",
           weight,
           created_at AS "createdAt"
         FROM agents

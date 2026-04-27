@@ -910,6 +910,22 @@ function getConversationPushOptions(conversation?: { assignedAgentId?: number | 
   return { targetExternalIds: getPushRecipientExternalIds(conversation?.assignedAgentId) };
 }
 
+async function filterPushExternalIdsByAgentSettings(externalIds: string[]) {
+  const filtered: string[] = [];
+  for (const externalId of Array.from(new Set(externalIds.filter(Boolean)))) {
+    const match = /^agent:(\d+)$/.exec(externalId);
+    if (!match) {
+      filtered.push(externalId);
+      continue;
+    }
+    const agent = await storage.getAgent(Number(match[1]));
+    if (!agent || (agent as any).isPushEnabled !== false) {
+      filtered.push(externalId);
+    }
+  }
+  return filtered;
+}
+
 function getPushTargetUrl(data?: Record<string, string>) {
   const conversationId = data?.conversationId;
   if (conversationId && /^\d+$/.test(conversationId)) {
@@ -921,6 +937,55 @@ function getPushTargetUrl(data?: Record<string, string>) {
 function getConversationAdvisorName(assignedAgentName?: string | null) {
   const normalized = (assignedAgentName || "").trim();
   return normalized || DEFAULT_ADVISOR_NAME;
+}
+
+function parseClientDevice(userAgentRaw?: string | null) {
+  const userAgent = String(userAgentRaw || "");
+  const browser = /Edg\//.test(userAgent)
+    ? "Edge"
+    : /Chrome|Chromium/.test(userAgent)
+      ? "Chrome"
+      : /Safari/.test(userAgent) && !/Chrome|Chromium|Edg\//.test(userAgent)
+        ? "Safari"
+        : /Firefox/.test(userAgent)
+          ? "Firefox"
+          : "Desconocido";
+  const os = /Android/.test(userAgent)
+    ? "Android"
+    : /iPhone|iPad|iPod/.test(userAgent)
+      ? "iOS"
+      : /Windows NT/.test(userAgent)
+        ? "Windows"
+        : /Macintosh|Mac OS X/.test(userAgent)
+          ? "macOS"
+          : "Desconocido";
+  const deviceType = /Mobile|Android|iPhone|iPad|iPod/.test(userAgent) ? "Movil" : "Escritorio";
+  return { browser, os, deviceType };
+}
+
+function maskIpAddress(ipRaw?: string | null) {
+  const ip = String(ipRaw || "").replace(/^::ffff:/, "").trim();
+  if (!ip) return "desconocida";
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(ip)) {
+    const parts = ip.split(".");
+    return `${parts[0]}.${parts[1]}.${parts[2]}.*`;
+  }
+  if (ip.includes(":")) return `${ip.split(":").slice(0, 3).join(":")}:*`;
+  return ip;
+}
+
+function getRequestIp(req: any) {
+  const forwarded = String(req.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
+  return forwarded || req.ip || req.socket?.remoteAddress || "";
+}
+
+function buildSessionClientInfo(req: any) {
+  const userAgent = String(req.headers?.["user-agent"] || "");
+  return {
+    ...parseClientDevice(userAgent),
+    ip: maskIpAddress(getRequestIp(req)),
+    userAgent: userAgent.slice(0, 300),
+  };
 }
 
 function resolvePublicImageUrl(imageUrl?: string | null) {
@@ -1180,6 +1245,10 @@ async function ensureAgentAiColumnExists() {
   await db.execute(sql`
     ALTER TABLE agents
     ADD COLUMN IF NOT EXISTS is_ai_auto_reply_enabled BOOLEAN NOT NULL DEFAULT true
+  `);
+  await db.execute(sql`
+    ALTER TABLE agents
+    ADD COLUMN IF NOT EXISTS is_push_enabled BOOLEAN NOT NULL DEFAULT true
   `);
   agentAiColumnEnsured = true;
 }
@@ -2155,7 +2224,7 @@ async function sendPushNotification(
   const timestamp = new Date().toISOString();
   const event = data?.event || "unknown";
   const uniqueTopic = `${event}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const targetExternalIds = options?.targetExternalIds?.filter(Boolean) || [];
+  const targetExternalIds = await filterPushExternalIdsByAgentSettings(options?.targetExternalIds?.filter(Boolean) || []);
   const targetUrl = getPushTargetUrl(data);
 
   console.log("[OneSignal] Attempting to send notification:", { title, message });
@@ -2595,6 +2664,17 @@ export async function registerRoutes(
     })
   );
 
+  app.use((req: any, _res, next) => {
+    if (req.session?.authenticated) {
+      req.session.clientInfo = buildSessionClientInfo(req);
+      req.session.lastSeenAt = new Date().toISOString();
+      if (!req.session.loginAt) {
+        req.session.loginAt = req.session.lastSeenAt;
+      }
+    }
+    next();
+  });
+
   // === DIAGNOSTIC ENDPOINTS (Public) ===
   app.get("/api/public-config", (_req, res) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -2971,6 +3051,9 @@ export async function registerRoutes(
       (req.session as any).isPrimaryAdmin = true;
       (req.session as any).agentId = undefined;
       (req.session as any).subadminId = undefined;
+      (req.session as any).loginAt = new Date().toISOString();
+      (req.session as any).lastSeenAt = (req.session as any).loginAt;
+      (req.session as any).clientInfo = buildSessionClientInfo(req);
       res.json({ success: true });
     } else {
       const subadmin = await storage.getSubadminByUsername(username);
@@ -2981,6 +3064,9 @@ export async function registerRoutes(
         (req.session as any).isPrimaryAdmin = false;
         (req.session as any).agentId = undefined;
         (req.session as any).subadminId = subadmin.id;
+        (req.session as any).loginAt = new Date().toISOString();
+        (req.session as any).lastSeenAt = (req.session as any).loginAt;
+        (req.session as any).clientInfo = buildSessionClientInfo(req);
         res.json({ success: true });
       } else {
         const agent = await storage.getAgentByUsername(username);
@@ -2991,6 +3077,9 @@ export async function registerRoutes(
           (req.session as any).isPrimaryAdmin = false;
           (req.session as any).agentId = agent.id;
           (req.session as any).subadminId = undefined;
+          (req.session as any).loginAt = new Date().toISOString();
+          (req.session as any).lastSeenAt = (req.session as any).loginAt;
+          (req.session as any).clientInfo = buildSessionClientInfo(req);
           res.json({ success: true });
         } else {
           res.status(401).json({ message: "Invalid credentials" });
@@ -3039,6 +3128,68 @@ export async function registerRoutes(
       res.status(403).json({ message: "Primary admin access required" });
     }
   };
+
+  app.get("/api/agent-sessions", requireAdmin, async (_req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT sid, sess, expire
+        FROM user_sessions
+        WHERE sess->>'authenticated' = 'true'
+          AND sess->>'role' = 'agent'
+        ORDER BY COALESCE(sess->>'lastSeenAt', sess->>'loginAt') DESC NULLS LAST, expire DESC
+      `);
+
+      const sessions = (result.rows as any[]).map((row) => {
+        const sessionBody = typeof row.sess === "string" ? JSON.parse(row.sess) : row.sess;
+        const clientInfo = sessionBody?.clientInfo || {};
+        return {
+          sid: row.sid,
+          agentId: Number(sessionBody?.agentId || 0),
+          username: sessionBody?.username || "Agente",
+          loginAt: sessionBody?.loginAt || null,
+          lastSeenAt: sessionBody?.lastSeenAt || null,
+          expiresAt: row.expire || null,
+          browser: clientInfo.browser || "Desconocido",
+          os: clientInfo.os || "Desconocido",
+          deviceType: clientInfo.deviceType || "Dispositivo",
+          ip: clientInfo.ip || "IP oculta",
+          userAgent: clientInfo.userAgent || "",
+        };
+      }).filter((item) => Number.isInteger(item.agentId) && item.agentId > 0);
+
+      res.json(sessions);
+    } catch (error) {
+      console.error("Error fetching agent sessions:", error);
+      res.status(500).json({ message: "Error fetching agent sessions" });
+    }
+  });
+
+  app.delete("/api/agent-sessions/:sid", requireAdmin, async (req, res) => {
+    try {
+      const sid = String(req.params.sid || "");
+      if (!sid) {
+        return res.status(400).json({ message: "Session id required" });
+      }
+      if (sid === req.sessionID) {
+        return res.status(400).json({ message: "No puedes cerrar tu propia sesion desde aqui" });
+      }
+
+      const result = await db.execute(sql`
+        DELETE FROM user_sessions
+        WHERE sid = ${sid}
+          AND sess->>'authenticated' = 'true'
+          AND sess->>'role' = 'agent'
+        RETURNING sid
+      `);
+      if ((result.rows as any[]).length === 0) {
+        return res.status(404).json({ message: "Sesion no encontrada" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting agent session:", error);
+      res.status(500).json({ message: "Error deleting agent session" });
+    }
+  });
 
   // Conversations
   app.get(api.conversations.list.path, requireAuth, async (req, res) => {
@@ -5910,6 +6061,7 @@ Maximo 2 lineas. Se especifico y practico.`;
           a.password,
           a.is_active AS "isActive",
           a.is_ai_auto_reply_enabled AS "isAiAutoReplyEnabled",
+          a.is_push_enabled AS "isPushEnabled",
           a.weight,
           a.created_at AS "createdAt",
           COALESCE(s.assigned_conversations, 0) AS "assignedConversations",
@@ -5970,6 +6122,7 @@ Maximo 2 lineas. Se especifico y practico.`;
               a.password,
               a.is_active AS "isActive",
               true AS "isAiAutoReplyEnabled",
+              a.is_push_enabled AS "isPushEnabled",
               a.weight,
               a.created_at AS "createdAt",
               COALESCE(s.assigned_conversations, 0) AS "assignedConversations",
@@ -6042,7 +6195,7 @@ Maximo 2 lineas. Se especifico y practico.`;
 
   app.post("/api/agents", requireAdmin, async (req, res) => {
     try {
-      const { name, username, password, weight, isAiAutoReplyEnabled } = req.body;
+      const { name, username, password, weight, isAiAutoReplyEnabled, isPushEnabled } = req.body;
       if (!name || !username || !password) {
         return res.status(400).json({ message: "Name, username and password are required" });
       }
@@ -6057,6 +6210,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         password,
         isActive: true,
         isAiAutoReplyEnabled: typeof isAiAutoReplyEnabled === "boolean" ? isAiAutoReplyEnabled : true,
+        isPushEnabled: typeof isPushEnabled === "boolean" ? isPushEnabled : true,
         weight: weight || 1,
       });
       res.json(agent);

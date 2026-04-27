@@ -22,6 +22,12 @@ import {
   Zap,
   Bot,
   BotOff,
+  Bell,
+  BellOff,
+  MonitorSmartphone,
+  Laptop,
+  Smartphone,
+  LogOut,
   MessageSquare,
   Clock,
   TrendingUp,
@@ -52,6 +58,20 @@ interface AgentWithStats extends Agent {
 
 interface AgentAiColumnStatus {
   exists: boolean;
+}
+
+interface AgentSession {
+  sid: string;
+  agentId: number;
+  username: string;
+  loginAt?: string | null;
+  lastSeenAt?: string | null;
+  expiresAt?: string | null;
+  browser: string;
+  os: string;
+  deviceType: string;
+  ip: string;
+  userAgent?: string;
 }
 
 interface AdRoutingRule {
@@ -165,6 +185,16 @@ export default function AgentsPage() {
       if (!res.ok) throw new Error("No se pudo cargar la lista de agentes");
       return res.json();
     },
+  });
+
+  const { data: agentSessions = [] } = useQuery<AgentSession[]>({
+    queryKey: ["/api/agent-sessions"],
+    queryFn: async () => {
+      const res = await fetch("/api/agent-sessions", { credentials: "include" });
+      if (!res.ok) throw new Error("No se pudieron cargar las sesiones de agentes");
+      return res.json();
+    },
+    refetchInterval: 30000,
   });
 
   const { data: agentAiColumnStatus } = useQuery<AgentAiColumnStatus>({
@@ -348,6 +378,19 @@ export default function AgentsPage() {
     },
   });
 
+  const closeAgentSessionMutation = useMutation({
+    mutationFn: async (sid: string) => {
+      return apiRequest("DELETE", `/api/agent-sessions/${encodeURIComponent(sid)}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agent-sessions"] });
+      toast({ title: "Sesion cerrada" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const deleteAdRoutingMutation = useMutation({
     mutationFn: async (id: number) => {
       return apiRequest("DELETE", `/api/ad-routing-rules/${id}`);
@@ -407,6 +450,13 @@ export default function AgentsPage() {
     });
   };
 
+  const togglePushNotifications = (agent: AgentWithStats) => {
+    updateMutation.mutate({
+      id: agent.id,
+      isPushEnabled: agent.isPushEnabled === false,
+    });
+  };
+
   const formatDateInput = (date: Date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -424,6 +474,11 @@ export default function AgentsPage() {
 
   const activeAgents = agents.filter(a => a.isActive);
   const inactiveAgents = agents.filter(a => !a.isActive);
+  const sessionsByAgentId = agentSessions.reduce<Record<number, AgentSession[]>>((acc, session) => {
+    if (!acc[session.agentId]) acc[session.agentId] = [];
+    acc[session.agentId].push(session);
+    return acc;
+  }, {});
   const totalInboundMessages = agents.reduce((acc, agent) => acc + (agent.inboundMessages || 0), 0);
   const totalInboundChats = agents.reduce((acc, agent) => acc + (agent.inboundChats || 0), 0);
   const totalShouldCall = agents.reduce((acc, agent) => acc + (agent.shouldCallCount || 0), 0);
@@ -1196,6 +1251,10 @@ export default function AgentsPage() {
                       togglePassword={() => setShowPasswords(p => ({ ...p, [agent.id]: !p[agent.id] }))}
                       onToggleActive={() => toggleActive(agent)}
                       onToggleAgentAiAutoReply={() => toggleAgentAiAutoReply(agent)}
+                      onTogglePushNotifications={() => togglePushNotifications(agent)}
+                      sessions={sessionsByAgentId[agent.id] || []}
+                      onCloseSession={(sid) => closeAgentSessionMutation.mutate(sid)}
+                      isClosingSession={closeAgentSessionMutation.isPending}
                       onDelete={() => {
                         if (confirm(`¿Eliminar agente "${agent.name}"?`)) {
                           deleteMutation.mutate(agent.id);
@@ -1235,6 +1294,10 @@ export default function AgentsPage() {
                       togglePassword={() => setShowPasswords(p => ({ ...p, [agent.id]: !p[agent.id] }))}
                       onToggleActive={() => toggleActive(agent)}
                       onToggleAgentAiAutoReply={() => toggleAgentAiAutoReply(agent)}
+                      onTogglePushNotifications={() => togglePushNotifications(agent)}
+                      sessions={sessionsByAgentId[agent.id] || []}
+                      onCloseSession={(sid) => closeAgentSessionMutation.mutate(sid)}
+                      isClosingSession={closeAgentSessionMutation.isPending}
                       onDelete={() => {
                         if (confirm(`¿Eliminar agente "${agent.name}"?`)) {
                           deleteMutation.mutate(agent.id);
@@ -1265,6 +1328,10 @@ function AgentCard({
   togglePassword,
   onToggleActive,
   onToggleAgentAiAutoReply,
+  onTogglePushNotifications,
+  sessions,
+  onCloseSession,
+  isClosingSession,
   onDelete,
   onUpdate,
   isPending,
@@ -1279,6 +1346,10 @@ function AgentCard({
   togglePassword: () => void;
   onToggleActive: () => void;
   onToggleAgentAiAutoReply: () => void;
+  onTogglePushNotifications: () => void;
+  sessions: AgentSession[];
+  onCloseSession: (sid: string) => void;
+  isClosingSession: boolean;
   onDelete: () => void;
   onUpdate: (updates: Record<string, any>) => void;
   isPending: boolean;
@@ -1292,6 +1363,7 @@ function AgentCard({
   const [editWeight, setEditWeight] = useState(agent.weight || 1);
   const [editPassword, setEditPassword] = useState(agent.password);
   const [showMobileStats, setShowMobileStats] = useState(false);
+  const [showSessions, setShowSessions] = useState(false);
   const inboundChats = agent.inboundChats || 0;
   const baseCostBs = inboundChats * unitCostBs;
   const equivalentUsd = officialRate > 0 ? baseCostBs / officialRate : 0;
@@ -1314,6 +1386,25 @@ function AgentCard({
     setEditWeight(agent.weight || 1);
     setEditPassword(agent.password);
     setEditingId(agent.id);
+  };
+
+  const formatSessionTime = (value?: string | null) => {
+    if (!value) return "Sin fecha";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Sin fecha";
+    return date.toLocaleString("es-MX", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const DeviceIcon = ({ type }: { type: string }) => {
+    const normalized = type.toLowerCase();
+    if (normalized.includes("movil") || normalized.includes("mobile")) return <Smartphone className="h-4 w-4" />;
+    if (normalized.includes("tablet") || normalized.includes("desktop")) return <Laptop className="h-4 w-4" />;
+    return <MonitorSmartphone className="h-4 w-4" />;
   };
 
   return (
@@ -1429,6 +1520,22 @@ function AgentCard({
                     {agent.isAiAutoReplyEnabled ? <Bot className="h-3 w-3" /> : <BotOff className="h-3 w-3" />}
                     {agent.isAiAutoReplyEnabled ? "IA auto ON" : "IA auto OFF"}
                   </span>
+                  <span className={cn(
+                    "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border border-current/20",
+                    agent.isPushEnabled === false ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"
+                  )}>
+                    {agent.isPushEnabled === false ? <BellOff className="h-3 w-3" /> : <Bell className="h-3 w-3" />}
+                    {agent.isPushEnabled === false ? "Notif OFF" : "Notif ON"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSessions((prev) => !prev)}
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-900/70 text-slate-300 text-xs font-medium border border-slate-700/70 hover:text-white"
+                    data-testid={`button-toggle-agent-sessions-${agent.id}`}
+                  >
+                    <MonitorSmartphone className="h-3 w-3" />
+                    {sessions.length} sesion{sessions.length === 1 ? "" : "es"}
+                  </button>
                 </div>
                 {!isEditing && (
                   <Button
@@ -1492,6 +1599,62 @@ function AgentCard({
                     <p className="text-[10px] text-slate-500 mt-1">timestamp de mensajes</p>
                   </div>
                 </div>
+                {showSessions && (
+                  <div className="mt-3 rounded-xl border border-slate-700/70 bg-slate-950/45 p-3">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                        <MonitorSmartphone className="h-4 w-4 text-cyan-300" />
+                        Sesiones abiertas
+                      </div>
+                      <span className="text-xs text-slate-400">{sessions.length} dispositivo{sessions.length === 1 ? "" : "s"}</span>
+                    </div>
+                    {sessions.length === 0 ? (
+                      <p className="text-xs text-slate-500">Sin sesiones activas registradas.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {sessions.map((session) => (
+                          <div
+                            key={session.sid}
+                            className="flex flex-col gap-2 rounded-lg border border-slate-700/60 bg-slate-900/70 p-2 md:flex-row md:items-center md:justify-between"
+                          >
+                            <div className="min-w-0 flex items-start gap-2">
+                              <span className="mt-0.5 text-cyan-300">
+                                <DeviceIcon type={session.deviceType} />
+                              </span>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-slate-100">
+                                  {session.browser} en {session.os}
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                  Ultima vez: {formatSessionTime(session.lastSeenAt)} - IP: {session.ip}
+                                </p>
+                                <p className="text-[11px] text-slate-500">
+                                  Inicio: {formatSessionTime(session.loginAt)} - Expira: {formatSessionTime(session.expiresAt)}
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                if (confirm("Cerrar sesion solo en este dispositivo?")) {
+                                  onCloseSession(session.sid);
+                                }
+                              }}
+                              disabled={isClosingSession}
+                              className="h-8 shrink-0 text-red-300 hover:bg-red-500/10 hover:text-red-200"
+                              data-testid={`button-close-agent-session-${agent.id}`}
+                            >
+                              <LogOut className="h-4 w-4 mr-1" />
+                              Cerrar
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1518,6 +1681,16 @@ function AgentCard({
               data-testid={`button-toggle-agent-ai-${agent.id}`}
             >
               {agent.isAiAutoReplyEnabled ? <Bot className="h-4 w-4" /> : <BotOff className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onTogglePushNotifications}
+              title={agent.isPushEnabled === false ? "Activar notificaciones" : "Desactivar notificaciones"}
+              className={agent.isPushEnabled === false ? "text-red-400" : "text-emerald-400"}
+              data-testid={`button-toggle-agent-push-${agent.id}`}
+            >
+              {agent.isPushEnabled === false ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
             </Button>
             <Button
               variant="ghost"
