@@ -60,6 +60,7 @@ interface AdRoutingRule {
   agentIds: number[];
   isActive: boolean;
   isExclusive: boolean;
+  productRoute?: string | null;
   updatedAt?: string | null;
 }
 
@@ -88,6 +89,17 @@ const glowAnimation = `
   animation: glow-line 3s ease-in-out infinite;
 }
 `;
+
+const AD_PRODUCT_ROUTE_OPTIONS = [
+  { value: "diabetes", label: "Berberina" },
+  { value: "diabetes_y_peso", label: "Berberina + Bitter Melon" },
+  { value: "dolor_y_estres", label: "Citrato de Magnesio" },
+  { value: "dolor_articular", label: "Boswellia Serrata" },
+] as const;
+
+function getAdProductRouteLabel(route?: string | null): string {
+  return AD_PRODUCT_ROUTE_OPTIONS.find((option) => option.value === route)?.label || "Sin producto directo";
+}
 
 function parsePositiveNumber(value: string, fallback = 0): number {
   const normalized = String(value || "").replace(",", ".").trim();
@@ -124,6 +136,7 @@ export default function AgentsPage() {
   const [routingAdId, setRoutingAdId] = useState("");
   const [routingIsActive, setRoutingIsActive] = useState(true);
   const [routingIsExclusive, setRoutingIsExclusive] = useState(true);
+  const [routingProductRoute, setRoutingProductRoute] = useState("");
   const [routingAgentIds, setRoutingAgentIds] = useState<number[]>([]);
   const [costDate, setCostDate] = useState(() => {
     const now = new Date();
@@ -318,7 +331,7 @@ export default function AgentsPage() {
   });
 
   const upsertAdRoutingMutation = useMutation({
-    mutationFn: async (data: { adId: string; agentIds: number[]; isActive: boolean; isExclusive: boolean }) => {
+    mutationFn: async (data: { adId: string; agentIds: number[]; isActive: boolean; isExclusive: boolean; productRoute: string | null }) => {
       return apiRequest("PUT", "/api/ad-routing-rules", data);
     },
     onSuccess: () => {
@@ -327,6 +340,7 @@ export default function AgentsPage() {
       setRoutingAgentIds([]);
       setRoutingIsActive(true);
       setRoutingIsExclusive(true);
+      setRoutingProductRoute("");
       toast({ title: "Regla de anuncio guardada" });
     },
     onError: (error: any) => {
@@ -738,6 +752,25 @@ export default function AgentsPage() {
             </p>
           </div>
           <div className="mb-3">
+            <p className="text-xs text-slate-400 mb-2">Producto inicial del anuncio</p>
+            <select
+              value={routingProductRoute}
+              onChange={(e) => setRoutingProductRoute(e.target.value)}
+              className="h-10 w-full rounded-md border border-slate-700/50 bg-slate-800/60 px-3 text-sm text-white outline-none focus:border-emerald-500"
+              data-testid="select-ad-routing-product-route"
+            >
+              <option value="">Sin producto directo</option>
+              {AD_PRODUCT_ROUTE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-500 mt-2">
+              Si el lead nuevo llega con este ad_id y mensaje generico, se envia este producto antes del menu inicial.
+            </p>
+          </div>
+          <div className="mb-3">
             <p className="text-xs text-slate-400 mb-2">Agentes destino</p>
             <div className="flex flex-wrap gap-2">
               {activeAgents.map((agent) => {
@@ -776,6 +809,7 @@ export default function AgentsPage() {
                   agentIds: selectedActiveAgents,
                   isActive: routingIsActive,
                   isExclusive: routingIsExclusive,
+                  productRoute: routingProductRoute || null,
                 });
               }}
               disabled={upsertAdRoutingMutation.isPending}
@@ -801,6 +835,7 @@ export default function AgentsPage() {
                     <p className="text-xs text-slate-400">
                       {rule.isActive ? "Activo" : "Inactivo"} |{" "}
                       {rule.isExclusive ? "Solo anuncio" : "Anuncio + general"} |{" "}
+                      {getAdProductRouteLabel(rule.productRoute)} |{" "}
                       {rule.agentIds.map(getAgentName).join(", ")}
                     </p>
                   </div>

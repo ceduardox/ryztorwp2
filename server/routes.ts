@@ -60,7 +60,7 @@ const HIDDEN_PROMPT_PROFILE_TITLES = new Set([
 const BERBERINA_IMAGE_URL = "https://i.ibb.co/vC27GxKC/BERBERINA-BANNER.jpg";
 const BITTER_IMAGE_URL = "https://i.ibb.co/whdDDLLC/image-Pippit-202602222317.jpg";
 const CITRATO_IMAGE_URL = "https://i.ibb.co/Q7TYCb0F/citrato.jpg";
-const BOSWELLIA_IMAGE_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Boswellia_serrata_kadukas.jpg/640px-Boswellia_serrata_kadukas.jpg";
+const BOSWELLIA_IMAGE_URL = "https://ryzapp.org/uploads/products/1773952156933-969888-boswellia.png";
 const FIRST_CONTACT_ROUTE_RESPONSES = {
   azucar_y_peso_menu: {
     productName: "Selector Azucar y peso",
@@ -150,7 +150,7 @@ Enfocada en dolor articular por artritis y artrosis.
 - Apoya desinflamacion y movilidad de articulaciones.
 - Ayuda a reducir rigidez y mejorar confort al caminar.
 Producto americano de alta calidad.
-*320 Bs* | Envio segun ciudad.
+*280 Bs* | Envio segun ciudad.
 [LISTA: Opciones Boswellia | Beneficios, Indicaciones, Precio y envio, Quiero hacer mi pedido, Quiero hablar con alguien, Tengo otra consulta]`,
     benefitsText: `*Beneficios Boswellia Serrata*
 - Apoya desinflamacion articular en artritis y artrosis.
@@ -171,6 +171,7 @@ interface BufferedMessage {
   conversationId: number;
   from: string;
   name: string;
+  adProductRoute?: string | null;
 }
 const messageBuffers = new Map<string, { messages: BufferedMessage[]; timer: ReturnType<typeof setTimeout> }>();
 interface IncomingPushState {
@@ -193,6 +194,7 @@ interface AdLeadRoutingRule {
   agentIds: number[];
   isActive: boolean;
   isExclusive: boolean;
+  productRoute?: string | null;
   updatedAt?: string | Date | null;
 }
 interface DailyCostSetting {
@@ -315,12 +317,17 @@ async function ensureAdLeadRoutingTableExists() {
       agent_ids TEXT NOT NULL DEFAULT '',
       is_active BOOLEAN NOT NULL DEFAULT true,
       is_exclusive BOOLEAN NOT NULL DEFAULT true,
+      product_route TEXT,
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `);
   await db.execute(sql`
     ALTER TABLE ad_lead_routing_rules
     ADD COLUMN IF NOT EXISTS is_exclusive BOOLEAN NOT NULL DEFAULT true
+  `);
+  await db.execute(sql`
+    ALTER TABLE ad_lead_routing_rules
+    ADD COLUMN IF NOT EXISTS product_route TEXT
   `);
   adLeadRoutingTableEnsured = true;
 }
@@ -595,6 +602,14 @@ function normalizeAdId(raw: unknown): string {
     .replace(/\s+/g, "");
 }
 
+const AD_PRODUCT_ROUTE_KEYS = new Set(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular"]);
+
+function normalizeAdProductRoute(raw: unknown): string | null {
+  const value = String(raw ?? "").trim();
+  if (!value) return null;
+  return AD_PRODUCT_ROUTE_KEYS.has(value) ? value : null;
+}
+
 function normalizeReportDate(raw: unknown): string | null {
   const value = String(raw ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -608,6 +623,7 @@ function mapAdLeadRoutingRow(row: any): AdLeadRoutingRule {
     agentIds: parseAgentIds(row.agent_ids),
     isActive: Boolean(row.is_active),
     isExclusive: Boolean(row.is_exclusive),
+    productRoute: normalizeAdProductRoute(row.product_route),
     updatedAt: row.updated_at ?? null,
   };
 }
@@ -664,7 +680,7 @@ function mapDailyReportRow(row: any): DailyReport {
 async function getAdLeadRoutingRules(): Promise<AdLeadRoutingRule[]> {
   await ensureAdLeadRoutingTableExists();
   const result: any = await db.execute(sql`
-    SELECT id, ad_id, agent_ids, is_active, is_exclusive, updated_at
+    SELECT id, ad_id, agent_ids, is_active, is_exclusive, product_route, updated_at
     FROM ad_lead_routing_rules
     ORDER BY updated_at DESC, id DESC
   `);
@@ -688,7 +704,7 @@ async function getAdLeadRoutingRuleByAdId(adIdRaw: string): Promise<AdLeadRoutin
   const adId = normalizeAdId(adIdRaw);
   if (!adId) return null;
   const result: any = await db.execute(sql`
-    SELECT id, ad_id, agent_ids, is_active, is_exclusive, updated_at
+    SELECT id, ad_id, agent_ids, is_active, is_exclusive, product_route, updated_at
     FROM ad_lead_routing_rules
     WHERE ad_id = ${adId}
     LIMIT 1
@@ -697,22 +713,24 @@ async function getAdLeadRoutingRuleByAdId(adIdRaw: string): Promise<AdLeadRoutin
   return row ? mapAdLeadRoutingRow(row) : null;
 }
 
-async function upsertAdLeadRoutingRule(input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean }): Promise<AdLeadRoutingRule> {
+async function upsertAdLeadRoutingRule(input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null }): Promise<AdLeadRoutingRule> {
   await ensureAdLeadRoutingTableExists();
   const adId = normalizeAdId(input.adId);
   const agentIds = parseAgentIds(input.agentIds);
   const isActive = typeof input.isActive === "boolean" ? input.isActive : true;
   const isExclusive = typeof input.isExclusive === "boolean" ? input.isExclusive : true;
+  const productRoute = normalizeAdProductRoute(input.productRoute);
   const result: any = await db.execute(sql`
-    INSERT INTO ad_lead_routing_rules (ad_id, agent_ids, is_active, is_exclusive)
-    VALUES (${adId}, ${agentIds.join(",")}, ${isActive}, ${isExclusive})
+    INSERT INTO ad_lead_routing_rules (ad_id, agent_ids, is_active, is_exclusive, product_route)
+    VALUES (${adId}, ${agentIds.join(",")}, ${isActive}, ${isExclusive}, ${productRoute})
     ON CONFLICT (ad_id)
     DO UPDATE SET
       agent_ids = EXCLUDED.agent_ids,
       is_active = EXCLUDED.is_active,
       is_exclusive = EXCLUDED.is_exclusive,
+      product_route = EXCLUDED.product_route,
       updated_at = NOW()
-    RETURNING id, ad_id, agent_ids, is_active, is_exclusive, updated_at
+    RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, updated_at
   `);
   return mapAdLeadRoutingRow(result.rows[0]);
 }
@@ -1043,6 +1061,12 @@ function getForcedFirstContactRouteResponse(
   return null;
 }
 
+function getAdProductRouteResponse(productRoute?: string | null) {
+  const route = normalizeAdProductRoute(productRoute);
+  if (!route) return null;
+  return FIRST_CONTACT_ROUTE_RESPONSES[route as keyof typeof FIRST_CONTACT_ROUTE_RESPONSES] || null;
+}
+
 function getCurrentProductContext(recentMessages: StoredMessage[]) {
   const latestOutbound = [...recentMessages].reverse().find(message => message.direction === "out" && typeof message.text === "string");
   if (!latestOutbound?.text) return null;
@@ -1201,13 +1225,14 @@ function flushMessageBuffer(waId: string) {
     conversationId: msgs[msgs.length - 1].conversationId,
     from: msgs[0].from,
     name: msgs[0].name,
+    adProductRoute: msgs.find(m => m.adProductRoute)?.adProductRoute || null,
   };
 
   processAiResponse(combined).catch(err => console.error("Buffered AI error:", err));
 }
 
 async function processAiResponse(data: BufferedMessage) {
-  const { conversationId, messageForAi, from, name, imageBase64ForAi, wasAudioMessage } = data;
+  const { conversationId, messageForAi, from, name, imageBase64ForAi, wasAudioMessage, adProductRoute } = data;
   const conversation = await storage.getConversation(conversationId);
   if (!conversation || conversation.aiDisabled) return;
   let assignedAgentName: string | null = null;
@@ -1222,6 +1247,58 @@ async function processAiResponse(data: BufferedMessage) {
     const aiSettings = await storage.getAiSettings();
     const fixedCommerceFlowEnabled = aiSettings?.learningMode !== true;
     const recentMessages = await storage.getMessages(conversationId);
+
+    const adRouteResponse = fixedCommerceFlowEnabled && !imageBase64ForAi && !wasAudioMessage
+      ? getAdProductRouteResponse(adProductRoute)
+      : null;
+    const hasOutboundHistory = recentMessages.slice(-10).some(message => message.direction === "out");
+    if (adRouteResponse && !hasOutboundHistory) {
+      let imageUrlToSend = resolvePublicImageUrl(adRouteResponse.imageUrl);
+      const products = await storage.getProducts();
+      const matchedCatalogProduct = findCatalogProductByRouteName(products, adRouteResponse.productName);
+      const catalogImage = getPreferredCatalogProductImage(matchedCatalogProduct);
+      if (catalogImage) {
+        imageUrlToSend = catalogImage;
+      }
+
+      if (imageUrlToSend && shouldSendImageForProduct(recentMessages, adRouteResponse.productName, imageUrlToSend)) {
+        const imgResponse = await sendToWhatsApp(from, "image", { imageUrl: imageUrlToSend });
+        await storage.createMessage({
+          conversationId,
+          waMessageId: imgResponse.messages[0].id,
+          direction: "out",
+          type: "image",
+          text: imageUrlToSend,
+          mediaId: null,
+          mimeType: null,
+          timestamp: Math.floor(Date.now() / 1000).toString(),
+          status: "sent",
+          rawJson: imgResponse,
+        });
+      }
+
+      const waResponse = await sendAiResponseToWhatsApp(from, adRouteResponse.responseText);
+      const waMessageId = waResponse.messages[0].id;
+
+      await storage.createMessage({
+        conversationId,
+        waMessageId,
+        direction: "out",
+        type: "text",
+        text: adRouteResponse.responseText,
+        timestamp: Math.floor(Date.now() / 1000).toString(),
+        status: "sent",
+        rawJson: waResponse,
+      });
+
+      await storage.updateConversation(conversationId, {
+        needsHumanAttention: false,
+        lastMessage: adRouteResponse.responseText,
+        lastMessageTimestamp: new Date(),
+      });
+
+      return;
+    }
 
     if (fixedCommerceFlowEnabled && shouldForceFirstContactProblemMenu(messageForAi, recentMessages, imageBase64ForAi, wasAudioMessage)) {
       const firstContactResponseText = getFirstContactProblemMenuResponse(advisorName);
@@ -2736,9 +2813,13 @@ export async function registerRoutes(
 
               // 2. Ensure Conversation Exists (now using correct messageText)
               let conversation = await storage.getConversationByWaId(from);
+              let adProductRouteForAi: string | null = null;
               if (!conversation) {
                 const incomingAdId = extractAdIdFromIncomingMessage(msg);
                 const adRouting = incomingAdId ? await getNextAgentForAdIdRouting(incomingAdId) : {};
+                if (adRouting.rule?.isActive) {
+                  adProductRouteForAi = adRouting.rule.productRoute || null;
+                }
                 const nextAgent = adRouting.agent || await storage.getNextAgentForAssignment({
                   excludeAgentIds: await getExclusiveAdRoutingAgentIds(),
                 });
@@ -2816,6 +2897,7 @@ export async function registerRoutes(
                   conversationId: conversation.id,
                   from,
                   name,
+                  adProductRoute: adProductRouteForAi,
                 };
 
                 const existing = messageBuffers.get(from);
@@ -5647,6 +5729,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         agentIds: z.array(z.number().int().positive()).min(1).max(50),
         isActive: z.boolean().optional(),
         isExclusive: z.boolean().optional(),
+        productRoute: z.enum(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular"]).nullable().optional(),
       }).parse(req.body);
 
       const activeAgents = await storage.getActiveAgents();
@@ -5661,6 +5744,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         agentIds: validAgentIds,
         isActive: parsed.isActive,
         isExclusive: parsed.isExclusive,
+        productRoute: parsed.productRoute,
       });
       res.json(saved);
     } catch (error: any) {
