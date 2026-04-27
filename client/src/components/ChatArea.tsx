@@ -95,6 +95,8 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   const [newQmName, setNewQmName] = useState("");
   const [newQmText, setNewQmText] = useState("");
   const [newQmImageUrl, setNewQmImageUrl] = useState("");
+  const [showQuickMessageDialog, setShowQuickMessageDialog] = useState(false);
+  const [editingQuickMessageId, setEditingQuickMessageId] = useState<number | null>(null);
   const [showReminderDialog, setShowReminderDialog] = useState(false);
   const [reminderAtInput, setReminderAtInput] = useState("");
   const [reminderNoteInput, setReminderNoteInput] = useState("");
@@ -990,7 +992,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   });
 
   const createQuickMessageMutation = useMutation({
-    mutationFn: async (data: { name: string; text?: string; imageUrl?: string }) => {
+    mutationFn: async (data: { name: string; text?: string | null; imageUrl?: string | null }) => {
       const res = await fetch("/api/quick-messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1005,13 +1007,34 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/quick-messages"] });
-      setNewQmName("");
-      setNewQmText("");
-      setNewQmImageUrl("");
-      if (quickMessageImageInputRef.current) {
-        quickMessageImageInputRef.current.value = "";
-      }
+      resetQuickMessageForm();
+      setShowQuickMessageDialog(false);
       toast({ title: "Mensaje rapido guardado" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateQuickMessageMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: { name: string; text?: string | null; imageUrl?: string | null } }) => {
+      const res = await fetch(`/api/quick-messages/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error?.message || "No se pudo actualizar el mensaje rapido");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quick-messages"] });
+      resetQuickMessageForm();
+      setShowQuickMessageDialog(false);
+      toast({ title: "Mensaje rapido actualizado" });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -1376,6 +1399,48 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
       setImageUrl("");
       setShowImageInput(false);
     }
+  };
+
+  const resetQuickMessageForm = () => {
+    setEditingQuickMessageId(null);
+    setNewQmName("");
+    setNewQmText("");
+    setNewQmImageUrl("");
+    if (quickMessageImageInputRef.current) {
+      quickMessageImageInputRef.current.value = "";
+    }
+  };
+
+  const openQuickMessageCreator = () => {
+    resetQuickMessageForm();
+    setShowQuickMessageDialog(true);
+  };
+
+  const openQuickMessageEditor = (qm: QuickMessage) => {
+    setEditingQuickMessageId(qm.id);
+    setNewQmName(qm.name || "");
+    setNewQmText(qm.text || "");
+    setNewQmImageUrl(qm.imageUrl || "");
+    if (quickMessageImageInputRef.current) {
+      quickMessageImageInputRef.current.value = "";
+    }
+    setShowQuickMessageDialog(true);
+  };
+
+  const saveQuickMessage = () => {
+    const name = newQmName.trim();
+    const text = newQmText.trim();
+    const imageUrlValue = newQmImageUrl.trim();
+    const payload = {
+      name,
+      text: text || null,
+      imageUrl: imageUrlValue || null,
+    };
+    if (editingQuickMessageId) {
+      updateQuickMessageMutation.mutate({ id: editingQuickMessageId, data: payload });
+      return;
+    }
+    createQuickMessageMutation.mutate(payload);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -2382,7 +2447,13 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
           </DropdownMenu>
 
           {/* Quick Messages Menu */}
-          <Dialog>
+          <Dialog
+            open={showQuickMessageDialog}
+            onOpenChange={(open) => {
+              setShowQuickMessageDialog(open);
+              if (!open) resetQuickMessageForm();
+            }}
+          >
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 md:h-10 md:w-10 flex-shrink-0">
@@ -2396,22 +2467,47 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                 {quickMessagesData.map((qm) => (
                   <DropdownMenuItem key={qm.id} className="flex justify-between" onClick={() => handleQuickMessage(qm)}>
                     <span className="truncate">{qm.name}</span>
-                    <Button size="icon" variant="ghost" className="h-6 w-6 ml-2" onClick={(e) => { e.stopPropagation(); deleteQuickMessageMutation.mutate(qm.id); }}>
-                      <Trash2 className="h-3 w-3 text-destructive" />
-                    </Button>
+                    <div className="flex items-center gap-1 ml-2">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          openQuickMessageEditor(qm);
+                        }}
+                        aria-label="Editar mensaje rapido"
+                        title="Editar"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          deleteQuickMessageMutation.mutate(qm.id);
+                        }}
+                        aria-label="Eliminar mensaje rapido"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DialogTrigger asChild>
-                  <DropdownMenuItem>
+                <DropdownMenuItem onClick={openQuickMessageCreator}>
                     <Plus className="h-4 w-4 mr-2" /> Nuevo mensaje rápido
-                  </DropdownMenuItem>
-                </DialogTrigger>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Nuevo Mensaje Rapido</DialogTitle>
+                <DialogTitle>{editingQuickMessageId ? "Editar Mensaje Rapido" : "Nuevo Mensaje Rapido"}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-4">
                 <div className="space-y-2">
@@ -2444,16 +2540,15 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                 <Textarea placeholder="Texto del mensaje" value={newQmText} onChange={(e) => setNewQmText(e.target.value)} rows={3} />
                 <Input placeholder="URL de imagen (opcional)" value={newQmImageUrl} onChange={(e) => setNewQmImageUrl(e.target.value)} />
                 <Button
-                  onClick={() =>
-                    createQuickMessageMutation.mutate({
-                      name: newQmName,
-                      text: newQmText || undefined,
-                      imageUrl: newQmImageUrl || undefined,
-                    })
+                  onClick={saveQuickMessage}
+                  disabled={
+                    !newQmName.trim() ||
+                    uploadQuickMessageImageMutation.isPending ||
+                    createQuickMessageMutation.isPending ||
+                    updateQuickMessageMutation.isPending
                   }
-                  disabled={!newQmName || uploadQuickMessageImageMutation.isPending || createQuickMessageMutation.isPending}
                 >
-                  Guardar
+                  {editingQuickMessageId ? "Actualizar" : "Guardar"}
                 </Button>
               </div>
             </DialogContent>

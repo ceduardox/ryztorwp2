@@ -77,6 +77,7 @@ export interface IStorage {
   // Quick Messages
   getQuickMessages(): Promise<QuickMessage[]>;
   createQuickMessage(qm: InsertQuickMessage): Promise<QuickMessage>;
+  updateQuickMessage(id: number, updates: Partial<InsertQuickMessage>): Promise<QuickMessage>;
   deleteQuickMessage(id: number): Promise<void>;
 
   // AI Agent
@@ -424,6 +425,15 @@ export class DatabaseStorage implements IStorage {
   async createQuickMessage(qm: InsertQuickMessage): Promise<QuickMessage> {
     const [created] = await db.insert(quickMessages).values(qm).returning();
     return created;
+  }
+
+  async updateQuickMessage(id: number, updates: Partial<InsertQuickMessage>): Promise<QuickMessage> {
+    const [updated] = await db
+      .update(quickMessages)
+      .set(updates)
+      .where(eq(quickMessages.id, id))
+      .returning();
+    return updated;
   }
 
   async deleteQuickMessage(id: number): Promise<void> {

@@ -124,6 +124,14 @@ export const api = {
         200: z.custom<typeof quickMessages.$inferSelect>(),
       },
     },
+    update: {
+      method: "PATCH" as const,
+      path: "/api/quick-messages/:id",
+      input: insertQuickMessageSchema.partial().refine((v) => !!v.name || !!v.text || !!v.imageUrl, "name, text or imageUrl is required"),
+      responses: {
+        200: z.custom<typeof quickMessages.$inferSelect>(),
+      },
+    },
     delete: {
       method: "DELETE" as const,
       path: "/api/quick-messages/:id",

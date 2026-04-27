@@ -3555,6 +3555,23 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/quick-messages/:id", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ message: "Invalid quick message id" });
+      }
+      const parsed = api.quickMessages.update.input.parse(req.body);
+      const qm = await storage.updateQuickMessage(id, parsed);
+      if (!qm) {
+        return res.status(404).json({ message: "Quick message not found" });
+      }
+      res.json(qm);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid quick message data" });
+    }
+  });
+
   app.delete("/api/quick-messages/:id", requireAuth, async (req, res) => {
     await storage.deleteQuickMessage(parseInt(req.params.id));
     res.json({ success: true });
