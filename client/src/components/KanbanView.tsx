@@ -3,7 +3,7 @@ import type { Conversation, Label } from "@shared/schema";
 import { useConversation } from "@/hooks/use-inbox";
 import { useAuth } from "@/hooks/use-auth";
 import { ChatArea } from "./ChatArea";
-import { Phone, Clock, AlertCircle, Truck, CheckCircle, Check, Zap, ArrowLeft, Tag, Package, Search, X, Users } from "lucide-react";
+import { Phone, PhoneOff, Clock, AlertCircle, Truck, CheckCircle, Check, Zap, ArrowLeft, Tag, Package, Search, X, Users, CalendarClock, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,6 +85,8 @@ interface AgentListItem {
   id: number;
   name: string;
 }
+
+type CallStatus = "answered" | "missed" | "later" | "clear";
 
 function getInitials(name: string): string {
   if (!name) return "??";
@@ -168,6 +170,26 @@ function KanbanCard({
   isUnread: boolean;
 }) {
   const name = conv.contactName || conv.waId;
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const callStatusMutation = useMutation({
+    mutationFn: async (status: CallStatus) => {
+      const res = await fetch(`/api/conversations/${conv.id}/call-status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("No se pudo guardar el estado de llamada");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
   
   const getBadgeConfig = () => {
     switch (columnType) {
@@ -217,6 +239,38 @@ function KanbanCard({
   const badge = getBadgeConfig();
   const showPhone = conv.shouldCall || columnType === "llamar";
   const isUrgent = columnType === "humano";
+  const callStatus = ((conv as any).callStatus || "") as Exclude<CallStatus, "clear"> | "";
+  const callAttempts = Number((conv as any).callAttempts || 0);
+  const showCallChip = showPhone || Boolean(callStatus);
+  const callChipConfig = (() => {
+    if (callStatus === "answered") {
+      return {
+        label: "Contesto",
+        icon: CheckCircle,
+        className: "bg-emerald-500/15 text-emerald-300 border-emerald-400/30",
+      };
+    }
+    if (callStatus === "missed") {
+      return {
+        label: `No contesto${callAttempts > 0 ? ` · ${callAttempts}` : ""}`,
+        icon: PhoneOff,
+        className: "bg-red-500/15 text-red-300 border-red-400/30",
+      };
+    }
+    if (callStatus === "later") {
+      return {
+        label: "Otro dia",
+        icon: CalendarClock,
+        className: "bg-amber-500/15 text-amber-300 border-amber-400/30",
+      };
+    }
+    return {
+      label: "Pendiente",
+      icon: Phone,
+      className: "bg-slate-700/60 text-slate-300 border-slate-600/70",
+    };
+  })();
+  const CallChipIcon = callChipConfig.icon;
   
   return (
     <div
@@ -280,6 +334,62 @@ function KanbanCard({
               <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", badge.dotColor)} />
               {badge.text}
             </div>
+          )}
+
+          {showCallChip && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={(event) => event.stopPropagation()}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  className={cn(
+                    "ml-1.5 mt-1.5 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium",
+                    "transition-colors hover:bg-slate-700/80",
+                    callChipConfig.className,
+                  )}
+                  title="Cambiar resultado de llamada"
+                  data-testid={`button-call-status-${conv.id}`}
+                >
+                  <CallChipIcon className="h-3 w-3" />
+                  {callChipConfig.label}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                onClick={(event) => event.stopPropagation()}
+                className="w-44 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300"
+              >
+                <DropdownMenuItem
+                  onClick={() => callStatusMutation.mutate("answered")}
+                  className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2 text-emerald-300" />
+                  Contesto
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => callStatusMutation.mutate("missed")}
+                  className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"
+                >
+                  <PhoneOff className="h-4 w-4 mr-2 text-red-300" />
+                  No contesto
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => callStatusMutation.mutate("later")}
+                  className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"
+                >
+                  <CalendarClock className="h-4 w-4 mr-2 text-amber-300" />
+                  Otro dia
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => callStatusMutation.mutate("clear")}
+                  className="!text-slate-400 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Limpiar
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
 
           {showAgentAssignment && (

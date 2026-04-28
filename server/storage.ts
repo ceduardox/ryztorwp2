@@ -194,6 +194,18 @@ export class DatabaseStorage implements IStorage {
       ALTER TABLE conversations
       ADD COLUMN IF NOT EXISTS label_id_2 INTEGER REFERENCES labels(id)
     `);
+    await db.execute(sql`
+      ALTER TABLE conversations
+      ADD COLUMN IF NOT EXISTS call_status VARCHAR(20)
+    `);
+    await db.execute(sql`
+      ALTER TABLE conversations
+      ADD COLUMN IF NOT EXISTS call_attempts INTEGER NOT NULL DEFAULT 0
+    `);
+    await db.execute(sql`
+      ALTER TABLE conversations
+      ADD COLUMN IF NOT EXISTS call_updated_at TIMESTAMP
+    `);
     this.reminderColumnsEnsured = true;
   }
 

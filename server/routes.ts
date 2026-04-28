@@ -305,6 +305,18 @@ async function ensureConversationLabelColumnsExist() {
     ALTER TABLE conversations
     ADD COLUMN IF NOT EXISTS label_id_2 INTEGER REFERENCES labels(id)
   `);
+  await db.execute(sql`
+    ALTER TABLE conversations
+    ADD COLUMN IF NOT EXISTS call_status VARCHAR(20)
+  `);
+  await db.execute(sql`
+    ALTER TABLE conversations
+    ADD COLUMN IF NOT EXISTS call_attempts INTEGER NOT NULL DEFAULT 0
+  `);
+  await db.execute(sql`
+    ALTER TABLE conversations
+    ADD COLUMN IF NOT EXISTS call_updated_at TIMESTAMP
+  `);
   conversationLabelColumnsEnsured = true;
 }
 
@@ -733,6 +745,29 @@ async function upsertAdLeadRoutingRule(input: { adId: string; agentIds: number[]
     RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, updated_at
   `);
   return mapAdLeadRoutingRow(result.rows[0]);
+}
+
+async function updateAdLeadRoutingRule(id: number, input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null }): Promise<AdLeadRoutingRule | null> {
+  await ensureAdLeadRoutingTableExists();
+  const adId = normalizeAdId(input.adId);
+  const agentIds = parseAgentIds(input.agentIds);
+  const isActive = typeof input.isActive === "boolean" ? input.isActive : true;
+  const isExclusive = typeof input.isExclusive === "boolean" ? input.isExclusive : true;
+  const productRoute = normalizeAdProductRoute(input.productRoute);
+  const result: any = await db.execute(sql`
+    UPDATE ad_lead_routing_rules
+    SET
+      ad_id = ${adId},
+      agent_ids = ${agentIds.join(",")},
+      is_active = ${isActive},
+      is_exclusive = ${isExclusive},
+      product_route = ${productRoute},
+      updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, updated_at
+  `);
+  const row = result.rows?.[0];
+  return row ? mapAdLeadRoutingRow(row) : null;
 }
 
 async function deleteAdLeadRoutingRule(id: number): Promise<void> {
@@ -4814,6 +4849,38 @@ export async function registerRoutes(
     res.json(updated);
   });
 
+  app.patch("/api/conversations/:id/call-status", requireAuth, async (req, res) => {
+    const id = parseInt(req.params.id);
+    const parsed = z.object({
+      status: z.enum(["answered", "missed", "later", "clear"]),
+    }).safeParse(req.body);
+
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Invalid call status" });
+    }
+
+    const current = await storage.getConversation(id);
+    if (!current) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+
+    const currentAttempts = Number((current as any).callAttempts || 0);
+    const now = new Date();
+    const status = parsed.data.status;
+    const updates: Record<string, any> = {
+      callStatus: status === "clear" ? null : status,
+      callAttempts: status === "clear"
+        ? 0
+        : status === "missed"
+          ? currentAttempts + 1
+          : Math.max(currentAttempts, 1),
+      callUpdatedAt: status === "clear" ? null : now,
+    };
+
+    const updated = await storage.updateConversation(id, updates);
+    res.json(updated);
+  });
+
   // Get follow-up conversations (those where we sent last message and customer didn't respond)
   app.get("/api/follow-up", requireAuth, async (req, res) => {
     const { timeFilter } = req.query; // 'today', 'yesterday', 'before_yesterday'
@@ -5921,6 +5988,52 @@ Maximo 2 lineas. Se especifico y practico.`;
       }
       console.error("Error upserting ad routing rule:", error);
       res.status(500).json({ message: "Error saving ad routing rule" });
+    }
+  });
+
+  app.patch("/api/ad-routing-rules/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ message: "Invalid rule id" });
+      }
+
+      const parsed = z.object({
+        adId: z.string().min(1).max(120),
+        agentIds: z.array(z.number().int().positive()).min(1).max(50),
+        isActive: z.boolean().optional(),
+        isExclusive: z.boolean().optional(),
+        productRoute: z.enum(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular"]).nullable().optional(),
+      }).parse(req.body);
+
+      const activeAgents = await storage.getActiveAgents();
+      const activeAgentIds = new Set(activeAgents.map((a) => a.id));
+      const validAgentIds = parsed.agentIds.filter((agentId) => activeAgentIds.has(agentId));
+      if (validAgentIds.length === 0) {
+        return res.status(400).json({ message: "Debe seleccionar al menos un agente activo" });
+      }
+
+      const saved = await updateAdLeadRoutingRule(id, {
+        adId: parsed.adId,
+        agentIds: validAgentIds,
+        isActive: parsed.isActive,
+        isExclusive: parsed.isExclusive,
+        productRoute: parsed.productRoute,
+      });
+
+      if (!saved) {
+        return res.status(404).json({ message: "Rule not found" });
+      }
+      res.json(saved);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Invalid ad routing rule data", errors: error.errors });
+      }
+      if (String(error?.message || "").includes("duplicate key")) {
+        return res.status(400).json({ message: "Ya existe una regla con ese ad_id" });
+      }
+      console.error("Error updating ad routing rule:", error);
+      res.status(500).json({ message: "Error updating ad routing rule" });
     }
   });
 

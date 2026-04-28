@@ -158,6 +158,7 @@ export default function AgentsPage() {
   const [routingIsExclusive, setRoutingIsExclusive] = useState(true);
   const [routingProductRoute, setRoutingProductRoute] = useState("");
   const [routingAgentIds, setRoutingAgentIds] = useState<number[]>([]);
+  const [editingAdRoutingRuleId, setEditingAdRoutingRuleId] = useState<number | null>(null);
   const [costDate, setCostDate] = useState(() => {
     const now = new Date();
     const y = now.getFullYear();
@@ -361,8 +362,9 @@ export default function AgentsPage() {
   });
 
   const upsertAdRoutingMutation = useMutation({
-    mutationFn: async (data: { adId: string; agentIds: number[]; isActive: boolean; isExclusive: boolean; productRoute: string | null }) => {
-      return apiRequest("PUT", "/api/ad-routing-rules", data);
+    mutationFn: async (data: { id?: number | null; adId: string; agentIds: number[]; isActive: boolean; isExclusive: boolean; productRoute: string | null }) => {
+      const { id, ...payload } = data;
+      return apiRequest(id ? "PATCH" : "PUT", id ? `/api/ad-routing-rules/${id}` : "/api/ad-routing-rules", payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/ad-routing-rules"] });
@@ -371,7 +373,8 @@ export default function AgentsPage() {
       setRoutingIsActive(true);
       setRoutingIsExclusive(true);
       setRoutingProductRoute("");
-      toast({ title: "Regla de anuncio guardada" });
+      setEditingAdRoutingRuleId(null);
+      toast({ title: editingAdRoutingRuleId ? "Regla de anuncio actualizada" : "Regla de anuncio guardada" });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -429,6 +432,24 @@ export default function AgentsPage() {
     setUsername("");
     setPassword("");
     setWeight(1);
+  };
+
+  const resetAdRoutingForm = () => {
+    setEditingAdRoutingRuleId(null);
+    setRoutingAdId("");
+    setRoutingAgentIds([]);
+    setRoutingIsActive(true);
+    setRoutingIsExclusive(true);
+    setRoutingProductRoute("");
+  };
+
+  const startEditAdRoutingRule = (rule: AdRoutingRule) => {
+    setEditingAdRoutingRuleId(rule.id);
+    setRoutingAdId(rule.adId);
+    setRoutingAgentIds(rule.agentIds.filter((id) => activeAgentIdSet.has(id)));
+    setRoutingIsActive(rule.isActive);
+    setRoutingIsExclusive(rule.isExclusive);
+    setRoutingProductRoute(rule.productRoute || "");
   };
 
   const handleCreate = () => {
@@ -754,6 +775,11 @@ export default function AgentsPage() {
             <p className="text-xs text-slate-400">
               Opcional: si no hay regla o agentes activos en esa regla, el sistema usa la asignacion normal actual.
             </p>
+            {editingAdRoutingRuleId && (
+              <p className="mt-2 inline-flex rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-200">
+                Editando regla existente
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 mb-3">
             <Input
@@ -860,6 +886,7 @@ export default function AgentsPage() {
                   return;
                 }
                 upsertAdRoutingMutation.mutate({
+                  id: editingAdRoutingRuleId,
                   adId: cleanAdId,
                   agentIds: selectedActiveAgents,
                   isActive: routingIsActive,
@@ -871,8 +898,23 @@ export default function AgentsPage() {
               className="bg-gradient-to-r from-emerald-600 to-cyan-600 border-0"
               data-testid="button-save-ad-routing-rule"
             >
-              {upsertAdRoutingMutation.isPending ? "Guardando..." : "Guardar regla"}
+              {upsertAdRoutingMutation.isPending
+                ? "Guardando..."
+                : editingAdRoutingRuleId
+                  ? "Actualizar regla"
+                  : "Guardar regla"}
             </Button>
+            {editingAdRoutingRuleId && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={resetAdRoutingForm}
+                className="border-slate-600 text-slate-300"
+                data-testid="button-cancel-edit-ad-routing-rule"
+              >
+                Cancelar
+              </Button>
+            )}
           </div>
 
           <div className="mt-4 space-y-2">
@@ -894,21 +936,33 @@ export default function AgentsPage() {
                       {rule.agentIds.map(getAgentName).join(", ")}
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="border-red-500/50 text-red-300 hover:bg-red-500/10"
-                    onClick={() => {
-                      if (confirm(`Eliminar regla ad_id ${rule.adId}?`)) {
-                        deleteAdRoutingMutation.mutate(rule.id);
-                      }
-                    }}
-                    disabled={deleteAdRoutingMutation.isPending}
-                    data-testid={`button-delete-ad-routing-rule-${rule.id}`}
-                  >
-                    Eliminar
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/10"
+                      onClick={() => startEditAdRoutingRule(rule)}
+                      data-testid={`button-edit-ad-routing-rule-${rule.id}`}
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/50 text-red-300 hover:bg-red-500/10"
+                      onClick={() => {
+                        if (confirm(`Eliminar regla ad_id ${rule.adId}?`)) {
+                          deleteAdRoutingMutation.mutate(rule.id);
+                        }
+                      }}
+                      disabled={deleteAdRoutingMutation.isPending}
+                      data-testid={`button-delete-ad-routing-rule-${rule.id}`}
+                    >
+                      Eliminar
+                    </Button>
+                  </div>
                 </div>
               ))
             )}
