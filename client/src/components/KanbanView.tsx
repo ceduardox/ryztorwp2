@@ -241,7 +241,7 @@ function KanbanCard({
   const isUrgent = columnType === "humano";
   const callStatus = ((conv as any).callStatus || "") as Exclude<CallStatus, "clear"> | "";
   const callAttempts = Number((conv as any).callAttempts || 0);
-  const showCallChip = showPhone || Boolean(callStatus);
+  const showCallChip = true;
   const callChipConfig = (() => {
     if (callStatus === "answered") {
       return {
