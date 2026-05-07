@@ -3228,6 +3228,7 @@ export async function registerRoutes(
 
   // Conversations
   app.get(api.conversations.list.path, requireAuth, async (req, res) => {
+    const session = req.session as any;
     const limitRaw = typeof req.query.limit === "string" ? req.query.limit : undefined;
     const parsedLimit = limitRaw ? Number.parseInt(limitRaw, 10) : undefined;
     const limit = typeof parsedLimit === "number" && Number.isFinite(parsedLimit)
@@ -3241,8 +3242,8 @@ export async function registerRoutes(
     const searchRaw = typeof req.query.q === "string" ? req.query.q : undefined;
     const search = searchRaw?.trim() ? searchRaw.trim() : undefined;
 
-    const assignedAgentId = (req.session as any).role === "agent"
-      ? Number((req.session as any).agentId)
+    const assignedAgentId = session.role === "agent"
+      ? Number(session.agentId)
       : undefined;
 
     const page = await storage.getConversationsPage({
@@ -3251,7 +3252,55 @@ export async function registerRoutes(
       assignedAgentId,
       search,
     });
-    res.json(page);
+
+    if (typeof assignedAgentId !== "number" || !Number.isFinite(assignedAgentId) || before || search) {
+      res.json(page);
+      return;
+    }
+
+    const assignmentRows = await db.execute(sql`
+      SELECT
+        conversation_id AS "conversationId",
+        MAX(created_at) AS "assignedToMeAt"
+      FROM conversation_assignment_events
+      WHERE to_agent_id = ${assignedAgentId}
+        AND assigned_by_role = 'admin'
+        AND DATE(created_at AT TIME ZONE 'America/La_Paz') = (NOW() AT TIME ZONE 'America/La_Paz')::date
+      GROUP BY conversation_id
+      ORDER BY MAX(created_at) DESC
+    `);
+    const assignedToday = (assignmentRows.rows as any[])
+      .map((row) => ({
+        conversationId: Number(row.conversationId),
+        assignedToMeAt: row.assignedToMeAt ?? null,
+      }))
+      .filter((row) => Number.isInteger(row.conversationId) && row.conversationId > 0 && row.assignedToMeAt);
+
+    if (assignedToday.length === 0) {
+      res.json(page);
+      return;
+    }
+
+    const assignedByConversationId = new Map<number, any>(
+      assignedToday.map((row) => [row.conversationId, row.assignedToMeAt]),
+    );
+    const pageById = new Map(page.map((conversation) => [conversation.id, conversation]));
+    const extraAssignedConversations = [];
+
+    for (const row of assignedToday) {
+      if (pageById.has(row.conversationId)) continue;
+      const conversation = await storage.getConversation(row.conversationId);
+      if (conversation?.assignedAgentId === assignedAgentId) {
+        extraAssignedConversations.push(conversation);
+      }
+    }
+
+    const responsePage = [...extraAssignedConversations, ...page].map((conversation) => ({
+      ...conversation,
+      assignedToMeAt: assignedByConversationId.get(conversation.id) ?? null,
+    }));
+
+    res.json(responsePage);
   });
 
   app.get(api.conversations.get.path, requireAuth, async (req, res) => {

@@ -77,9 +77,11 @@ interface ColumnProps {
   onDragOverColumn: (columnType: TabType) => void;
   onDropOnColumn: (columnType: TabType) => void;
   unreadIds: Set<number>;
+  assignedSpotlightIds: Set<number>;
 }
 
 const KANBAN_READ_STATE_KEY = "ryzapp_kanban_read_state_v1";
+const KANBAN_ASSIGNMENT_SEEN_STATE_KEY = "ryzapp_kanban_assignment_seen_state_v1";
 
 interface AgentListItem {
   id: number;
@@ -142,6 +144,42 @@ function persistKanbanReadState(state: Record<number, number>) {
   }
 }
 
+function readAssignmentSeenState(): Record<number, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(KANBAN_ASSIGNMENT_SEEN_STATE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, number>;
+    const normalized: Record<number, number> = {};
+    for (const [key, value] of Object.entries(parsed || {})) {
+      const id = Number(key);
+      const ts = Number(value);
+      if (Number.isInteger(id) && id > 0 && Number.isFinite(ts) && ts > 0) {
+        normalized[id] = ts;
+      }
+    }
+    return normalized;
+  } catch {
+    return {};
+  }
+}
+
+function persistAssignmentSeenState(state: Record<number, number>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(KANBAN_ASSIGNMENT_SEEN_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function getAssignedToMeTimestamp(conv: Conversation): number {
+  const raw = (conv as any).assignedToMeAt;
+  if (!raw) return 0;
+  const ts = new Date(raw).getTime();
+  return Number.isFinite(ts) && ts > 0 ? ts : 0;
+}
+
 function KanbanCard({ 
   conv, 
   isActive, 
@@ -155,6 +193,7 @@ function KanbanCard({
   onDragStartCard,
   onDragEndCard,
   isUnread,
+  isAssignedSpotlight,
 }: { 
   conv: Conversation; 
   isActive: boolean; 
@@ -168,6 +207,7 @@ function KanbanCard({
   onDragStartCard: (conversationId: number) => void;
   onDragEndCard: () => void;
   isUnread: boolean;
+  isAssignedSpotlight: boolean;
 }) {
   const name = conv.contactName || conv.waId;
   const queryClient = useQueryClient();
@@ -285,6 +325,7 @@ function KanbanCard({
         "transition-transform duration-100 active:scale-[0.97]",
         getCardStyle(),
         isActive && "ring-2 ring-emerald-500/50 shadow-emerald-500/20",
+        isAssignedSpotlight && "border-cyan-300/80 bg-cyan-950/30 shadow-cyan-500/20 ring-1 ring-cyan-300/40",
         isUrgent && "animate-ring-pulse",
         isDragging && "opacity-40 scale-[0.98]",
         isUnread && "shadow-cyan-500/10"
@@ -294,6 +335,12 @@ function KanbanCard({
       {isUnread && (
         <div
           className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-cyan-400/90 shadow-[0_0_12px_rgba(34,211,238,0.6)]"
+          aria-hidden="true"
+        />
+      )}
+      {isAssignedSpotlight && (
+        <div
+          className="absolute inset-x-3 top-0 h-px bg-cyan-300/80 shadow-[0_0_14px_rgba(103,232,249,0.75)]"
           aria-hidden="true"
         />
       )}
@@ -459,7 +506,7 @@ function KanbanCard({
   );
 }
 
-function KanbanColumn({ title, items, activeId, onSelect, columnType, labels, showAgentAssignment, getAssignedAgentName, enableDrag, draggingConversationId, isDropTarget, onDragStartCard, onDragEndCard, onDragOverColumn, onDropOnColumn, unreadIds }: ColumnProps) {
+function KanbanColumn({ title, items, activeId, onSelect, columnType, labels, showAgentAssignment, getAssignedAgentName, enableDrag, draggingConversationId, isDropTarget, onDragStartCard, onDragEndCard, onDragOverColumn, onDropOnColumn, unreadIds, assignedSpotlightIds }: ColumnProps) {
   const getColumnHeaderStyle = () => {
     switch (columnType) {
       case "humano":
@@ -566,6 +613,7 @@ function KanbanColumn({ title, items, activeId, onSelect, columnType, labels, sh
               onDragStartCard={onDragStartCard}
               onDragEndCard={onDragEndCard}
               isUnread={unreadIds.has(conv.id) && (columnType === "nuevo" || columnType === "proceso")}
+              isAssignedSpotlight={assignedSpotlightIds.has(conv.id)}
             />
           ))
         )}
@@ -592,6 +640,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
   const queryClient = useQueryClient();
   const [activeId, setActiveId] = useState<number | null>(null);
   const [readStateByConversation, setReadStateByConversation] = useState<Record<number, number>>(() => readKanbanReadState());
+  const [assignmentSeenStateByConversation, setAssignmentSeenStateByConversation] = useState<Record<number, number>>(() => readAssignmentSeenState());
   const [mobileTab, setMobileTab] = useState<TabType>("nuevo");
   const [filterLabelId, setFilterLabelId] = useState<number | null>(null);
   const [filterAgentId, setFilterAgentId] = useState<number | null>(null);
@@ -650,6 +699,16 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
     });
   };
 
+  const markAssignmentSeen = (conversationId: number, assignedToMeTimestamp: number) => {
+    if (!Number.isFinite(assignedToMeTimestamp) || assignedToMeTimestamp <= 0) return;
+    setAssignmentSeenStateByConversation((prev) => {
+      if ((prev[conversationId] || 0) >= assignedToMeTimestamp) return prev;
+      const next = { ...prev, [conversationId]: assignedToMeTimestamp };
+      persistAssignmentSeenState(next);
+      return next;
+    });
+  };
+
   const conversationsByAgent = useMemo(() => {
     if (!isAdmin || !filterAgentId) return conversations;
     return conversations.filter((conversation) => conversation.assignedAgentId === filterAgentId);
@@ -667,10 +726,22 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
     return unread;
   }, [conversationsByAgent, readStateByConversation]);
 
+  const assignedSpotlightIds = useMemo(() => {
+    const spotlight = new Set<number>();
+    for (const conv of conversationsByAgent) {
+      const assignedTs = getAssignedToMeTimestamp(conv);
+      if (assignedTs > 0 && assignedTs > (assignmentSeenStateByConversation[conv.id] || 0)) {
+        spotlight.add(conv.id);
+      }
+    }
+    return spotlight;
+  }, [conversationsByAgent, assignmentSeenStateByConversation]);
+
   const handleSelectConversation = (id: number) => {
     const selected = conversationsByAgent.find((conv) => conv.id === id);
     if (selected) {
       markConversationRead(id, selected.lastMessageTimestamp);
+      markAssignmentSeen(id, getAssignedToMeTimestamp(selected));
     }
     setActiveId(id);
   };
@@ -750,6 +821,10 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
     : conversationsByAgent;
 
   const getConversationSortTimestamp = (conv: Conversation) => {
+    if (assignedSpotlightIds.has(conv.id)) {
+      const assignedTs = getAssignedToMeTimestamp(conv);
+      if (assignedTs > 0) return assignedTs;
+    }
     if (conv.lastMessageTimestamp) {
       const lastTs = new Date(conv.lastMessageTimestamp).getTime();
       if (Number.isFinite(lastTs)) return lastTs;
@@ -1131,6 +1206,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
               onDragOverColumn={handleDragOverColumn}
               onDropOnColumn={handleDropOnColumn}
               unreadIds={unreadIds}
+              assignedSpotlightIds={assignedSpotlightIds}
             />
           </div>
 
@@ -1175,6 +1251,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             onDragOverColumn={handleDragOverColumn}
             onDropOnColumn={handleDropOnColumn}
             unreadIds={unreadIds}
+            assignedSpotlightIds={assignedSpotlightIds}
           />
           <KanbanColumn
             title="Esperando Confirmaci."
@@ -1193,6 +1270,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             onDragOverColumn={handleDragOverColumn}
             onDropOnColumn={handleDropOnColumn}
             unreadIds={unreadIds}
+            assignedSpotlightIds={assignedSpotlightIds}
           />
           <KanbanColumn
             title="Llamar"
@@ -1211,6 +1289,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             onDragOverColumn={handleDragOverColumn}
             onDropOnColumn={handleDropOnColumn}
             unreadIds={unreadIds}
+            assignedSpotlightIds={assignedSpotlightIds}
           />
           <KanbanColumn
             title="Pedido en Proceso"
@@ -1229,6 +1308,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             onDragOverColumn={handleDragOverColumn}
             onDropOnColumn={handleDropOnColumn}
             unreadIds={unreadIds}
+            assignedSpotlightIds={assignedSpotlightIds}
           />
           <KanbanColumn
             title="Listo para Enviar"
@@ -1247,6 +1327,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             onDragOverColumn={handleDragOverColumn}
             onDropOnColumn={handleDropOnColumn}
             unreadIds={unreadIds}
+            assignedSpotlightIds={assignedSpotlightIds}
           />
           <KanbanColumn
             title="Enviados y Entregados"
@@ -1265,6 +1346,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             onDragOverColumn={handleDragOverColumn}
             onDropOnColumn={handleDropOnColumn}
             unreadIds={unreadIds}
+            assignedSpotlightIds={assignedSpotlightIds}
           />
         </div>
 
