@@ -1,4 +1,49 @@
-﻿import type { Express } from "express";
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { storage } from "./storage";
+import { api } from "@shared/routes";
+import { z } from "zod";
+import session from "express-session";
+import MemoryStore from "memorystore";
+import connectPgSimple from "connect-pg-simple";
+import axios from "axios";
+import { generateAiResponse } from "./ai-service";
+import { initFollowUp } from "./follow-up";
+import { insertProductSchema, messages as messagesTable, updateOrderStatusSchema, type Message as StoredMessage, type Product as StoredProduct } from "@shared/schema";
+import { db, pool } from "./db";
+import OpenAI from "openai";
+import fs from "fs";
+import path from "path";
+import os from "os";
+import multer from "multer";
+import { sql, eq, desc } from "drizzle-orm";
+import { spawn } from "child_process";
+import ffmpegStatic from "ffmpeg-static";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
+const uploadVideo = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
+const uploadDocument = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+const uploadProductImage = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+const WHATSAPP_VIDEO_MAX_BYTES = 16 * 1024 * 1024;
+
+const AI_DEBOUNCE_MS = 3000;
+const INCOMING_PUSH_COOLDOWN_MS = 60000;
+const FIRST_CONTACT_TOP_LEVEL_BUTTONS = "[BOTONES: Azucar y peso, Dolor y estres, Dolor articular]";
+const FIRST_CONTACT_AZUCAR_PESO_BUTTONS = "[BOTONES: Solo diabetes, Diabetes + peso]";
+const DEFAULT_ADVISOR_NAME = "Isabella";
+const upsertSubadminSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  username: z.string().trim().min(1).max(50),
+  password: z.string().min(1).max(100),
+  isActive: z.boolean().optional(),
+});
+const updateSubadminSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  username: z.string().trim().min(1).max(50).optional(),
+  password: z.string().min(1).max(100).optional(),
+  isActive: z.boolean().optional(),
+import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
@@ -51,10 +96,12 @@ ${FIRST_CONTACT_TOP_LEVEL_BUTTONS}`;
 }
 const PROMPT_PROFILE_PRIMARY_TITLE = "__SYSTEM_PROMPT_PRIMARY__";
 const PROMPT_PROFILE_SECONDARY_TITLE = "__SYSTEM_PROMPT_SECONDARY__";
+const PROMPT_PROFILE_TERTIARY_TITLE = "__SYSTEM_PROMPT_TERTIARY__";
 const PROMPT_PROFILE_ACTIVE_TITLE = "__SYSTEM_PROMPT_ACTIVE__";
 const HIDDEN_PROMPT_PROFILE_TITLES = new Set([
   PROMPT_PROFILE_PRIMARY_TITLE,
   PROMPT_PROFILE_SECONDARY_TITLE,
+  PROMPT_PROFILE_TERTIARY_TITLE,
   PROMPT_PROFILE_ACTIVE_TITLE,
 ]);
 const BERBERINA_IMAGE_URL = "https://i.ibb.co/vC27GxKC/BERBERINA-BANNER.jpg";
@@ -1297,10 +1344,11 @@ async function getPromptProfiles() {
   const byTitle = new Map(trainingData.map(item => [item.title || "", item]));
   const primaryPrompt = byTitle.get(PROMPT_PROFILE_PRIMARY_TITLE)?.content || settings?.systemPrompt || "";
   const secondaryPrompt = byTitle.get(PROMPT_PROFILE_SECONDARY_TITLE)?.content || "";
+  const tertiaryPrompt = byTitle.get(PROMPT_PROFILE_TERTIARY_TITLE)?.content || "";
   const rawActive = byTitle.get(PROMPT_PROFILE_ACTIVE_TITLE)?.content || "primary";
-  const activeSlot = rawActive === "secondary" ? "secondary" : "primary";
+  const activeSlot = rawActive === "tertiary" ? "tertiary" : (rawActive === "secondary" ? "secondary" : "primary");
 
-  return { primaryPrompt, secondaryPrompt, activeSlot };
+  return { primaryPrompt, secondaryPrompt, tertiaryPrompt, activeSlot };
 }
 
 async function upsertPromptProfile(title: string, content: string) {
@@ -5266,7 +5314,8 @@ NO uses saludos formales. Se directo y amigable.`
   const promptProfilesUpdateSchema = z.object({
     primaryPrompt: z.string().max(20000),
     secondaryPrompt: z.string().max(20000),
-    activeSlot: z.enum(["primary", "secondary"]),
+    tertiaryPrompt: z.string().max(20000),
+    activeSlot: z.enum(["primary", "secondary", "tertiary"]),
   });
 
   const aiTrainingCreateSchema = z.object({
@@ -5390,15 +5439,19 @@ NO uses saludos formales. Se directo y amigable.`
       await Promise.all([
         upsertPromptProfile(PROMPT_PROFILE_PRIMARY_TITLE, parsed.primaryPrompt),
         upsertPromptProfile(PROMPT_PROFILE_SECONDARY_TITLE, parsed.secondaryPrompt),
+        upsertPromptProfile(PROMPT_PROFILE_TERTIARY_TITLE, parsed.tertiaryPrompt),
         upsertPromptProfile(PROMPT_PROFILE_ACTIVE_TITLE, parsed.activeSlot),
       ]);
 
-      const activePrompt = parsed.activeSlot === "secondary" ? parsed.secondaryPrompt : parsed.primaryPrompt;
+      const activePrompt = parsed.activeSlot === "tertiary"
+        ? parsed.tertiaryPrompt
+        : (parsed.activeSlot === "secondary" ? parsed.secondaryPrompt : parsed.primaryPrompt);
       await storage.updateAiSettings({ systemPrompt: activePrompt });
 
       res.json({
         primaryPrompt: parsed.primaryPrompt,
         secondaryPrompt: parsed.secondaryPrompt,
+        tertiaryPrompt: parsed.tertiaryPrompt,
         activeSlot: parsed.activeSlot,
       });
     } catch (error: any) {

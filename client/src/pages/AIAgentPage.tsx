@@ -54,7 +54,8 @@ interface AiSettings {
 interface PromptProfiles {
   primaryPrompt: string;
   secondaryPrompt: string;
-  activeSlot: "primary" | "secondary";
+  tertiaryPrompt: string;
+  activeSlot: "primary" | "secondary" | "tertiary";
 }
 
 interface Product {
@@ -108,7 +109,8 @@ export default function AIAgentPage() {
   const { toast } = useToast();
   const [primaryPrompt, setPrimaryPrompt] = useState("");
   const [secondaryPrompt, setSecondaryPrompt] = useState("");
-  const [activePromptSlot, setActivePromptSlot] = useState<"primary" | "secondary">("primary");
+  const [tertiaryPrompt, setTertiaryPrompt] = useState("");
+  const [activePromptSlot, setActivePromptSlot] = useState<"primary" | "secondary" | "tertiary">("primary");
   const [promptEdited, setPromptEdited] = useState(false);
   
   // AI config state
@@ -297,6 +299,7 @@ export default function AIAgentPage() {
     if (promptProfiles && !promptEdited) {
       setPrimaryPrompt(promptProfiles.primaryPrompt || "");
       setSecondaryPrompt(promptProfiles.secondaryPrompt || "");
+      setTertiaryPrompt(promptProfiles.tertiaryPrompt || "");
       setActivePromptSlot(promptProfiles.activeSlot || "primary");
     }
     if (settings && !configEdited) {
@@ -415,6 +418,7 @@ export default function AIAgentPage() {
     updatePromptProfilesMutation.mutate({
       primaryPrompt,
       secondaryPrompt,
+      tertiaryPrompt,
       activeSlot: activePromptSlot,
     });
   };
@@ -826,7 +830,7 @@ export default function AIAgentPage() {
                 <Label htmlFor="active-prompt-slot" className="text-slate-300">Prompt activo</Label>
                 <Select
                   value={activePromptSlot}
-                  onValueChange={(value: "primary" | "secondary") => {
+                  onValueChange={(value: "primary" | "secondary" | "tertiary") => {
                     setActivePromptSlot(value);
                     setPromptEdited(true);
                   }}
@@ -841,6 +845,7 @@ export default function AIAgentPage() {
                   <SelectContent>
                     <SelectItem value="primary">Prompt principal</SelectItem>
                     <SelectItem value="secondary">Prompt alternativo</SelectItem>
+                    <SelectItem value="tertiary">Prompt Antigravity (Berberina 1.0)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-slate-400">
@@ -894,6 +899,30 @@ export default function AIAgentPage() {
                   />
                   <div className={`text-xs ${secondaryPrompt.length >= maxPromptChars ? 'text-red-400' : 'text-slate-500'}`}>
                     {secondaryPrompt.length} / {maxPromptChars} caracteres
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="tertiary-prompt" className="text-slate-300">Prompt Antigravity (Berberina 1.0)</Label>
+                    {activePromptSlot === "tertiary" && (
+                      <span className="text-[11px] font-medium text-violet-300">Activo ahora</span>
+                    )}
+                  </div>
+                  <Textarea
+                    id="tertiary-prompt"
+                    placeholder="Escriba aquí el prompt conversacional y amigable para Berberina 1.0..."
+                    value={tertiaryPrompt}
+                    onChange={(e) => {
+                      const newValue = e.target.value.slice(0, maxPromptChars);
+                      setTertiaryPrompt(newValue);
+                      setPromptEdited(true);
+                    }}
+                    rows={6}
+                    data-testid="textarea-tertiary-prompt"
+                    className="bg-slate-900/50 border-slate-600/50 text-white placeholder:text-slate-500"
+                  />
+                  <div className={`text-xs ${tertiaryPrompt.length >= maxPromptChars ? 'text-red-400' : 'text-slate-500'}`}>
+                    {tertiaryPrompt.length} / {maxPromptChars} caracteres
                   </div>
                 </div>
               </div>
