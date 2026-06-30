@@ -73,6 +73,13 @@ export function initFollowUp(
 }
 
 async function checkAndSendFollowUps() {
+  // Enforce Quiet Hours in Bolivia (UTC-4). No follow-ups between 10:00 PM (22) and 8:00 AM (8).
+  const utcDate = new Date();
+  const boliviaHour = (utcDate.getUTCHours() - 4 + 24) % 24;
+  if (boliviaHour >= 22 || boliviaHour < 8) {
+    return; // Skip follow-ups during late night/early morning
+  }
+
   const settings = await storage.getAiSettings();
   if (!settings?.followUpEnabled || !settings?.enabled) return;
 
