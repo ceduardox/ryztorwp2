@@ -43,51 +43,6 @@ const updateSubadminSchema = z.object({
   username: z.string().trim().min(1).max(50).optional(),
   password: z.string().min(1).max(100).optional(),
   isActive: z.boolean().optional(),
-import type { Express } from "express";
-import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { api } from "@shared/routes";
-import { z } from "zod";
-import session from "express-session";
-import MemoryStore from "memorystore";
-import connectPgSimple from "connect-pg-simple";
-import axios from "axios";
-import { generateAiResponse } from "./ai-service";
-import { initFollowUp } from "./follow-up";
-import { insertProductSchema, messages as messagesTable, updateOrderStatusSchema, type Message as StoredMessage, type Product as StoredProduct } from "@shared/schema";
-import { db, pool } from "./db";
-import OpenAI from "openai";
-import fs from "fs";
-import path from "path";
-import os from "os";
-import multer from "multer";
-import { sql, eq, desc } from "drizzle-orm";
-import { spawn } from "child_process";
-import ffmpegStatic from "ffmpeg-static";
-
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
-const uploadVideo = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
-const uploadDocument = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
-const uploadProductImage = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
-const WHATSAPP_VIDEO_MAX_BYTES = 16 * 1024 * 1024;
-
-const AI_DEBOUNCE_MS = 3000;
-const INCOMING_PUSH_COOLDOWN_MS = 60000;
-const FIRST_CONTACT_TOP_LEVEL_BUTTONS = "[BOTONES: Azucar y peso, Dolor y estres, Dolor articular]";
-const FIRST_CONTACT_AZUCAR_PESO_BUTTONS = "[BOTONES: Solo diabetes, Diabetes + peso]";
-const DEFAULT_ADVISOR_NAME = "Isabella";
-const upsertSubadminSchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  username: z.string().trim().min(1).max(50),
-  password: z.string().min(1).max(100),
-  isActive: z.boolean().optional(),
-});
-const updateSubadminSchema = z.object({
-  name: z.string().trim().min(1).max(100).optional(),
-  username: z.string().trim().min(1).max(50).optional(),
-  password: z.string().min(1).max(100).optional(),
-  isActive: z.boolean().optional(),
 }).refine((value) => Object.keys(value).length > 0, "At least one field is required");
 function getFirstContactProblemMenuResponse(advisorName: string) {
   return `Hola, soy ${advisorName} de RYZTOR.
