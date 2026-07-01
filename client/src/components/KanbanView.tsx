@@ -331,7 +331,7 @@ function KanbanCard({
         isAssignedSpotlight && "border-cyan-300/80 bg-cyan-950/30 shadow-cyan-500/20 ring-1 ring-cyan-300/40",
         isUrgent && "animate-ring-pulse",
         isDragging && "opacity-40 scale-[0.98]",
-        isUnread && "shadow-cyan-500/10"
+        isUnread && "border-cyan-300/80 bg-cyan-950/45 shadow-cyan-400/30 ring-1 ring-cyan-300/40"
       )}
       data-testid={`kanban-card-${conv.id}`}
     >
@@ -357,10 +357,16 @@ function KanbanCard({
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <span className="font-semibold text-white truncate">
+            <span className={cn("font-semibold text-white truncate", isUnread && "font-bold text-cyan-50")}>
               {name}
             </span>
             <div className="flex items-center gap-1">
+              {isUnread && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-cyan-300/60 bg-cyan-400/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-cyan-100 shadow-[0_0_10px_rgba(34,211,238,0.25)]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
+                  NUEVO
+                </span>
+              )}
               {isUrgent && (
                 <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0 animate-pulse-urgent" />
               )}
@@ -489,7 +495,7 @@ function KanbanCard({
           )}
 
           {columnType === "nuevo" && conv.lastMessage && (
-            <p className="text-sm text-slate-400 mt-2 line-clamp-2">
+            <p className={cn("text-sm text-slate-400 mt-2 line-clamp-2", isUnread && "font-semibold text-slate-100")}>
               {conv.lastMessage}
             </p>
           )}
