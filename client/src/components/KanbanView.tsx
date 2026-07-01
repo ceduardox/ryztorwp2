@@ -331,7 +331,7 @@ function KanbanCard({
         isAssignedSpotlight && "border-cyan-300/80 bg-cyan-950/30 shadow-cyan-500/20 ring-1 ring-cyan-300/40",
         isUrgent && "animate-ring-pulse",
         isDragging && "opacity-40 scale-[0.98]",
-        isUnread && "border-cyan-300/80 bg-cyan-950/45 shadow-cyan-400/30 ring-1 ring-cyan-300/40"
+        isUnread && "border-cyan-300/80 bg-cyan-900/45 shadow-cyan-400/30 ring-1 ring-cyan-300/40"
       )}
       data-testid={`kanban-card-${conv.id}`}
     >
