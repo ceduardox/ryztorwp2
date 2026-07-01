@@ -1263,6 +1263,13 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
 
     if ((!composerText && !imageUrl.trim()) || isPending) return;
 
+    const textBackup = composerText;
+    const imageBackup = imageUrl;
+
+    setComposerText("");
+    setImageUrl("");
+    setShowImageInput(false);
+
     sendMessage(
       {
         to: conversation.waId,
@@ -1272,10 +1279,10 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
         caption: imageUrl && composerText ? composerText : undefined
       },
       {
-        onSuccess: () => {
-          setComposerText("");
-          setImageUrl("");
-          setShowImageInput(false);
+        onError: () => {
+          setComposerText(textBackup);
+          setImageUrl(imageBackup);
+          if (imageBackup) setShowImageInput(true);
         }
       }
     );
