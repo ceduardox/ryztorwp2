@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
+import type { UIEvent } from "react";
 import type { Conversation, Label } from "@shared/schema";
 import { useConversation } from "@/hooks/use-inbox";
 import { useAuth } from "@/hooks/use-auth";
@@ -76,6 +77,8 @@ interface ColumnProps {
   onDragEndCard: () => void;
   onDragOverColumn: (columnType: TabType) => void;
   onDropOnColumn: (columnType: TabType) => void;
+  onLoadMore: () => void;
+  hasMoreConversations: boolean;
   unreadIds: Set<number>;
   assignedSpotlightIds: Set<number>;
 }
@@ -506,7 +509,17 @@ function KanbanCard({
   );
 }
 
-function KanbanColumn({ title, items, activeId, onSelect, columnType, labels, showAgentAssignment, getAssignedAgentName, enableDrag, draggingConversationId, isDropTarget, onDragStartCard, onDragEndCard, onDragOverColumn, onDropOnColumn, unreadIds, assignedSpotlightIds }: ColumnProps) {
+function KanbanColumn({ title, items, activeId, onSelect, columnType, labels, showAgentAssignment, getAssignedAgentName, enableDrag, draggingConversationId, isDropTarget, onDragStartCard, onDragEndCard, onDragOverColumn, onDropOnColumn, onLoadMore, hasMoreConversations, unreadIds, assignedSpotlightIds }: ColumnProps) {
+  const lastAutoLoadItemCount = useRef<number | null>(null);
+
+  const handleColumnScroll = (event: UIEvent<HTMLDivElement>) => {
+    if (!hasMoreConversations || items.length === 0) return;
+    const element = event.currentTarget;
+    const distanceToBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+    if (distanceToBottom > 60 || lastAutoLoadItemCount.current === items.length) return;
+    lastAutoLoadItemCount.current = items.length;
+    onLoadMore();
+  };
   const getColumnHeaderStyle = () => {
     switch (columnType) {
       case "humano":
@@ -584,7 +597,7 @@ function KanbanColumn({ title, items, activeId, onSelect, columnType, labels, sh
           </span>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5">
+      <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5" onScroll={handleColumnScroll}>
         {isDropTarget && draggingConversationId !== null && (
           <div className="rounded-xl border border-dashed border-emerald-400/60 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300">
             Suelta aqui para mover
@@ -1218,6 +1231,8 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
               onDragEndCard={handleDragEndCard}
               onDragOverColumn={handleDragOverColumn}
               onDropOnColumn={handleDropOnColumn}
+              onLoadMore={onLoadMore}
+              hasMoreConversations={hasMoreConversations}
               unreadIds={unreadIds}
               assignedSpotlightIds={assignedSpotlightIds}
             />
@@ -1263,6 +1278,8 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             onDragEndCard={handleDragEndCard}
             onDragOverColumn={handleDragOverColumn}
             onDropOnColumn={handleDropOnColumn}
+            onLoadMore={onLoadMore}
+            hasMoreConversations={hasMoreConversations}
             unreadIds={unreadIds}
             assignedSpotlightIds={assignedSpotlightIds}
           />
@@ -1282,6 +1299,8 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             onDragEndCard={handleDragEndCard}
             onDragOverColumn={handleDragOverColumn}
             onDropOnColumn={handleDropOnColumn}
+            onLoadMore={onLoadMore}
+            hasMoreConversations={hasMoreConversations}
             unreadIds={unreadIds}
             assignedSpotlightIds={assignedSpotlightIds}
           />
@@ -1301,6 +1320,8 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             onDragEndCard={handleDragEndCard}
             onDragOverColumn={handleDragOverColumn}
             onDropOnColumn={handleDropOnColumn}
+            onLoadMore={onLoadMore}
+            hasMoreConversations={hasMoreConversations}
             unreadIds={unreadIds}
             assignedSpotlightIds={assignedSpotlightIds}
           />
@@ -1320,6 +1341,8 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             onDragEndCard={handleDragEndCard}
             onDragOverColumn={handleDragOverColumn}
             onDropOnColumn={handleDropOnColumn}
+            onLoadMore={onLoadMore}
+            hasMoreConversations={hasMoreConversations}
             unreadIds={unreadIds}
             assignedSpotlightIds={assignedSpotlightIds}
           />
@@ -1339,6 +1362,8 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             onDragEndCard={handleDragEndCard}
             onDragOverColumn={handleDragOverColumn}
             onDropOnColumn={handleDropOnColumn}
+            onLoadMore={onLoadMore}
+            hasMoreConversations={hasMoreConversations}
             unreadIds={unreadIds}
             assignedSpotlightIds={assignedSpotlightIds}
           />
@@ -1358,6 +1383,8 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             onDragEndCard={handleDragEndCard}
             onDragOverColumn={handleDragOverColumn}
             onDropOnColumn={handleDropOnColumn}
+            onLoadMore={onLoadMore}
+            hasMoreConversations={hasMoreConversations}
             unreadIds={unreadIds}
             assignedSpotlightIds={assignedSpotlightIds}
           />
