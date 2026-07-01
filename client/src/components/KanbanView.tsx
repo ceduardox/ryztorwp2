@@ -1095,17 +1095,22 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
-            {[7, 14, 30].map((d) => (
+            {[
+              { days: 0, label: "Todo el historial" },
+              { days: 7, label: "Ultimos 7 dias" },
+              { days: 14, label: "Ultimos 14 dias" },
+              { days: 30, label: "Ultimos 30 dias" },
+            ].map(({ days, label }) => (
               <DropdownMenuItem
-                key={d}
-                onClick={() => onDaysChange(d)}
-                data-testid={`filter-days-${d}`}
+                key={days}
+                onClick={() => onDaysChange(days)}
+                data-testid={`filter-days-${days}`}
                 className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"
               >
-                <span className={cn("mr-2 inline-flex", daysToShow === d ? "text-cyan-400" : "text-transparent")}>
+                <span className={cn("mr-2 inline-flex", daysToShow === days ? "text-cyan-400" : "text-transparent")}>
                   <Check className="h-3.5 w-3.5" />
                 </span>
-                Ultimos {d} dias
+                {label}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

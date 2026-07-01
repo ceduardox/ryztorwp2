@@ -28,7 +28,7 @@ export default function InboxPage() {
   const LOAD_MORE_STEP = 20;
   const MAX_SERVER_LIMIT = 5000;
   const { logout, user, isAdmin, isPrimaryAdmin } = useAuth();
-  const [daysToShow, setDaysToShow] = useState(7);
+  const [daysToShow, setDaysToShow] = useState(0);
   const [location, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleConversations, setVisibleConversations] = useState(INITIAL_VISIBLE_CONVERSATIONS);
@@ -66,7 +66,9 @@ export default function InboxPage() {
 
   const filteredByRangeAndSearch = useMemo(() => {
     const now = new Date();
-    const cutoff = new Date(now.getTime() - daysToShow * 24 * 60 * 60 * 1000);
+    const cutoff = daysToShow > 0
+      ? new Date(now.getTime() - daysToShow * 24 * 60 * 60 * 1000)
+      : null;
     const query = searchQuery.toLowerCase().trim();
     const merged = forcedConversation && !conversations.some((c) => c.id === forcedConversation.id)
       ? [forcedConversation, ...conversations]
@@ -84,7 +86,7 @@ export default function InboxPage() {
         return true;
       }
 
-      if (!c.lastMessageTimestamp) return true;
+      if (!cutoff || !c.lastMessageTimestamp) return true;
       return new Date(c.lastMessageTimestamp) >= cutoff;
     });
 
