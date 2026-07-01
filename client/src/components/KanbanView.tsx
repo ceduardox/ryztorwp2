@@ -758,12 +758,20 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
     if (!Number.isInteger(conversationId) || conversationId <= 0) return;
 
     handleSelectConversation(conversationId);
+  }, [conversationsByAgent]);
+
+  useEffect(() => {
+    const openedConversationId = activeConversation?.conversation?.id;
+    if (!activeId || openedConversationId !== activeId) return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("conversationId") !== String(activeId)) return;
 
     params.delete("conversationId");
     const cleanQuery = params.toString();
     const cleanUrl = cleanQuery ? `${window.location.pathname}?${cleanQuery}` : window.location.pathname;
     window.history.replaceState(window.history.state, "", cleanUrl);
-  }, [conversationsByAgent]);
+  }, [activeId, activeConversation?.conversation?.id]);
 
   useEffect(() => {
     if (filterAgentId && !agents.some((agent) => agent.id === filterAgentId)) {
@@ -778,7 +786,12 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
   }, [isAdmin, filterAgentId]);
 
   useEffect(() => {
-    if (activeId && !conversationsByAgent.some((conversation) => conversation.id === activeId)) {
+    const pendingUrlConversationId = new URLSearchParams(window.location.search).get("conversationId");
+    if (
+      activeId &&
+      pendingUrlConversationId !== String(activeId) &&
+      !conversationsByAgent.some((conversation) => conversation.id === activeId)
+    ) {
       setActiveId(null);
     }
   }, [activeId, conversationsByAgent]);
