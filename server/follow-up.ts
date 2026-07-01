@@ -92,7 +92,6 @@ async function checkAndSendFollowUps() {
   const checkIntervalMs = checkIntervalMinutes * 60 * 1000;
   if (lastFollowUpSweepAt && now - lastFollowUpSweepAt < checkIntervalMs) return;
   lastFollowUpSweepAt = now;
-  const catalogAfterMs = 5 * 60 * 60 * 1000; // 5h
   const cutoff = new Date(now - waitMinutes * 60 * 1000);
   const window24hStart = new Date(now - 24 * 60 * 60 * 1000);
 
@@ -136,7 +135,7 @@ async function checkAndSendFollowUps() {
 
       if (!sendAiResponseFn) continue;
 
-      // Stage 1: regular AI follow-up (X minutes)
+      // Send at most one automatic follow-up until the customer replies.
       if (!conv.lastFollowUpAt) {
         let followUpText = "";
 
@@ -178,46 +177,7 @@ async function checkAndSendFollowUps() {
         });
 
         console.log(`[FollowUp] Stage1 sent to ${conv.contactName || conv.waId}`);
-        continue;
       }
-
-      // Stage 2: catalog buttons follow-up (5h after stage1, only once)
-      const lastFollowUpTs = new Date(conv.lastFollowUpAt).getTime();
-      if (now - lastFollowUpTs < catalogAfterMs) continue;
-
-      const alreadySentCatalog = msgs.some((m) => {
-        if (m.direction !== "out" || !m.waMessageId || !m.createdAt) return false;
-        return m.waMessageId.startsWith("followup_catalog_") && new Date(m.createdAt).getTime() > lastInboundTs;
-      });
-      if (alreadySentCatalog) continue;
-
-      const catalogMessage =
-        "Si gusta, le muestro opciones segun lo que busca. [BOTONES: Diabetes/Azucar, Peso/Antojos, Estres/Calambres]";
-
-      try {
-        await sendAiResponseFn(conv.waId, catalogMessage);
-      } catch (sendErr) {
-        console.error(`[FollowUp] Catalog send failed for conv ${conv.id}:`, sendErr);
-        continue;
-      }
-
-      await storage.createMessage({
-        conversationId: conv.id,
-        waMessageId: `followup_catalog_${Date.now()}_${conv.id}`,
-        direction: "out",
-        type: "text",
-        text: catalogMessage,
-        timestamp: Math.floor(Date.now() / 1000).toString(),
-        status: "sent",
-      });
-
-      await storage.updateConversation(conv.id, {
-        lastMessage: "Seguimiento con catalogo enviado",
-        lastMessageTimestamp: new Date(),
-        lastFollowUpAt: new Date(),
-      });
-
-      console.log(`[FollowUp] Stage2 catalog sent to ${conv.contactName || conv.waId}`);
     } catch (err) {
       console.error(`[FollowUp] Error conv ${conv.id}:`, err);
     }

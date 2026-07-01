@@ -405,7 +405,7 @@ export default function FollowUpPage() {
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Esto solo afecta el primer mensaje automático. El segundo seguimiento con botones sigue igual.
+                    Se enviará como máximo un seguimiento automático hasta que el cliente vuelva a responder.
                   </p>
                 </div>
 
