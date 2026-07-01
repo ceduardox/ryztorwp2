@@ -64,23 +64,30 @@ export function useSendMessage() {
       return api.messages.send.responses[200].parse(await res.json());
     },
     onMutate: async (variables) => {
-      // Find matching conversation in the sidebar list cache to get its ID
-      const conversationsList = queryClient.getQueryData<any[]>([api.conversations.list.path]) || [];
-      const conv = conversationsList.find((c: any) => c.waId === variables.to);
+      // Snapshot previous list data and get query keys
+      const listQueryKey = [api.conversations.list.path];
       
+      // Cancel list queries to avoid overwrites
+      await queryClient.cancelQueries({ queryKey: listQueryKey });
+      
+      const previousList = queryClient.getQueryData<any[]>(listQueryKey) || [];
+      const conv = previousList.find((c: any) => c.waId === variables.to);
+      
+      let previousGet = null;
+      let getQueryKey = null;
+
       if (conv) {
-        const queryKey = [api.conversations.get.path, conv.id];
-        
-        // Cancel any outgoing refetches so they don't overwrite our optimistic update
-        await queryClient.cancelQueries({ queryKey });
+        getQueryKey = [api.conversations.get.path, conv.id];
+        await queryClient.cancelQueries({ queryKey: getQueryKey });
+        previousGet = queryClient.getQueryData<any>(getQueryKey);
 
-        // Snapshot the previous data
-        const previousData = queryClient.getQueryData<any>(queryKey);
+        const textPreview = variables.type === "image" ? "[image]" : (variables.text || "");
+        const tempId = -Date.now();
 
-        // Optimistically insert the message into the cache
-        if (previousData) {
+        // 1. Optimistic update for active conversation messages
+        if (previousGet) {
           const optimisticMsg = {
-            id: Date.now(),
+            id: tempId,
             conversationId: conv.id,
             waMessageId: `temp_${Date.now()}`,
             direction: "out",
@@ -94,24 +101,40 @@ export function useSendMessage() {
             createdAt: new Date().toISOString()
           };
 
-          queryClient.setQueryData(queryKey, {
-            ...previousData,
-            messages: [...previousData.messages, optimisticMsg]
+          queryClient.setQueryData(getQueryKey, {
+            ...previousGet,
+            messages: [...previousGet.messages, optimisticMsg]
           });
         }
 
-        return { previousData, queryKey };
+        // 2. Optimistic update for Kanban/sidebar conversation list
+        const updatedList = previousList.map((c: any) => {
+          if (c.id === conv.id) {
+            return {
+              ...c,
+              lastMessage: textPreview,
+              lastMessageTimestamp: new Date().toISOString()
+            };
+          }
+          return c;
+        });
+        queryClient.setQueryData(listQueryKey, updatedList);
       }
-      return {};
+
+      return { previousGet, getQueryKey, previousList, listQueryKey };
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.conversations.get.path] });
       queryClient.invalidateQueries({ queryKey: [api.conversations.list.path] });
     },
     onError: (error, variables, context: any) => {
-      // Rollback cache if we have previous data
-      if (context?.queryKey && context?.previousData) {
-        queryClient.setQueryData(context.queryKey, context.previousData);
+      // Rollback active conversation cache
+      if (context?.getQueryKey && context?.previousGet) {
+        queryClient.setQueryData(context.getQueryKey, context.previousGet);
+      }
+      // Rollback conversation list cache (Kanban)
+      if (context?.listQueryKey && context?.previousList) {
+        queryClient.setQueryData(context.listQueryKey, context.previousList);
       }
       toast({
         title: "Error al enviar",
