@@ -625,7 +625,7 @@ function KanbanColumn({ title, items, activeId, onSelect, columnType, labels, sh
               isDragging={draggingConversationId === conv.id}
               onDragStartCard={onDragStartCard}
               onDragEndCard={onDragEndCard}
-              isUnread={unreadIds.has(conv.id) && (columnType === "nuevo" || columnType === "proceso")}
+              isUnread={unreadIds.has(conv.id)}
               isAssignedSpotlight={assignedSpotlightIds.has(conv.id)}
             />
           ))
