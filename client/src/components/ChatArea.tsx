@@ -2530,8 +2530,9 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
         )}
         
         <div className="flex items-end gap-1.5 md:gap-2">
-          {/* Attachment Menu */}
-          <DropdownMenu>
+          <div className="flex items-center gap-0.5 md:gap-1 flex-shrink-0">
+            {/* Attachment Menu */}
+            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 md:h-10 md:w-10 flex-shrink-0">
                 <Plus className="h-4 w-4 md:h-5 md:w-5" />
@@ -2697,6 +2698,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
               </div>
             </PopoverContent>
           </Popover>
+          </div>
 
           <Textarea
             ref={messageInputRef}
