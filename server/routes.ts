@@ -3436,41 +3436,33 @@ export async function registerRoutes(
         return res.status(400).json({ message: "imageUrl is required for image messages" });
       }
       
-      // 1. Send to WhatsApp
-      const waResponse = await sendToWhatsApp(
-        to,
-        type,
-        type === "image"
-          ? { imageUrl: normalizedImageUrl, caption: effectiveImageCaption }
-          : { text: normalizedText }
-      );
-      const waMessageId = waResponse.messages[0].id;
+      // 1. Generate local predicted waMessageId
+      const waMessageId = `outbound_${Date.now()}`;
 
-      // 2. Find conversation
+      // 2. Find conversation (fast local db)
       let conversation = await storage.getConversationByWaId(to);
       if (!conversation) {
         // Should ideally exist if we are replying, but create if new outbound
-          conversation = await storage.createConversation({
+        conversation = await storage.createConversation({
           waId: to,
           contactName: to, // No name known yet
           lastMessage: type === 'text' ? normalizedText : '[image]',
           lastMessageTimestamp: new Date(),
         });
       } else {
-         await storage.updateConversation(conversation.id, {
-            lastMessage: type === 'text' ? normalizedText : '[image]',
-            lastMessageTimestamp: new Date(),
-         });
+        await storage.updateConversation(conversation.id, {
+          lastMessage: type === 'text' ? normalizedText : '[image]',
+          lastMessageTimestamp: new Date(),
+        });
       }
 
-      // 3. Save Message
+      // 3. Save Message with status "sending"
       const outboundRawJson = type === "image"
         ? {
-            ...waResponse,
             _outboundImageUrl: normalizedImageUrl,
             _outboundImageCaption: effectiveImageCaption || null,
           }
-        : waResponse;
+        : null;
 
       await storage.createMessage({
         conversationId: conversation.id,
@@ -3478,13 +3470,44 @@ export async function registerRoutes(
         direction: "out",
         type: type,
         text: type === "image" ? (effectiveImageCaption || null) : normalizedText,
-        mediaId: null, // We sent a URL, no media ID usually unless uploaded
+        mediaId: null,
         mimeType: null,
         timestamp: Math.floor(Date.now() / 1000).toString(),
-        status: "sent",
+        status: "sending",
         rawJson: outboundRawJson,
       });
 
+      // 4. Send to WhatsApp in background (non-blocking)
+      sendToWhatsApp(
+        to,
+        type,
+        type === "image"
+          ? { imageUrl: normalizedImageUrl, caption: effectiveImageCaption }
+          : { text: normalizedText }
+      ).then(async (waResponse) => {
+        const realId = waResponse.messages[0].id;
+        const finalRawJson = type === "image"
+          ? {
+              ...waResponse,
+              ...outboundRawJson
+            }
+          : waResponse;
+
+        // Update to sent with real Meta ID
+        await db
+          .update(messagesTable)
+          .set({ waMessageId: realId, status: "sent", rawJson: finalRawJson })
+          .where(eq(messagesTable.waMessageId, waMessageId));
+      }).catch(async (error) => {
+        console.error("Background WhatsApp send failed:", error.response?.data || error.message);
+        // Mark as failed
+        await db
+          .update(messagesTable)
+          .set({ status: "failed" })
+          .where(eq(messagesTable.waMessageId, waMessageId));
+      });
+
+      // 5. Respond immediately
       res.json({ success: true, messageId: waMessageId });
 
     } catch (error: any) {
