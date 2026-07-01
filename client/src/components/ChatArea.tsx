@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Slider } from "@/components/ui/slider";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 interface ChatAreaProps {
   conversation: Conversation;
@@ -76,13 +77,76 @@ const recordingWaveCss = `
   background: rgb(239 68 68);
   transition: height 90ms ease-out, opacity 90ms ease-out;
 }
+
+@keyframes wa-heart-beat {
+  0% { transform: scale(1); }
+  14% { transform: scale(1.25); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.25); }
+  70% { transform: scale(1); }
+}
+.animate-wa-heart-beat {
+  animation: wa-heart-beat 1.3s infinite ease-in-out;
+  display: inline-block;
+  transform-origin: center;
+}
+
+@keyframes wa-emoji-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-5px) scale(1.06); }
+}
+.animate-wa-emoji-float {
+  animation: wa-emoji-float 2s infinite ease-in-out;
+  display: inline-block;
+  transform-origin: center;
+}
 `;
+
+const QUICK_EMOJIS = [
+  "😊", "😂", "😍", "❤️", "👍",
+  "🙏", "🔥", "✨", "✅", "🎉",
+  "😎", "🤝", "💪", "🤔", "😉",
+  "😘", "🥰", "🙌", "📩", "🚀",
+  "👋", "👌", "🤩", "🥳", "😄",
+  "😃", "🤗", "👏", "💜", "💌",
+  "💡", "📌", "🎈", "😇", "🌻",
+  "💖", "🧴", "💧", "🌱", "🌸",
+  "💬", "📞", "📦", "🚚", "💵",
+  "💳", "🎯", "💯", "☀️", "⭐"
+];
+
+function getSingleEmojiType(text: string): "heart" | "emoji" | null {
+  if (!text) return null;
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/;
+  if (!emojiRegex.test(trimmed)) return null;
+
+  try {
+    const segmenter = (Intl as any).Segmenter ? new (Intl as any).Segmenter(undefined, { granularity: "grapheme" }) : null;
+    if (segmenter) {
+      const segments = Array.from(segmenter.segment(trimmed));
+      if (segments.length !== 1) return null;
+    } else {
+      if (Array.from(trimmed).length > 2) return null;
+    }
+  } catch {
+    if (Array.from(trimmed).length > 2) return null;
+  }
+
+  if (trimmed.includes("❤️") || trimmed.includes("💖") || trimmed.includes("💗") || trimmed.includes("💓") || trimmed.includes("❣") || trimmed.includes("💕")) {
+    return "heart";
+  }
+  return "emoji";
+}
 
 export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const canToggleConversationAi = user?.role === "admin" || user?.role === "agent";
   const [hasTextDraft, setHasTextDraft] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [showImageInput, setShowImageInput] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
@@ -351,6 +415,27 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
     textarea.value = value;
     setHasTextDraft(Boolean(value.trim()));
     requestAnimationFrame(() => resizeMessageInput());
+  };
+
+  const insertEmoji = (emoji: string) => {
+    const textarea = messageInputRef.current;
+    if (!textarea) return;
+
+    const current = textarea.value || "";
+    const start = textarea.selectionStart ?? current.length;
+    const end = textarea.selectionEnd ?? current.length;
+    const nextValue = `${current.slice(0, start)}${emoji}${current.slice(end)}`;
+
+    setComposerText(nextValue);
+    setShowEmojiPicker(false);
+
+    requestAnimationFrame(() => {
+      const el = messageInputRef.current;
+      if (!el) return;
+      el.focus();
+      const cursor = start + emoji.length;
+      el.setSelectionRange(cursor, cursor);
+    });
   };
 
   useEffect(() => {
@@ -2291,9 +2376,30 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                     !(
                       msg.type === "image" &&
                       isImageLikeSource(msg.text)
-                    ) && (
-                      <p className="whitespace-pre-wrap break-words">{msg.text}</p>
-                    )
+                    ) && (() => {
+                      const emojiType = getSingleEmojiType(msg.text);
+                      if (emojiType === "heart") {
+                        return (
+                          <div className="py-1 px-2 text-center select-none">
+                            <span className="text-5xl inline-block animate-wa-heart-beat">
+                              {msg.text.trim()}
+                            </span>
+                          </div>
+                        );
+                      }
+                      if (emojiType === "emoji") {
+                        return (
+                          <div className="py-1 px-2 text-center select-none">
+                            <span className="text-5xl inline-block animate-wa-emoji-float">
+                              {msg.text.trim()}
+                            </span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                      );
+                    })()
                   )
                 )}
 
@@ -2560,6 +2666,37 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
               </div>
             </DialogContent>
           </Dialog>
+
+          {/* Emoji picker */}
+          <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full h-9 w-9 md:h-10 md:w-10 flex-shrink-0"
+                aria-label="Insertar emoji"
+                title="Emojis"
+              >
+                <span className="text-lg leading-none">😊</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-72 p-3 bg-white border border-[#E8E8E8] shadow-[0_10px_30px_rgba(0,0,0,0.08)] rounded-2xl z-50 text-[#111111]">
+              <div className="mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Emojis rápidos</div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {QUICK_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className="flex h-11 w-11 items-center justify-center rounded-xl text-2xl transition-all duration-150 hover:bg-slate-100 hover:scale-110 active:scale-95"
+                    onClick={() => insertEmoji(emoji)}
+                    aria-label={`Insertar ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
 
           <Textarea
             ref={messageInputRef}
