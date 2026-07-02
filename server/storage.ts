@@ -37,7 +37,7 @@ import {
   type Subadmin,
   type InsertSubadmin,
 } from "@shared/schema";
-import { eq, and, lt, desc, asc, sql, ilike, or } from "drizzle-orm";
+import { eq, and, lt, desc, asc, sql, ilike, or, inArray } from "drizzle-orm";
 
 type AssignmentOptions = {
   excludeAgentIds?: Iterable<number>;
@@ -230,11 +230,17 @@ export class DatabaseStorage implements IStorage {
     `);
     await db.execute(sql`
       ALTER TABLE ai_settings
-      ADD COLUMN IF NOT EXISTS follow_up_check_interval_minutes INTEGER NOT NULL DEFAULT 5
+      ADD COLUMN IF NOT EXISTS follow_up_check_interval_minutes INTEGER NOT NULL DEFAULT 10
     `);
     await db.execute(sql`
       ALTER TABLE ai_settings
-      ADD COLUMN IF NOT EXISTS follow_up_batch_size INTEGER NOT NULL DEFAULT 10
+      ADD COLUMN IF NOT EXISTS follow_up_batch_size INTEGER NOT NULL DEFAULT 5
+    `);
+    await db.execute(sql`
+      ALTER TABLE ai_settings
+      ALTER COLUMN follow_up_minutes SET DEFAULT 45,
+      ALTER COLUMN follow_up_check_interval_minutes SET DEFAULT 10,
+      ALTER COLUMN follow_up_batch_size SET DEFAULT 5
     `);
     await db.execute(sql`
       ALTER TABLE ai_settings
@@ -316,10 +322,46 @@ export class DatabaseStorage implements IStorage {
     }
     if (typeof search === "string" && search.trim()) {
       const pattern = `%${search.trim()}%`;
+
+      // 1. Get the IDs of the active conversations for the current page scope (limit & before)
+      const baseFilters: any[] = [];
+      if (typeof assignedAgentId === "number") {
+        baseFilters.push(eq(conversations.assignedAgentId, assignedAgentId));
+      }
+      if (before) {
+        baseFilters.push(lt(conversations.updatedAt, before));
+      }
+
+      const baseWhere =
+        baseFilters.length === 0
+          ? undefined
+          : baseFilters.length === 1
+            ? baseFilters[0]
+            : and(...baseFilters);
+
+      const recentIdsResult = await (baseWhere
+        ? db.select({ id: conversations.id })
+            .from(conversations)
+            .where(baseWhere)
+            .orderBy(desc(conversations.updatedAt))
+            .limit(safeLimit || 200)
+        : db.select({ id: conversations.id })
+            .from(conversations)
+            .orderBy(desc(conversations.updatedAt))
+            .limit(safeLimit || 200));
+      const recentIds = recentIdsResult.map((r) => r.id);
+
+      if (recentIds.length === 0) {
+        return [];
+      }
+
+      // 2. Limit the search space ONLY to these paginated conversation IDs
+      filters.push(inArray(conversations.id, recentIds));
       filters.push(or(
         ilike(conversations.contactName, pattern),
         ilike(conversations.waId, pattern),
         ilike(conversations.lastMessage, pattern),
+        sql`exists(select 1 from messages where messages.conversation_id = ${conversations.id} and messages.body ilike ${pattern})`
       ));
     }
 
