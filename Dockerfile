@@ -8,4 +8,4 @@ RUN npm run build
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
-CMD ["sh", "-c", "npx drizzle-kit push && node dist/index.cjs"]
+CMD ["sh", "-c", "npx drizzle-kit push || echo 'WARNING: Database schema push failed. Please check DATABASE_URL and database connectivity.'; node dist/index.cjs"]
