@@ -6257,26 +6257,23 @@ Maximo 2 lineas. Se especifico y practico.`;
           a.is_push_enabled AS "isPushEnabled",
           a.weight,
           a.created_at AS "createdAt",
-          COALESCE(s.assigned_conversations, 0) AS "assignedConversations",
-          COALESCE(s.inbound_messages, 0) AS "inboundMessages",
-          COALESCE(ic.inbound_chats, 0) AS "inboundChats",
-          COALESCE(s.new_leads, 0) AS "newLeads",
-          COALESCE(s.should_call_count, 0) AS "shouldCallCount",
-          s.last_activity_at AS "lastActivityAt"
+          COALESCE(c_stats.assigned_conversations, 0) AS "assignedConversations",
+          COALESCE(m_stats.inbound_messages, 0) AS "inboundMessages",
+          COALESCE(ic_stats.inbound_chats, 0) AS "inboundChats",
+          COALESCE(c_stats.new_leads, 0) AS "newLeads",
+          COALESCE(c_stats.should_call_count, 0) AS "shouldCallCount",
+          m_stats.last_activity_at AS "lastActivityAt"
         FROM agents a
         LEFT JOIN (
           SELECT
             c.assigned_agent_id AS agent_id,
             COUNT(DISTINCT c.id) AS assigned_conversations,
-            COUNT(m.id) FILTER (WHERE m.direction = 'in') AS inbound_messages,
             COUNT(DISTINCT c.id) FILTER (
               WHERE fi.first_inbound_at IS NOT NULL
               ${leadDateFilterSql}
             ) AS new_leads,
-            COUNT(DISTINCT c.id) FILTER (WHERE c.should_call = true) AS should_call_count,
-            MAX(m.created_at) AS last_activity_at
+            COUNT(DISTINCT c.id) FILTER (WHERE c.should_call = true) AS should_call_count
           FROM conversations c
-          LEFT JOIN messages m ON m.conversation_id = c.id
           LEFT JOIN LATERAL (
             SELECT MIN(m2.created_at) AS first_inbound_at
             FROM messages m2
@@ -6284,9 +6281,19 @@ Maximo 2 lineas. Se especifico y practico.`;
               AND m2.direction = 'in'
           ) fi ON true
           WHERE c.assigned_agent_id IS NOT NULL
+          GROUP BY c.assigned_agent_id
+        ) c_stats ON c_stats.agent_id = a.id
+        LEFT JOIN (
+          SELECT
+            c.assigned_agent_id AS agent_id,
+            COUNT(m.id) FILTER (WHERE m.direction = 'in') AS inbound_messages,
+            MAX(m.created_at) AS last_activity_at
+          FROM messages m
+          JOIN conversations c ON m.conversation_id = c.id
+          WHERE c.assigned_agent_id IS NOT NULL
             ${dateFilterSql}
           GROUP BY c.assigned_agent_id
-        ) s ON s.agent_id = a.id
+        ) m_stats ON m_stats.agent_id = a.id
         LEFT JOIN (
           SELECT
             c.assigned_agent_id AS agent_id,
@@ -6301,7 +6308,7 @@ Maximo 2 lineas. Se especifico y practico.`;
                 ${inboundChatDateFilterSql}
             )
           GROUP BY c.assigned_agent_id
-        ) ic ON ic.agent_id = a.id
+        ) ic_stats ON ic_stats.agent_id = a.id
         ORDER BY a.name ASC
       `);
       } catch (error: any) {
@@ -6318,26 +6325,23 @@ Maximo 2 lineas. Se especifico y practico.`;
               a.is_push_enabled AS "isPushEnabled",
               a.weight,
               a.created_at AS "createdAt",
-              COALESCE(s.assigned_conversations, 0) AS "assignedConversations",
-              COALESCE(s.inbound_messages, 0) AS "inboundMessages",
-              COALESCE(ic.inbound_chats, 0) AS "inboundChats",
-              COALESCE(s.new_leads, 0) AS "newLeads",
-              COALESCE(s.should_call_count, 0) AS "shouldCallCount",
-              s.last_activity_at AS "lastActivityAt"
+              COALESCE(c_stats.assigned_conversations, 0) AS "assignedConversations",
+              COALESCE(m_stats.inbound_messages, 0) AS "inboundMessages",
+              COALESCE(ic_stats.inbound_chats, 0) AS "inboundChats",
+              COALESCE(c_stats.new_leads, 0) AS "newLeads",
+              COALESCE(c_stats.should_call_count, 0) AS "shouldCallCount",
+              m_stats.last_activity_at AS "lastActivityAt"
             FROM agents a
             LEFT JOIN (
               SELECT
                 c.assigned_agent_id AS agent_id,
                 COUNT(DISTINCT c.id) AS assigned_conversations,
-                COUNT(m.id) FILTER (WHERE m.direction = 'in') AS inbound_messages,
                 COUNT(DISTINCT c.id) FILTER (
                   WHERE fi.first_inbound_at IS NOT NULL
                   ${leadDateFilterSql}
                 ) AS new_leads,
-                COUNT(DISTINCT c.id) FILTER (WHERE c.should_call = true) AS should_call_count,
-                MAX(m.created_at) AS last_activity_at
+                COUNT(DISTINCT c.id) FILTER (WHERE c.should_call = true) AS should_call_count
               FROM conversations c
-              LEFT JOIN messages m ON m.conversation_id = c.id
               LEFT JOIN LATERAL (
                 SELECT MIN(m2.created_at) AS first_inbound_at
                 FROM messages m2
@@ -6345,9 +6349,19 @@ Maximo 2 lineas. Se especifico y practico.`;
                   AND m2.direction = 'in'
               ) fi ON true
               WHERE c.assigned_agent_id IS NOT NULL
+              GROUP BY c.assigned_agent_id
+            ) c_stats ON c_stats.agent_id = a.id
+            LEFT JOIN (
+              SELECT
+                c.assigned_agent_id AS agent_id,
+                COUNT(m.id) FILTER (WHERE m.direction = 'in') AS inbound_messages,
+                MAX(m.created_at) AS last_activity_at
+              FROM messages m
+              JOIN conversations c ON m.conversation_id = c.id
+              WHERE c.assigned_agent_id IS NOT NULL
                 ${dateFilterSql}
               GROUP BY c.assigned_agent_id
-            ) s ON s.agent_id = a.id
+            ) m_stats ON m_stats.agent_id = a.id
             LEFT JOIN (
               SELECT
                 c.assigned_agent_id AS agent_id,
@@ -6362,7 +6376,7 @@ Maximo 2 lineas. Se especifico y practico.`;
                     ${inboundChatDateFilterSql}
                 )
               GROUP BY c.assigned_agent_id
-            ) ic ON ic.agent_id = a.id
+            ) ic_stats ON ic_stats.agent_id = a.id
             ORDER BY a.name ASC
           `);
         } else {
