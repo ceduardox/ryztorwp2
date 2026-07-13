@@ -965,10 +965,13 @@ async function filterPushExternalIdsByAgentSettings(externalIds: string[]) {
 
 function getPushTargetUrl(data?: Record<string, string>) {
   const conversationId = data?.conversationId;
+  const baseUrl = process.env.APP_URL || "https://ryzapp.org";
+  const normalizedBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+  
   if (conversationId && /^\d+$/.test(conversationId)) {
-    return `https://ryzapp.org/?conversationId=${conversationId}`;
+    return `${normalizedBase}/?conversationId=${conversationId}`;
   }
-  return "https://ryzapp.org/";
+  return `${normalizedBase}/`;
 }
 
 function getConversationAdvisorName(assignedAgentName?: string | null) {

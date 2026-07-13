@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { UIEvent } from "react";
 import type { Conversation, Label } from "@shared/schema";
 import { useConversation } from "@/hooks/use-inbox";
@@ -848,61 +848,73 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
     },
   });
 
-  const filtered = filterLabelId
-    ? conversationsByAgent.filter((c) => c.labelId === filterLabelId || c.labelId2 === filterLabelId)
-    : conversationsByAgent;
+  const filtered = useMemo(() => {
+    return filterLabelId
+      ? conversationsByAgent.filter((c) => c.labelId === filterLabelId || c.labelId2 === filterLabelId)
+      : conversationsByAgent;
+  }, [conversationsByAgent, filterLabelId]);
 
-  const getConversationSortTimestamp = (conv: Conversation) => {
-    if (assignedSpotlightIds.has(conv.id)) {
-      const assignedTs = getAssignedToMeTimestamp(conv);
-      if (assignedTs > 0) return assignedTs;
-    }
-    if (conv.lastMessageTimestamp) {
-      const lastTs = new Date(conv.lastMessageTimestamp).getTime();
-      if (Number.isFinite(lastTs)) return lastTs;
-    }
-    if (conv.updatedAt) {
-      const updatedTs = new Date(conv.updatedAt).getTime();
-      if (Number.isFinite(updatedTs)) return updatedTs;
-    }
-    return 0;
-  };
+  const displayLimit = useMemo(() => Math.max(1, columnVisibleLimit), [columnVisibleLimit]);
 
-  const sortByRecent = (items: Conversation[]) =>
-    [...items].sort((a, b) => getConversationSortTimestamp(b) - getConversationSortTimestamp(a));
+  const columnData = useMemo(() => {
+    const getConversationSortTimestamp = (conv: Conversation) => {
+      if (assignedSpotlightIds.has(conv.id)) {
+        const assignedTs = getAssignedToMeTimestamp(conv);
+        if (assignedTs > 0) return assignedTs;
+      }
+      if (conv.lastMessageTimestamp) {
+        const lastTs = new Date(conv.lastMessageTimestamp).getTime();
+        if (Number.isFinite(lastTs)) return lastTs;
+      }
+      if (conv.updatedAt) {
+        const updatedTs = new Date(conv.updatedAt).getTime();
+        if (Number.isFinite(updatedTs)) return updatedTs;
+      }
+      return 0;
+    };
 
-  const displayLimit = Math.max(1, columnVisibleLimit);
+    const sortByRecent = (items: Conversation[]) => {
+      const mapped = items.map((item) => ({
+        item,
+        timestamp: getConversationSortTimestamp(item),
+      }));
+      mapped.sort((a, b) => b.timestamp - a.timestamp);
+      return mapped.map((x) => x.item);
+    };
 
-  const humano = sortByRecent(filtered.filter((c) => c.needsHumanAttention)).slice(0, displayLimit);
-  const entregados = sortByRecent(
-    filtered.filter((c) => c.orderStatus === "delivered" && !c.needsHumanAttention),
-  ).slice(0, displayLimit);
-  const listos = sortByRecent(
-    filtered.filter((c) => c.orderStatus === "ready" && !c.needsHumanAttention),
-  ).slice(0, displayLimit);
-  const llamar = sortByRecent(
-    filtered.filter(
-      (c) =>
-        c.shouldCall &&
-        !c.needsHumanAttention &&
-        c.orderStatus !== "pending" &&
-        c.orderStatus !== "ready" &&
-        c.orderStatus !== "delivered",
-    ),
-  ).slice(0, displayLimit);
-  const enProceso = sortByRecent(
-    filtered.filter((c) => c.orderStatus === "pending" && !c.needsHumanAttention),
-  ).slice(0, displayLimit);
-  const nuevos = sortByRecent(filtered.filter((c) => !c.orderStatus && !c.shouldCall && !c.needsHumanAttention)).slice(0, displayLimit);
+    const humano = sortByRecent(filtered.filter((c) => c.needsHumanAttention)).slice(0, displayLimit);
+    const entregados = sortByRecent(
+      filtered.filter((c) => c.orderStatus === "delivered" && !c.needsHumanAttention),
+    ).slice(0, displayLimit);
+    const listos = sortByRecent(
+      filtered.filter((c) => c.orderStatus === "ready" && !c.needsHumanAttention),
+    ).slice(0, displayLimit);
+    const llamar = sortByRecent(
+      filtered.filter(
+        (c) =>
+          c.shouldCall &&
+          !c.needsHumanAttention &&
+          c.orderStatus !== "pending" &&
+          c.orderStatus !== "ready" &&
+          c.orderStatus !== "delivered",
+      ),
+    ).slice(0, displayLimit);
+    const enProceso = sortByRecent(
+      filtered.filter((c) => c.orderStatus === "pending" && !c.needsHumanAttention),
+    ).slice(0, displayLimit);
+    const nuevos = sortByRecent(
+      filtered.filter((c) => !c.orderStatus && !c.shouldCall && !c.needsHumanAttention),
+    ).slice(0, displayLimit);
 
-  const columnData: Record<TabType, { items: Conversation[]; title: string }> = {
-    humano: { items: humano, title: "Interaccion Humana" },
-    nuevo: { items: nuevos, title: "Esperando Confirmaci." },
-    llamar: { items: llamar, title: "Llamar" },
-    proceso: { items: enProceso, title: "Pedido en Proceso" },
-    listo: { items: listos, title: "Listo para Enviar" },
-    entregado: { items: entregados, title: "Enviados y Entregados" },
-  };
+    return {
+      humano: { items: humano, title: "Interaccion Humana" },
+      nuevo: { items: nuevos, title: "Esperando Confirmaci." },
+      llamar: { items: llamar, title: "Llamar" },
+      proceso: { items: enProceso, title: "Pedido en Proceso" },
+      listo: { items: listos, title: "Listo para Enviar" },
+      entregado: { items: entregados, title: "Enviados y Entregados" },
+    };
+  }, [filtered, assignedSpotlightIds, displayLimit]);
 
   const getTabColor = (tab: TabType, isActive: boolean) => {
     const colors: Record<TabType, string> = {
