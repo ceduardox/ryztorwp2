@@ -916,6 +916,15 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
     };
   }, [filtered, assignedSpotlightIds, displayLimit]);
 
+  const {
+    humano: { items: humano },
+    nuevo: { items: nuevos },
+    llamar: { items: llamar },
+    proceso: { items: enProceso },
+    listo: { items: listos },
+    entregado: { items: entregados }
+  } = columnData;
+
   const getTabColor = (tab: TabType, isActive: boolean) => {
     const colors: Record<TabType, string> = {
       humano: isActive ? "bg-red-500/20 text-red-400 border-red-500/50" : "text-slate-500 border-transparent",
