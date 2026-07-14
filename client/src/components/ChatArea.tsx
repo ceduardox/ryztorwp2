@@ -2087,11 +2087,18 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
           const isOut = msg.direction === "out";
           const canEditMessage = isOut && msg.type === "text" && Boolean(msg.text?.trim());
           const isEditingThisMessage = editingMessageId === msg.id;
+          
+          // Parse parent message info from WhatsApp's raw payload
+          const raw = msg.rawJson as any;
+          const parentMessageId = raw?.context?.id || raw?.context?.message_id;
+          const parentMsg = parentMessageId ? messages.find((m) => m.waMessageId === parentMessageId) : null;
+
           return (
             <div key={msg.id} className={cn("flex w-full", isOut ? "justify-end" : "justify-start")}>
               <div
+                id={`msg-${msg.waMessageId}`}
                 className={cn(
-                  "group relative max-w-[85%] sm:max-w-[70%] rounded-lg px-3 py-2 text-sm shadow-sm transition-transform duration-150",
+                  "group relative max-w-[85%] sm:max-w-[70%] rounded-lg px-3 py-2 text-sm shadow-sm transition-all duration-300",
                   isOut 
                     ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] rounded-tr-sm" 
                     : "bg-white dark:bg-[#202c33] text-[#111b21] dark:text-[#e9edef] rounded-tl-sm",
@@ -2109,6 +2116,29 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                 onTouchCancel={handleMessageTouchEnd}
                 onClick={(e) => e.stopPropagation()}
               >
+                {parentMsg && (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const el = document.getElementById(`msg-${parentMsg.waMessageId}`);
+                      if (el) {
+                        el.scrollIntoView({ behavior: "smooth", block: "center" });
+                        el.classList.add("ring-2", "ring-emerald-500", "scale-[1.03]", "shadow-lg");
+                        setTimeout(() => {
+                          el.classList.remove("ring-2", "ring-emerald-500", "scale-[1.03]", "shadow-lg");
+                        }, 1200);
+                      }
+                    }}
+                    className="mb-1.5 cursor-pointer rounded border-l-4 border-emerald-500 bg-black/5 dark:bg-black/25 px-2 py-1 text-[11px] text-slate-500 dark:text-slate-400 hover:bg-black/10 dark:hover:bg-black/40 transition-all select-none"
+                  >
+                    <div className="font-semibold text-emerald-600 dark:text-emerald-400 text-[10px]">
+                      {parentMsg.direction === "out" ? "Tú" : parentMsg.direction === "in" ? "Cliente" : "Agente"}
+                    </div>
+                    <div className="truncate max-w-[200px]">
+                      {parentMsg.type === "image" ? "📷 Imagen" : parentMsg.type === "audio" ? "🎵 Audio" : parentMsg.type === "video" ? "🎥 Video" : parentMsg.text || "[Mensaje]"}
+                    </div>
+                  </div>
+                )}
                 {canEditMessage && !isEditingThisMessage && (
                   <button
                     type="button"
