@@ -2126,22 +2126,18 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                         console.log("[ReplyScroll] Element found, scrolling...");
                         if (scrollRef.current) {
                           const container = scrollRef.current;
-                          // Calculate element offset relative to the scroll container
-                          let actualTop = el.offsetTop;
-                          let currentParent = el.offsetParent as HTMLElement;
-                          while (currentParent && currentParent !== container && container.contains(currentParent)) {
-                            actualTop += currentParent.offsetTop;
-                            currentParent = currentParent.offsetParent as HTMLElement;
-                          }
+                          const containerRect = container.getBoundingClientRect();
+                          const elRect = el.getBoundingClientRect();
                           
-                          const targetScrollTop = actualTop - (container.clientHeight / 2) + (el.clientHeight / 2);
+                          // Calculate exact relative scroll position independent of offsetParent
+                          const relativeTop = elRect.top - containerRect.top + container.scrollTop;
+                          const targetScrollTop = relativeTop - (container.clientHeight / 2) + (el.clientHeight / 2);
                           
                           container.scrollTo({
                             top: targetScrollTop,
                             behavior: "smooth"
                           });
                         } else {
-                          // Fallback to standard scrollIntoView if scrollRef is not ready
                           el.scrollIntoView({ behavior: "smooth", block: "center" });
                         }
                         
