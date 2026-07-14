@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video } from "lucide-react";
+import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft } from "lucide-react";
 import type { Conversation, Message, Label, QuickMessage, Agent } from "@shared/schema";
 import {
   DropdownMenu,
@@ -206,6 +206,12 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   const { mutate: sendMessage, isPending } = useSendMessage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const [replyingToMessage, setReplyingToMessage] = useState<Message | null>(null);
+
+  useEffect(() => {
+    setReplyingToMessage(null);
+  }, [conversation.id]);
 
   const uploadImageMutation = useMutation({
     mutationFn: async ({ file, to, caption }: { file: File; to: string; caption?: string }) => {
@@ -1361,9 +1367,13 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
         type: imageUrl ? "image" : "text",
         text: composerText || undefined,
         imageUrl: imageUrl.trim() || undefined,
-        caption: imageUrl && composerText ? composerText : undefined
+        caption: imageUrl && composerText ? composerText : undefined,
+        replyToMessageId: replyingToMessage?.waMessageId || undefined
       },
       {
+        onSuccess: () => {
+          setReplyingToMessage(null);
+        },
         onError: () => {
           setComposerText(textBackup);
           setImageUrl(imageBackup);
@@ -2173,6 +2183,23 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                 )}
+                {!isEditingThisMessage && (
+                  <button
+                    type="button"
+                    className={cn(
+                      "absolute -top-2 -right-2 z-10 rounded-full bg-white/95 p-1.5 text-slate-600 shadow ring-1 ring-slate-200 transition",
+                      isTouchDevice ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setReplyingToMessage(msg);
+                    }}
+                    aria-label="Responder"
+                    title="Responder"
+                  >
+                    <CornerUpLeft className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 {longPressActiveMessageId === msg.id && msg.text?.trim() && (
                   <div className="absolute -top-3 right-1 z-10 flex items-center gap-1 rounded-full bg-slate-900/95 p-1 text-white shadow-md">
                     <button
@@ -2547,6 +2574,28 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
         onChange={handleDocumentFileSelect}
         data-testid="input-file-document"
       />
+
+      {replyingToMessage && (
+        <div className="px-4 py-2 bg-slate-100 dark:bg-[#182229] border-t border-emerald-500 flex items-center justify-between gap-3 select-none">
+          <div className="flex-1 min-w-0 border-l-4 border-emerald-500 pl-3">
+            <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+              Respondiendo a {replyingToMessage.direction === "out" ? "Tú" : replyingToMessage.direction === "in" ? "Cliente" : "Agente"}
+            </p>
+            <p className="text-xs text-slate-600 dark:text-slate-300 truncate">
+              {replyingToMessage.type === "image" ? "📷 Imagen" : replyingToMessage.type === "audio" ? "🎵 Audio" : replyingToMessage.type === "video" ? "🎥 Video" : replyingToMessage.text || "[Mensaje]"}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800"
+            onClick={() => setReplyingToMessage(null)}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
 
       {/* Input Area */}
       <div className="p-1.5 pb-5 md:p-2 bg-[#f0f2f5] dark:bg-[#202c33] z-20 flex-shrink-0 overflow-x-hidden">

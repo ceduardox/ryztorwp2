@@ -126,6 +126,7 @@ export const sendMessageSchema = z.object({
   text: z.string().optional(),
   imageUrl: z.string().optional(),
   caption: z.string().optional(),
+  replyToMessageId: z.string().optional(),
 });
 
 export type SendMessageRequest = z.infer<typeof sendMessageSchema>;

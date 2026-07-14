@@ -2570,6 +2570,9 @@ async function sendToWhatsApp(to: string, type: 'text' | 'image' | 'interactive'
     to: formattedTo,
     type: type,
   };
+  if (content.replyToMessageId) {
+    payload.context = { message_id: content.replyToMessageId };
+  }
 
   if (type === 'text') {
     payload.text = { body: content.text };
@@ -3426,7 +3429,7 @@ export async function registerRoutes(
   // Sending
   app.post(api.messages.send.path, requireAuth, async (req, res) => {
     try {
-      const { to, type, text, imageUrl, caption } = api.messages.send.input.parse(req.body);
+      const { to, type, text, imageUrl, caption, replyToMessageId } = api.messages.send.input.parse(req.body);
       const normalizedText = typeof text === "string" ? text.trim() : "";
       const normalizedImageUrl = typeof imageUrl === "string" ? imageUrl.trim() : "";
       const normalizedCaption = typeof caption === "string" ? caption.trim() : "";
@@ -3460,12 +3463,15 @@ export async function registerRoutes(
       }
 
       // 3. Save Message with status "sending"
-      const outboundRawJson = type === "image"
-        ? {
-            _outboundImageUrl: normalizedImageUrl,
-            _outboundImageCaption: effectiveImageCaption || null,
-          }
-        : null;
+      const outboundRawJson = {
+        ...(replyToMessageId ? { context: { id: replyToMessageId } } : {}),
+        ...(type === "image"
+          ? {
+              _outboundImageUrl: normalizedImageUrl,
+              _outboundImageCaption: effectiveImageCaption || null,
+            }
+          : {})
+      };
 
       await storage.createMessage({
         conversationId: conversation.id,
@@ -3485,8 +3491,8 @@ export async function registerRoutes(
         to,
         type,
         type === "image"
-          ? { imageUrl: normalizedImageUrl, caption: effectiveImageCaption }
-          : { text: normalizedText }
+          ? { imageUrl: normalizedImageUrl, caption: effectiveImageCaption, replyToMessageId }
+          : { text: normalizedText, replyToMessageId }
       ).then(async (waResponse) => {
         const realId = waResponse.messages[0].id;
         const finalRawJson = type === "image"
