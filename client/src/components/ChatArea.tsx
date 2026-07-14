@@ -2120,13 +2120,38 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                   <div
                     onClick={(e) => {
                       e.stopPropagation();
+                      console.log("[ReplyScroll] Clicked quote. Parent message waMessageId:", parentMsg.waMessageId);
                       const el = document.getElementById(`msg-${parentMsg.waMessageId}`);
                       if (el) {
-                        el.scrollIntoView({ behavior: "smooth", block: "center" });
+                        console.log("[ReplyScroll] Element found, scrolling...");
+                        if (scrollRef.current) {
+                          const container = scrollRef.current;
+                          // Calculate element offset relative to the scroll container
+                          let actualTop = el.offsetTop;
+                          let currentParent = el.offsetParent as HTMLElement;
+                          while (currentParent && currentParent !== container && container.contains(currentParent)) {
+                            actualTop += currentParent.offsetTop;
+                            currentParent = currentParent.offsetParent as HTMLElement;
+                          }
+                          
+                          const targetScrollTop = actualTop - (container.clientHeight / 2) + (el.clientHeight / 2);
+                          
+                          container.scrollTo({
+                            top: targetScrollTop,
+                            behavior: "smooth"
+                          });
+                        } else {
+                          // Fallback to standard scrollIntoView if scrollRef is not ready
+                          el.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }
+                        
+                        // Flash highlight effect
                         el.classList.add("ring-2", "ring-emerald-500", "scale-[1.03]", "shadow-lg");
                         setTimeout(() => {
                           el.classList.remove("ring-2", "ring-emerald-500", "scale-[1.03]", "shadow-lg");
                         }, 1200);
+                      } else {
+                        console.warn("[ReplyScroll] Could not find DOM element for msg ID:", parentMsg.waMessageId);
                       }
                     }}
                     className="mb-1.5 cursor-pointer rounded border-l-4 border-emerald-500 bg-black/5 dark:bg-black/25 px-2 py-1 text-[11px] text-slate-500 dark:text-slate-400 hover:bg-black/10 dark:hover:bg-black/40 transition-all select-none"
