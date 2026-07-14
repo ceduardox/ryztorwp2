@@ -2096,7 +2096,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
           return (
             <div key={msg.id} className={cn("flex w-full", isOut ? "justify-end" : "justify-start")}>
               <div
-                id={`msg-${msg.waMessageId}`}
+                id={`msg-id-${msg.id}`}
                 className={cn(
                   "group relative max-w-[85%] sm:max-w-[70%] rounded-lg px-3 py-2 text-sm shadow-sm transition-all duration-300",
                   isOut 
@@ -2120,8 +2120,8 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                   <div
                     onClick={(e) => {
                       e.stopPropagation();
-                      console.log("[ReplyScroll] Clicked quote. Parent message waMessageId:", parentMsg.waMessageId);
-                      const el = document.getElementById(`msg-${parentMsg.waMessageId}`);
+                      console.log("[ReplyScroll] Clicked quote. Parent message db ID:", parentMsg.id, "waMessageId:", parentMsg.waMessageId);
+                      const el = document.getElementById(`msg-id-${parentMsg.id}`);
                       if (el) {
                         console.log("[ReplyScroll] Element found, scrolling...");
                         if (scrollRef.current) {
@@ -2147,7 +2147,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                           el.classList.remove("ring-2", "ring-emerald-500", "scale-[1.03]", "shadow-lg");
                         }, 1200);
                       } else {
-                        console.warn("[ReplyScroll] Could not find DOM element for msg ID:", parentMsg.waMessageId);
+                        console.warn("[ReplyScroll] Could not find DOM element for msg db ID:", parentMsg.id);
                       }
                     }}
                     className="mb-1.5 cursor-pointer rounded border-l-4 border-emerald-500 bg-black/5 dark:bg-black/25 px-2 py-1 text-[11px] text-slate-500 dark:text-slate-400 hover:bg-black/10 dark:hover:bg-black/40 transition-all select-none"
