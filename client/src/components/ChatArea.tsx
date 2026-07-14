@@ -2121,25 +2121,21 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                     onClick={(e) => {
                       e.stopPropagation();
                       console.log("[ReplyScroll] Clicked quote. Parent message db ID:", parentMsg.id, "waMessageId:", parentMsg.waMessageId);
-                      const el = document.getElementById(`msg-id-${parentMsg.id}`);
-                      if (el) {
-                        console.log("[ReplyScroll] Element found, scrolling...");
-                        if (scrollRef.current) {
-                          const container = scrollRef.current;
-                          const containerRect = container.getBoundingClientRect();
-                          const elRect = el.getBoundingClientRect();
-                          
-                          // Calculate exact relative scroll position independent of offsetParent
-                          const relativeTop = elRect.top - containerRect.top + container.scrollTop;
-                          const targetScrollTop = relativeTop - (container.clientHeight / 2) + (el.clientHeight / 2);
-                          
-                          container.scrollTo({
-                            top: targetScrollTop,
-                            behavior: "smooth"
-                          });
-                        } else {
-                          el.scrollIntoView({ behavior: "smooth", block: "center" });
-                        }
+                      const container = scrollRef.current;
+                      const el = container ? (container.querySelector(`#msg-id-${parentMsg.id}`) as HTMLElement) : null;
+                      if (el && container) {
+                        console.log("[ReplyScroll] Element found inside container, scrolling...");
+                        const containerRect = container.getBoundingClientRect();
+                        const elRect = el.getBoundingClientRect();
+                        
+                        // Calculate exact relative scroll position independent of offsetParent
+                        const relativeTop = elRect.top - containerRect.top + container.scrollTop;
+                        const targetScrollTop = relativeTop - (container.clientHeight / 2) + (el.clientHeight / 2);
+                        
+                        container.scrollTo({
+                          top: targetScrollTop,
+                          behavior: "smooth"
+                        });
                         
                         // Flash highlight effect
                         el.classList.add("ring-2", "ring-emerald-500", "scale-[1.03]", "shadow-lg");
