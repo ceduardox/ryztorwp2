@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Tooltip } from "recharts";
-import { ArrowLeft, TrendingUp, Users, Phone, Truck, CheckCircle, AlertCircle, MessageSquare, Calendar, CalendarDays, Zap, Inbox, Send as SendIcon } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, Phone, Truck, CheckCircle, AlertCircle, MessageSquare, Calendar, CalendarDays, Zap, Inbox, Send as SendIcon, Download } from "lucide-react";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -540,16 +540,28 @@ export default function AnalyticsPage() {
               <p className="text-xs text-slate-400">Panel de estadisticas</p>
             </div>
           </div>
-          <Link href="/analytics/calendar">
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-cyan-500/35 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 hover:text-white"
-            >
-              <CalendarDays className="h-4 w-4 mr-2" />
-              Vista calendario
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button
+                onClick={() => {
+                  window.open("/api/admin/export-conversations", "_blank");
+                }}
+                className="flex items-center gap-2 bg-[#00A6B4] text-white hover:bg-[#008f9c] px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide shadow transition-all duration-200 hover:shadow-md cursor-pointer border-0"
+              >
+                <Download className="h-4 w-4" /> Exportar 300 Chats
+              </Button>
+            )}
+            <Link href="/analytics/calendar">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-cyan-500/35 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 hover:text-white"
+              >
+                <CalendarDays className="h-4 w-4 mr-2" />
+                Vista calendario
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 

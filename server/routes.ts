@@ -3160,6 +3160,47 @@ export async function registerRoutes(
     }
   };
 
+  app.get("/api/admin/export-conversations", requireAdmin, async (req, res) => {
+    try {
+      const convs = await db
+        .select()
+        .from(conversations)
+        .orderBy(desc(conversations.lastMessageTimestamp))
+        .limit(300);
+
+      let textOutput = `======================================================================\n`;
+      textOutput += `EXPORTE DE CONVERSACIONES DE CHAT (LÍMITE: 300)\n`;
+      textOutput += `======================================================================\n\n`;
+
+      for (const conv of convs) {
+        const chatMessages = await db
+          .select()
+          .from(messages)
+          .where(eq(messages.conversationId, conv.id))
+          .orderBy(messages.id);
+
+        if (chatMessages.length === 0) continue;
+
+        textOutput += `======================================================================\n`;
+        textOutput += `CHAT: ${conv.contactName || "Sin Nombre"} (${conv.waId})\n`;
+        textOutput += `======================================================================\n`;
+
+        for (const m of chatMessages) {
+          const sender = m.direction === "in" ? "CLIENTE" : "CRM";
+          const body = m.body || `[${m.type}]`;
+          textOutput += `${sender}: ${body}\n`;
+        }
+        textOutput += `\n`;
+      }
+
+      res.setHeader("Content-disposition", "attachment; filename=conversaciones_exportadas.txt");
+      res.setHeader("Content-type", "text/plain; charset=utf-8");
+      res.send(textOutput);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const requirePrimaryAdmin = (req: any, res: any, next: any) => {
     if (
       req.session &&
