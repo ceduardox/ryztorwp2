@@ -3184,10 +3184,9 @@ export async function registerRoutes(
         textOutput += `======================================================================\n`;
         textOutput += `CHAT: ${conv.contactName || "Sin Nombre"} (${conv.waId})\n`;
         textOutput += `======================================================================\n`;
-
         for (const m of chatMessages) {
           const sender = m.direction === "in" ? "CLIENTE" : "CRM";
-          const body = m.body || `[${m.type}]`;
+          const body = m.text || `[${m.type}]`;
           textOutput += `${sender}: ${body}\n`;
         }
         textOutput += `\n`;
