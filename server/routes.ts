@@ -9,7 +9,7 @@ import connectPgSimple from "connect-pg-simple";
 import axios from "axios";
 import { generateAiResponse } from "./ai-service";
 import { initFollowUp } from "./follow-up";
-import { insertProductSchema, messages as messagesTable, updateOrderStatusSchema, type Message as StoredMessage, type Product as StoredProduct } from "@shared/schema";
+import { conversations, insertProductSchema, messages as messagesTable, updateOrderStatusSchema, type Message as StoredMessage, type Product as StoredProduct } from "@shared/schema";
 import { db, pool } from "./db";
 import OpenAI from "openai";
 import fs from "fs";
@@ -3175,9 +3175,9 @@ export async function registerRoutes(
       for (const conv of convs) {
         const chatMessages = await db
           .select()
-          .from(messages)
-          .where(eq(messages.conversationId, conv.id))
-          .orderBy(messages.id);
+          .from(messagesTable)
+          .where(eq(messagesTable.conversationId, conv.id))
+          .orderBy(messagesTable.id);
 
         if (chatMessages.length === 0) continue;
 
