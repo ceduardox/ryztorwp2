@@ -230,6 +230,27 @@ export class DatabaseStorage implements IStorage {
     `);
     await db.execute(sql`
       ALTER TABLE ai_settings
+      ADD COLUMN IF NOT EXISTS audio_response_mode VARCHAR(30)
+    `);
+    await db.execute(sql`
+      ALTER TABLE ai_settings
+      ADD COLUMN IF NOT EXISTS audio_mode_activated_at TIMESTAMP
+    `);
+    await db.execute(sql`
+      UPDATE ai_settings
+      SET audio_response_mode = CASE
+        WHEN audio_response_enabled IS TRUE THEN 'reply_to_audio'
+        ELSE 'off'
+      END
+      WHERE audio_response_mode IS NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE ai_settings
+      ALTER COLUMN audio_response_mode SET DEFAULT 'off',
+      ALTER COLUMN audio_response_mode SET NOT NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE ai_settings
       ADD COLUMN IF NOT EXISTS follow_up_check_interval_minutes INTEGER NOT NULL DEFAULT 10
     `);
     await db.execute(sql`

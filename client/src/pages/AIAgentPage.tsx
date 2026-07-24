@@ -41,6 +41,8 @@ interface AiSettings {
   maxPromptChars: number | null;
   conversationHistory: number | null;
   audioResponseEnabled: boolean | null;
+  audioResponseMode: AudioResponseMode | null;
+  audioModeActivatedAt: string | null;
   audioVoice: string | null;
   ttsProvider: string | null;
   elevenlabsVoiceId: string | null;
@@ -50,6 +52,8 @@ interface AiSettings {
   followUpEnabled: boolean | null;
   followUpMinutes: number | null;
 }
+
+type AudioResponseMode = "off" | "reply_to_audio" | "from_second_turn";
 
 interface PromptProfiles {
   primaryPrompt: string;
@@ -120,7 +124,8 @@ export default function AIAgentPage() {
   const [model, setModel] = useState("gpt-4o-mini");
   const [maxPromptChars, setMaxPromptChars] = useState(2000);
   const [conversationHistory, setConversationHistory] = useState(3);
-  const [audioResponseEnabled, setAudioResponseEnabled] = useState(false);
+  const [audioResponseMode, setAudioResponseMode] = useState<AudioResponseMode>("off");
+  const audioResponseEnabled = audioResponseMode !== "off";
   const [audioVoice, setAudioVoice] = useState("nova");
   const [ttsProvider, setTtsProvider] = useState("openai");
   const [elevenlabsVoiceId, setElevenlabsVoiceId] = useState("JBFqnCBsd6RMkjVDRZzb");
@@ -310,7 +315,13 @@ export default function AIAgentPage() {
       setModel(settings.model || getDefaultModelForProvider(provider));
       setMaxPromptChars(settings.maxPromptChars || 2000);
       setConversationHistory(settings.conversationHistory || 3);
-      setAudioResponseEnabled(settings.audioResponseEnabled || false);
+      setAudioResponseMode(
+        settings.audioResponseMode === "reply_to_audio" || settings.audioResponseMode === "from_second_turn"
+          ? settings.audioResponseMode
+          : settings.audioResponseEnabled
+            ? "reply_to_audio"
+            : "off",
+      );
       setAudioVoice(settings.audioVoice || "nova");
       setTtsProvider(settings.ttsProvider || "openai");
       setElevenlabsVoiceId(settings.elevenlabsVoiceId || "JBFqnCBsd6RMkjVDRZzb");
@@ -425,7 +436,7 @@ export default function AIAgentPage() {
 
   const handleSaveConfig = () => {
     console.log("Saving config:", { maxTokens, temperature, model, maxPromptChars, conversationHistory, fixedCommerceFlowEnabled });
-    updateSettingsMutation.mutate({ aiProvider, maxTokens, temperature, model, maxPromptChars, conversationHistory, audioResponseEnabled, audioVoice, ttsProvider, elevenlabsVoiceId, ttsSpeed, ttsInstructions: ttsInstructions || null, learningMode: !fixedCommerceFlowEnabled, followUpEnabled, followUpMinutes });
+    updateSettingsMutation.mutate({ aiProvider, maxTokens, temperature, model, maxPromptChars, conversationHistory, audioResponseEnabled, audioResponseMode, audioVoice, ttsProvider, elevenlabsVoiceId, ttsSpeed, ttsInstructions: ttsInstructions || null, learningMode: !fixedCommerceFlowEnabled, followUpEnabled, followUpMinutes });
   };
 
   const stopPreviewAudio = useCallback(() => {
@@ -1116,7 +1127,7 @@ export default function AIAgentPage() {
               </div>
             </div>
             
-            <div className="flex items-center justify-between p-4 border border-slate-700/50 rounded-xl bg-slate-800/30">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border border-slate-700/50 rounded-xl bg-slate-800/30">
               <div className="space-y-1">
                 <Label htmlFor="fixedCommerceFlow" className="text-slate-300">Usar Flujo Comercial Fijo</Label>
                 <p className="text-xs text-slate-500">
@@ -1136,20 +1147,27 @@ export default function AIAgentPage() {
 
             <div className="flex items-center justify-between p-4 border border-slate-700/50 rounded-xl bg-slate-800/30">
               <div className="space-y-1">
-                <Label htmlFor="audioResponse" className="text-slate-300">Responder con Audio</Label>
+                <Label htmlFor="audioResponse" className="text-slate-300">Modo de respuestas con audio</Label>
                 <p className="text-xs text-slate-500">
-                  Cuando el cliente envía un audio, la IA responde también con audio
+                  Solo puede haber un modo activo. Los menús y botones importantes se mantienen como texto.
                 </p>
               </div>
-              <Switch
-                id="audioResponse"
-                checked={audioResponseEnabled}
-                onCheckedChange={(checked) => {
-                  setAudioResponseEnabled(checked);
+              <Select
+                value={audioResponseMode}
+                onValueChange={(value) => {
+                  setAudioResponseMode(value as AudioResponseMode);
                   setConfigEdited(true);
                 }}
-                data-testid="switch-audio-response"
-              />
+              >
+                <SelectTrigger className="w-full sm:w-[260px] bg-slate-900/60 border-slate-600 text-white" data-testid="select-audio-response-mode">
+                  <SelectValue placeholder="Seleccionar modo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="off">Desactivado</SelectItem>
+                  <SelectItem value="reply_to_audio">Solo si el cliente envía audio</SelectItem>
+                  <SelectItem value="from_second_turn">Desde el segundo turno</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             
             {audioResponseEnabled && (

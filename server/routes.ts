@@ -1341,6 +1341,58 @@ function flushMessageBuffer(waId: string) {
   processAiResponse(combined).catch(err => console.error("Buffered AI error:", err));
 }
 
+type AudioResponseMode = "off" | "reply_to_audio" | "from_second_turn";
+
+function resolveAudioResponseMode(settings: {
+  audioResponseMode?: string | null;
+  audioResponseEnabled?: boolean | null;
+} | null | undefined): AudioResponseMode {
+  if (
+    settings?.audioResponseMode === "reply_to_audio"
+    || settings?.audioResponseMode === "from_second_turn"
+  ) {
+    return settings.audioResponseMode;
+  }
+  return settings?.audioResponseEnabled ? "reply_to_audio" : "off";
+}
+
+function countInboundTurns(
+  messageHistory: Array<{ direction: string; createdAt?: Date | null }>,
+  since?: Date | null,
+): number {
+  let inboundTurns = 0;
+  let previousDirection: string | null = null;
+  for (const message of messageHistory) {
+    if (since && (!message.createdAt || message.createdAt < since)) {
+      continue;
+    }
+    if (message.direction === "in" && previousDirection !== "in") {
+      inboundTurns += 1;
+    }
+    previousDirection = message.direction;
+  }
+  return inboundTurns;
+}
+
+const MAX_AUTOMATIC_TTS_CHARACTERS = 450;
+
+function getAutomaticAudioBlockReason(responseText: string): string | null {
+  const normalizedText = normalizeTextForTts(responseText);
+  if (!normalizedText) return "empty_text";
+  if (normalizedText.length > MAX_AUTOMATIC_TTS_CHARACTERS) return "too_long";
+
+  const text = repairMojibakeText(responseText).toLowerCase();
+  const importantWrittenPatterns: Array<{ reason: string; pattern: RegExp }> = [
+    { reason: "link", pattern: /https?:\/\/|www\./i },
+    { reason: "price", pattern: /(?:\bprecio\b|\bcosto\b|\btotal\b|(?:^|\s)(?:bs\.?|bob|usd|\$)(?:\s|$)|\bbolivianos?\b|\bd[oó]lares?\b)/i },
+    { reason: "payment", pattern: /\b(?:pago|transferencia|dep[oó]sito|cuenta|qr|banco|titular)\b/i },
+    { reason: "location", pattern: /\b(?:ubicaci[oó]n|direcci[oó]n|domicilio|coordenadas?|maps|calle|avenida|zona)\b/i },
+    { reason: "dosage", pattern: /\b(?:dosis|indicaciones?|c[aá]psulas?|tabletas?|comprimidos?|gotas|tomar|consumir)\b/i },
+  ];
+
+  return importantWrittenPatterns.find(({ pattern }) => pattern.test(text))?.reason || null;
+}
+
 async function processAiResponse(data: BufferedMessage) {
   const { conversationId, messageForAi, from, name, imageBase64ForAi, wasAudioMessage, adProductRoute } = data;
   const conversation = await storage.getConversation(conversationId);
@@ -1535,7 +1587,34 @@ async function processAiResponse(data: BufferedMessage) {
     } else if (aiResult && aiResult.response) {
       await storage.updateConversation(conversationId, { needsHumanAttention: false });
 
-      const shouldSendAudio = wasAudioMessage && aiSettings?.audioResponseEnabled;
+      const audioResponseMode = resolveAudioResponseMode(aiSettings);
+      const audioModeActivatedAt = aiSettings?.audioModeActivatedAt
+        ? new Date(aiSettings.audioModeActivatedAt)
+        : null;
+      const inboundTurns = countInboundTurns(
+        recentMessages,
+        audioResponseMode === "from_second_turn" ? audioModeActivatedAt : null,
+      );
+      const parsedInteractiveResponse = parseInteractiveElements(aiResult.response);
+      const hasInteractiveControls = Boolean(
+        parsedInteractiveResponse.buttons?.length || parsedInteractiveResponse.list?.options?.length,
+      );
+      const automaticAudioBlockReason = hasInteractiveControls
+        ? "interactive_controls"
+        : audioResponseMode === "from_second_turn"
+          ? getAutomaticAudioBlockReason(aiResult.response)
+          : null;
+      const shouldSendAudio = !automaticAudioBlockReason && (
+        (audioResponseMode === "reply_to_audio" && wasAudioMessage)
+        || (audioResponseMode === "from_second_turn" && inboundTurns >= 2)
+      );
+      if (audioResponseMode !== "off" && automaticAudioBlockReason) {
+        console.log("[TTS] Keeping response as text", {
+          conversationId,
+          reason: automaticAudioBlockReason,
+          responseCharacters: normalizeTextForTts(aiResult.response).length,
+        });
+      }
       if (aiResult.imageUrl) {
         const imgResponse = await sendToWhatsApp(from, 'image', { imageUrl: aiResult.imageUrl });
         await storage.createMessage({
@@ -5324,6 +5403,7 @@ NO uses saludos formales. Se directo y amigable.`
     maxPromptChars: z.number().min(500).max(20000).optional(),
     conversationHistory: z.number().min(1).max(20).optional(),
     audioResponseEnabled: z.boolean().optional(),
+    audioResponseMode: z.enum(["off", "reply_to_audio", "from_second_turn"]).optional(),
     audioVoice: z.string().optional(),
     ttsProvider: z.enum(["openai", "elevenlabs"]).optional(),
     elevenlabsVoiceId: z.string().optional(),
@@ -5425,7 +5505,7 @@ NO uses saludos formales. Se directo y amigable.`
   });
 
   // Get AI Settings
-  app.get("/api/ai/settings", requireAuth, async (req, res) => {
+  app.get("/api/ai/settings", requireAdmin, async (req, res) => {
     try {
       const settings = await storage.getAiSettings();
       res.json(settings || { enabled: false, systemPrompt: null, catalog: null });
@@ -5436,10 +5516,29 @@ NO uses saludos formales. Se directo y amigable.`
   });
 
   // Update AI Settings
-  app.patch("/api/ai/settings", requireAuth, async (req, res) => {
+  app.patch("/api/ai/settings", requireAdmin, async (req, res) => {
     try {
       const parsed = aiSettingsUpdateSchema.parse(req.body);
-      const updated = await storage.updateAiSettings(parsed);
+      const normalizedSettings: typeof parsed & { audioModeActivatedAt?: Date | null } = { ...parsed };
+      if (parsed.audioResponseMode) {
+        const currentSettings = await storage.getAiSettings();
+        normalizedSettings.audioResponseEnabled = parsed.audioResponseMode !== "off";
+        if (
+          parsed.audioResponseMode === "from_second_turn"
+          && (
+            resolveAudioResponseMode(currentSettings) !== "from_second_turn"
+            || !currentSettings?.audioModeActivatedAt
+          )
+        ) {
+          normalizedSettings.audioModeActivatedAt = new Date();
+        } else if (parsed.audioResponseMode !== "from_second_turn") {
+          normalizedSettings.audioModeActivatedAt = null;
+        }
+      } else if (typeof parsed.audioResponseEnabled === "boolean") {
+        normalizedSettings.audioResponseMode = parsed.audioResponseEnabled ? "reply_to_audio" : "off";
+        normalizedSettings.audioModeActivatedAt = null;
+      }
+      const updated = await storage.updateAiSettings(normalizedSettings);
       res.json(updated);
     } catch (error: any) {
       if (error.name === "ZodError") {

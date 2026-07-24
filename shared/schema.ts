@@ -163,6 +163,8 @@ export const aiSettings = pgTable("ai_settings", {
   maxPromptChars: integer("max_prompt_chars").default(2000), // Max chars in system prompt
   conversationHistory: integer("conversation_history").default(3), // How many previous messages to read
   audioResponseEnabled: boolean("audio_response_enabled").default(false), // Respond with audio when client sends audio
+  audioResponseMode: varchar("audio_response_mode", { length: 30 }).default("off"), // "off", "reply_to_audio", or "from_second_turn"
+  audioModeActivatedAt: timestamp("audio_mode_activated_at"), // Starts fresh turn counting when from_second_turn is enabled
   audioVoice: varchar("audio_voice", { length: 20 }).default("nova"), // TTS voice: nova, alloy, echo, shimmer, coral, sage, ash, ballad, verse
   ttsProvider: varchar("tts_provider", { length: 20 }).default("openai"), // "openai" or "elevenlabs"
   elevenlabsVoiceId: varchar("elevenlabs_voice_id", { length: 50 }).default("JBFqnCBsd6RMkjVDRZzb"), // ElevenLabs voice ID
