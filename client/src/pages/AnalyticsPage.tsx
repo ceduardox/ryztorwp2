@@ -3,6 +3,7 @@ import { useConversations } from "@/hooks/use-inbox";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Tooltip } from "recharts";
 import { ArrowLeft, TrendingUp, Users, Phone, Truck, CheckCircle, AlertCircle, MessageSquare, Calendar, CalendarDays, Zap, Inbox, Send as SendIcon, Download } from "lucide-react";
 import { Link } from "wouter";
@@ -105,6 +106,7 @@ export default function AnalyticsPage() {
   const [parallelRateInput, setParallelRateInput] = useState("");
   const [openaiUsdPer1kInput, setOpenaiUsdPer1kInput] = useState("");
   const [elevenlabsBsPerAudioInput, setElevenlabsBsPerAudioInput] = useState("");
+  const [exportChatLimit, setExportChatLimit] = useState("300");
   const [selectedAgentIds, setSelectedAgentIds] = useState<number[]>([]);
   const agentsFilterInitializedRef = useRef(false);
 
@@ -542,14 +544,31 @@ export default function AnalyticsPage() {
           </div>
           <div className="flex items-center gap-2">
             {isAdmin && (
-              <Button
-                onClick={() => {
-                  window.open("/api/admin/export-conversations", "_blank");
-                }}
-                className="flex items-center gap-2 bg-[#00A6B4] text-white hover:bg-[#008f9c] px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide shadow transition-all duration-200 hover:shadow-md cursor-pointer border-0"
-              >
-                <Download className="h-4 w-4" /> Exportar 300 Chats
-              </Button>
+              <div className="flex items-center gap-2">
+                <Select value={exportChatLimit} onValueChange={setExportChatLimit}>
+                  <SelectTrigger
+                    className="h-9 w-[92px] border-slate-600 bg-slate-900/70 text-xs text-white"
+                    aria-label="Cantidad de chats a exportar"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[10, 30, 50, 100, 150, 200, 300].map((limit) => (
+                      <SelectItem key={limit} value={String(limit)}>
+                        {limit} chats
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={() => {
+                    window.open(`/api/admin/export-conversations?limit=${exportChatLimit}`, "_blank");
+                  }}
+                  className="flex items-center gap-2 bg-[#00A6B4] text-white hover:bg-[#008f9c] px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide shadow transition-all duration-200 hover:shadow-md cursor-pointer border-0"
+                >
+                  <Download className="h-4 w-4" /> Exportar chats
+                </Button>
+              </div>
             )}
             <Link href="/analytics/calendar">
               <Button

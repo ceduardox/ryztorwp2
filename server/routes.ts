@@ -3241,14 +3241,18 @@ export async function registerRoutes(
 
   app.get("/api/admin/export-conversations", requireAdmin, async (req, res) => {
     try {
+      const allowedLimits = new Set([10, 30, 50, 100, 150, 200, 300]);
+      const requestedLimit = Number(req.query.limit ?? 300);
+      const exportLimit = allowedLimits.has(requestedLimit) ? requestedLimit : 300;
+
       const convs = await db
         .select()
         .from(conversations)
         .orderBy(desc(conversations.lastMessageTimestamp))
-        .limit(300);
+        .limit(exportLimit);
 
       let textOutput = `======================================================================\n`;
-      textOutput += `EXPORTE DE CONVERSACIONES DE CHAT (LÍMITE: 300)\n`;
+      textOutput += `EXPORTE DE CONVERSACIONES DE CHAT (LÍMITE: ${exportLimit})\n`;
       textOutput += `======================================================================\n\n`;
 
       for (const conv of convs) {
