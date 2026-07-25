@@ -1635,6 +1635,8 @@ async function processAiResponse(data: BufferedMessage) {
       let waResponse: any;
       let waMessageId: string;
       let outboundMessageType: "text" | "audio" = "text";
+      let outboundMediaId: string | null = null;
+      let outboundMimeType: string | null = null;
 
       if (shouldSendAudio) {
         const ttsProvider = aiSettings?.ttsProvider || "openai";
@@ -1644,11 +1646,13 @@ async function processAiResponse(data: BufferedMessage) {
         const ttsInstructions = aiSettings?.ttsInstructions || null;
         console.log("=== SENDING AUDIO ===", ttsProvider, selectedVoice, ttsSpeed);
 
-        const audioSent = await sendAudioResponse(from, aiResult.response, selectedVoice, { speed: ttsSpeed, instructions: ttsInstructions, provider: ttsProvider, elevenlabsVoiceId });
-        if (audioSent) {
+        const audioMediaId = await sendAudioResponse(from, aiResult.response, selectedVoice, { speed: ttsSpeed, instructions: ttsInstructions, provider: ttsProvider, elevenlabsVoiceId });
+        if (audioMediaId) {
           waMessageId = `audio_${Date.now()}`;
           waResponse = { messages: [{ id: waMessageId }] };
           outboundMessageType = "audio";
+          outboundMediaId = audioMediaId;
+          outboundMimeType = "audio/ogg";
         } else {
           console.log("=== AUDIO FAILED, TEXT FALLBACK ===");
           waResponse = await sendAiResponseToWhatsApp(from, aiResult.response);
@@ -1665,6 +1669,8 @@ async function processAiResponse(data: BufferedMessage) {
         direction: "out",
         type: outboundMessageType,
         text: aiResult.response,
+        mediaId: outboundMediaId,
+        mimeType: outboundMimeType,
         timestamp: Math.floor(Date.now() / 1000).toString(),
         status: "sent",
         rawJson: waResponse,
@@ -2217,13 +2223,13 @@ async function generateTtsAudioBuffer(
 }
 
 // Generate audio response and send via WhatsApp
-async function sendAudioResponse(phoneNumber: string, text: string, voice: string = "nova", options: TtsOptions = {}): Promise<boolean> {
+async function sendAudioResponse(phoneNumber: string, text: string, voice: string = "nova", options: TtsOptions = {}): Promise<string | null> {
   const token = process.env.META_ACCESS_TOKEN;
   const phoneNumberId = process.env.WA_PHONE_NUMBER_ID;
   
   if (!token || !phoneNumberId) {
     console.log("[TTS] Missing WhatsApp credentials");
-    return false;
+    return null;
   }
   
   const provider = options.provider || "openai";
@@ -2234,7 +2240,7 @@ async function sendAudioResponse(phoneNumber: string, text: string, voice: strin
     const ttsText = normalizeTextForTts(text);
     if (!ttsText) {
       console.log("[TTS] Skipping audio: no speech-safe text after normalization");
-      return false;
+      return null;
     }
     console.log("[TTS] Prepared speech text", {
       provider,
@@ -2301,14 +2307,14 @@ async function sendAudioResponse(phoneNumber: string, text: string, voice: strin
     );
     
     console.log("[TTS] Audio message sent successfully");
-    return true;
+    return mediaId;
     
   } catch (error: any) {
     console.error("[TTS] Error:", error.message);
     if (error.response?.data) {
       console.error("[TTS] Details:", JSON.stringify(error.response.data));
     }
-    return false;
+    return null;
   } finally {
     if (tempPath && fs.existsSync(tempPath)) {
       try { fs.unlinkSync(tempPath); } catch (e) {}
