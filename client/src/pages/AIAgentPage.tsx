@@ -53,7 +53,7 @@ interface AiSettings {
   followUpMinutes: number | null;
 }
 
-type AudioResponseMode = "off" | "reply_to_audio" | "from_second_turn";
+type AudioResponseMode = "off" | "reply_to_audio" | "from_first_turn" | "from_second_turn";
 
 interface PromptProfiles {
   primaryPrompt: string;
@@ -316,7 +316,9 @@ export default function AIAgentPage() {
       setMaxPromptChars(settings.maxPromptChars || 2000);
       setConversationHistory(settings.conversationHistory || 3);
       setAudioResponseMode(
-        settings.audioResponseMode === "reply_to_audio" || settings.audioResponseMode === "from_second_turn"
+        settings.audioResponseMode === "reply_to_audio"
+          || settings.audioResponseMode === "from_first_turn"
+          || settings.audioResponseMode === "from_second_turn"
           ? settings.audioResponseMode
           : settings.audioResponseEnabled
             ? "reply_to_audio"
@@ -1165,6 +1167,7 @@ export default function AIAgentPage() {
                 <SelectContent>
                   <SelectItem value="off">Desactivado</SelectItem>
                   <SelectItem value="reply_to_audio">Solo si el cliente envía audio</SelectItem>
+                  <SelectItem value="from_first_turn">Desde la primera respuesta</SelectItem>
                   <SelectItem value="from_second_turn">Desde el segundo turno</SelectItem>
                 </SelectContent>
               </Select>

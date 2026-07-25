@@ -1341,7 +1341,7 @@ function flushMessageBuffer(waId: string) {
   processAiResponse(combined).catch(err => console.error("Buffered AI error:", err));
 }
 
-type AudioResponseMode = "off" | "reply_to_audio" | "from_second_turn";
+type AudioResponseMode = "off" | "reply_to_audio" | "from_first_turn" | "from_second_turn";
 
 function resolveAudioResponseMode(settings: {
   audioResponseMode?: string | null;
@@ -1349,6 +1349,7 @@ function resolveAudioResponseMode(settings: {
 } | null | undefined): AudioResponseMode {
   if (
     settings?.audioResponseMode === "reply_to_audio"
+    || settings?.audioResponseMode === "from_first_turn"
     || settings?.audioResponseMode === "from_second_turn"
   ) {
     return settings.audioResponseMode;
@@ -1601,11 +1602,12 @@ async function processAiResponse(data: BufferedMessage) {
       );
       const automaticAudioBlockReason = hasInteractiveControls
         ? "interactive_controls"
-        : audioResponseMode === "from_second_turn"
+        : audioResponseMode === "from_first_turn" || audioResponseMode === "from_second_turn"
           ? getAutomaticAudioBlockReason(aiResult.response)
           : null;
       const shouldSendAudio = !automaticAudioBlockReason && (
         (audioResponseMode === "reply_to_audio" && wasAudioMessage)
+        || audioResponseMode === "from_first_turn"
         || (audioResponseMode === "from_second_turn" && inboundTurns >= 2)
       );
       if (audioResponseMode !== "off" && automaticAudioBlockReason) {
@@ -5413,7 +5415,7 @@ NO uses saludos formales. Se directo y amigable.`
     maxPromptChars: z.number().min(500).max(20000).optional(),
     conversationHistory: z.number().min(1).max(20).optional(),
     audioResponseEnabled: z.boolean().optional(),
-    audioResponseMode: z.enum(["off", "reply_to_audio", "from_second_turn"]).optional(),
+    audioResponseMode: z.enum(["off", "reply_to_audio", "from_first_turn", "from_second_turn"]).optional(),
     audioVoice: z.string().optional(),
     ttsProvider: z.enum(["openai", "elevenlabs"]).optional(),
     elevenlabsVoiceId: z.string().optional(),
