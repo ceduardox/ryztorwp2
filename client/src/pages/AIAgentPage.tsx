@@ -1320,18 +1320,6 @@ export default function AIAgentPage() {
                           </button>
 	                        ))}
 	                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={playVoicePreview}
-                        disabled={previewPlaying}
-                        className="border-violet-500/40 hover:bg-violet-500/10"
-                        data-testid="button-preview-elevenlabs-voice"
-                      >
-                        {previewPlaying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                        Probar voz seleccionada
-                      </Button>
-                      {renderPreviewStatusBadges()}
                       </>
 	                    )}
 	                  </>
@@ -1364,6 +1352,22 @@ export default function AIAgentPage() {
                         ? "0.70x (lento) - 1.20x (rápido). Recomendado para ventas: 1.05x a 1.10x."
                         : "0.50x (lento) - 2.00x (rápido)"}
                     </p>
+                    {ttsProvider === "elevenlabs" && (
+                      <div className="mt-3 flex flex-col items-start gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={playVoicePreview}
+                          disabled={previewPlaying}
+                          className="w-full sm:w-auto border-violet-500/40 hover:bg-violet-500/10"
+                          data-testid="button-preview-elevenlabs-voice"
+                        >
+                          {previewPlaying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Probar voz y velocidad
+                        </Button>
+                        {renderPreviewStatusBadges()}
+                      </div>
+                    )}
                   </div>
                   
                   {ttsProvider === "openai" && ["ash", "ballad", "sage", "verse", "marin", "cedar"].includes(audioVoice) && (
