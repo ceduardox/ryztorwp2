@@ -325,15 +325,9 @@ export default function AIAgentPage() {
             : "off",
       );
       setAudioVoice(settings.audioVoice || "nova");
-      const savedTtsProvider = settings.ttsProvider || "openai";
-      setTtsProvider(savedTtsProvider);
+      setTtsProvider(settings.ttsProvider || "openai");
       setElevenlabsVoiceId(settings.elevenlabsVoiceId || "JBFqnCBsd6RMkjVDRZzb");
-      const savedTtsSpeed = settings.ttsSpeed || 100;
-      setTtsSpeed(
-        savedTtsProvider === "elevenlabs"
-          ? Math.max(70, Math.min(120, savedTtsSpeed))
-          : Math.max(50, Math.min(200, savedTtsSpeed)),
-      );
+      setTtsSpeed(settings.ttsSpeed || 100);
       setTtsInstructions(settings.ttsInstructions || "");
       setFixedCommerceFlowEnabled(settings.learningMode !== true);
       setFollowUpEnabled(settings.followUpEnabled || false);
@@ -467,8 +461,7 @@ export default function AIAgentPage() {
       return {
         provider: "elevenlabs",
         elevenlabsVoiceId,
-        speed: ttsSpeed,
-        previewUrl: ttsSpeed === 100 ? selectedElevenPreviewUrl : undefined,
+        previewUrl: selectedElevenPreviewUrl,
         text: previewText,
       };
     }
@@ -1186,11 +1179,7 @@ export default function AIAgentPage() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setTtsProvider("openai");
-                      setTtsSpeed((current) => Math.max(50, Math.min(200, current)));
-                      setConfigEdited(true);
-                    }}
+                    onClick={() => { setTtsProvider("openai"); setConfigEdited(true); }}
                     className={`flex-1 p-3 rounded-xl border-2 text-center transition-all ${
                       ttsProvider === "openai"
                         ? "border-emerald-500 bg-emerald-500/20 shadow-lg shadow-emerald-500/20"
@@ -1203,11 +1192,7 @@ export default function AIAgentPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setTtsProvider("elevenlabs");
-                      setTtsSpeed((current) => Math.max(70, Math.min(120, current)));
-                      setConfigEdited(true);
-                    }}
+                    onClick={() => { setTtsProvider("elevenlabs"); setConfigEdited(true); }}
                     className={`flex-1 p-3 rounded-xl border-2 text-center transition-all ${
                       ttsProvider === "elevenlabs"
                         ? "border-violet-500 bg-violet-500/20 shadow-lg shadow-violet-500/20"
@@ -1338,33 +1323,29 @@ export default function AIAgentPage() {
 	                )}
                 
                 <div className="grid gap-4 sm:grid-cols-2 mt-4 pt-4 border-t border-slate-700/50">
-                  <div className={ttsProvider === "elevenlabs" ? "sm:col-span-2" : ""}>
-                    <Label htmlFor="ttsSpeed" className="text-slate-300">Velocidad de habla</Label>
-                    <div className="flex items-center gap-3">
-                      <Input
-                        id="ttsSpeed"
-                        type="range"
-                        min={ttsProvider === "elevenlabs" ? 70 : 50}
-                        max={ttsProvider === "elevenlabs" ? 120 : 200}
-                        step={5}
-                        value={ttsSpeed}
-                        onChange={(e) => {
-                          setTtsSpeed(parseInt(e.target.value));
-                          setConfigEdited(true);
-                        }}
-                        className={`flex-1 ${ttsProvider === "elevenlabs" ? "accent-violet-500" : "accent-emerald-500"}`}
-                        data-testid="input-tts-speed"
-                      />
-                      <span className={`text-sm font-medium w-14 text-center ${ttsProvider === "elevenlabs" ? "text-violet-400" : "text-emerald-400"}`}>
-                        {(ttsSpeed / 100).toFixed(2)}x
-                      </span>
+                  {ttsProvider === "openai" && (
+                    <div>
+                      <Label htmlFor="ttsSpeed" className="text-slate-300">Velocidad de habla</Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          id="ttsSpeed"
+                          type="range"
+                          min={50}
+                          max={200}
+                          step={5}
+                          value={ttsSpeed}
+                          onChange={(e) => {
+                            setTtsSpeed(parseInt(e.target.value));
+                            setConfigEdited(true);
+                          }}
+                          className="flex-1 accent-emerald-500"
+                          data-testid="input-tts-speed"
+                        />
+                        <span className="text-sm font-medium w-14 text-center text-emerald-400">{(ttsSpeed / 100).toFixed(2)}x</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">0.5x (lento) - 2.0x (rápido)</p>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {ttsProvider === "elevenlabs"
-                        ? "0.70x (lento) - 1.20x (rápido). Recomendado para ventas: 1.05x a 1.10x."
-                        : "0.50x (lento) - 2.00x (rápido)"}
-                    </p>
-                  </div>
+                  )}
                   
                   {ttsProvider === "openai" && ["ash", "ballad", "sage", "verse", "marin", "cedar"].includes(audioVoice) && (
                     <div className="sm:col-span-2">
