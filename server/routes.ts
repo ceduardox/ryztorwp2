@@ -2124,10 +2124,11 @@ function getElevenLabsErrorMessage(error: any): string {
 }
 
 // Generate audio buffer using ElevenLabs TTS with model fallback for account compatibility
-async function generateElevenLabsAudio(text: string, voiceId: string): Promise<Buffer> {
+async function generateElevenLabsAudio(text: string, voiceId: string, speed: number = 1.0): Promise<Buffer> {
   const apiKey = await getElevenLabsApiKey();
   const modelsToTry = ["eleven_flash_v2_5", "eleven_turbo_v2_5", "eleven_multilingual_v2"];
   const attemptErrors: string[] = [];
+  const normalizedSpeed = Math.max(0.7, Math.min(1.2, speed));
 
   for (const modelId of modelsToTry) {
     try {
@@ -2141,6 +2142,7 @@ async function generateElevenLabsAudio(text: string, voiceId: string): Promise<B
             stability: 0.5,
             similarity_boost: 0.75,
             use_speaker_boost: false,
+            speed: normalizedSpeed,
           },
         },
         {
@@ -2176,7 +2178,8 @@ async function generateTtsAudioBuffer(
 
   if (isElevenLabs) {
     const elVoiceId = options.elevenlabsVoiceId || "JBFqnCBsd6RMkjVDRZzb";
-    const audioBuffer = await generateElevenLabsAudio(text, elVoiceId);
+    const speed = options.speed ? Math.max(0.7, Math.min(1.2, options.speed)) : 1.0;
+    const audioBuffer = await generateElevenLabsAudio(text, elVoiceId, speed);
     return {
       audioBuffer,
       fileExt: "mp3",
@@ -5739,7 +5742,7 @@ NO uses saludos formales. Se directo y amigable.`
       const instructions = parsed.instructions ?? null;
       const isElevenlabsPreview = provider === "elevenlabs" && Boolean(parsed.previewUrl);
       const cacheKey = provider === "elevenlabs"
-        ? `elevenlabs|${voiceId}|${isElevenlabsPreview ? "preview-free-v1" : "preview-paid-v1"}`
+        ? `elevenlabs|${voiceId}|${speed}|${isElevenlabsPreview ? "preview-free-v2" : "preview-paid-v2"}|${previewText}`
         : `openai|${voiceId}|${speed}|${instructions || ""}|${previewText}`;
 
       const cached = await getCachedTtsPreview(cacheKey);
@@ -5774,7 +5777,7 @@ NO uses saludos formales. Se directo y amigable.`
       const instructions = parsed.instructions ?? null;
       const isElevenlabsPreview = provider === "elevenlabs" && Boolean(parsed.previewUrl);
       const cacheKey = provider === "elevenlabs"
-        ? `elevenlabs|${voiceId}|${isElevenlabsPreview ? "preview-free-v1" : "preview-paid-v1"}`
+        ? `elevenlabs|${voiceId}|${speed}|${isElevenlabsPreview ? "preview-free-v2" : "preview-paid-v2"}|${previewText}`
         : `openai|${voiceId}|${speed}|${instructions || ""}|${previewText}`;
 
       const setPreviewHeaders = (cacheStatus: "hit" | "miss", isFree: boolean, source: string) => {
