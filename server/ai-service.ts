@@ -8,8 +8,9 @@ const openai = new OpenAI({
 const DEFAULT_PUBLIC_BASE_URL = "https://ryzapp.org";
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
 const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
+const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
 
-type AiProvider = "openai" | "gemini";
+type AiProvider = "openai" | "gemini" | "groq";
 
 // Order status type
 export type OrderStatus = 'pending' | 'ready' | 'delivered' | null;
@@ -105,11 +106,14 @@ function resolvePublicImageUrl(imageUrl?: string | null): string {
 }
 
 function normalizeAiProvider(value?: string | null): AiProvider {
-  return value === "gemini" ? "gemini" : "openai";
+  if (value === "gemini" || value === "groq") return value;
+  return "openai";
 }
 
 function getDefaultModelForProvider(provider: AiProvider): string {
-  return provider === "gemini" ? DEFAULT_GEMINI_MODEL : DEFAULT_OPENAI_MODEL;
+  if (provider === "gemini") return DEFAULT_GEMINI_MODEL;
+  if (provider === "groq") return DEFAULT_GROQ_MODEL;
+  return DEFAULT_OPENAI_MODEL;
 }
 
 async function requestOpenAiCompletion(params: {
@@ -129,6 +133,35 @@ async function requestOpenAiCompletion(params: {
     responseText: completion.choices[0]?.message?.content || "",
     tokensUsed: completion.usage?.total_tokens || 0,
     providerUsed: "openai" as const,
+  };
+}
+
+async function requestGroqCompletion(params: {
+  model: string;
+  messages: any[];
+  maxTokens: number;
+  temperature: number;
+}) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    throw new Error("GROQ_API_KEY is not configured");
+  }
+
+  const groq = new OpenAI({
+    apiKey,
+    baseURL: "https://api.groq.com/openai/v1",
+  });
+  const completion = await groq.chat.completions.create({
+    model: params.model,
+    messages: params.messages,
+    max_tokens: params.maxTokens,
+    temperature: params.temperature,
+  });
+
+  return {
+    responseText: completion.choices[0]?.message?.content || "",
+    tokensUsed: completion.usage?.total_tokens || 0,
+    providerUsed: "groq" as const,
   };
 }
 
@@ -345,16 +378,40 @@ ${productContext ? `\n=== PRODUCTOS ===\n${productContext}` : ""}`;
     const maxTokensToUse = settings.maxTokens || 120;
     const temperatureToUse = (settings.temperature || 70) / 100; // Convert 0-100 to 0-1
     const shouldUseGemini = configuredProvider === "gemini" && !imageBase64;
+    const shouldUseGroq = configuredProvider === "groq" && !imageBase64;
 
     let responseText = "";
     let tokensUsed = 0;
     let providerUsed: AiProvider = "openai";
 
-    if (configuredProvider === "gemini" && imageBase64) {
-      console.log("[AI] Gemini selected but image input detected. Falling back to OpenAI for vision.");
+    if ((configuredProvider === "gemini" || configuredProvider === "groq") && imageBase64) {
+      console.log(`[AI] ${configuredProvider} selected but image input detected. Falling back to OpenAI for vision.`);
     }
 
-    if (shouldUseGemini) {
+    if (shouldUseGroq) {
+      try {
+        const groqResult = await requestGroqCompletion({
+          model: modelToUse,
+          messages,
+          maxTokens: maxTokensToUse,
+          temperature: temperatureToUse,
+        });
+        responseText = groqResult.responseText;
+        tokensUsed = groqResult.tokensUsed;
+        providerUsed = groqResult.providerUsed;
+      } catch (groqError) {
+        console.error("[AI] Groq failed. Falling back to OpenAI:", groqError);
+        const openAiResult = await requestOpenAiCompletion({
+          model: getDefaultModelForProvider("openai"),
+          messages,
+          maxTokens: maxTokensToUse,
+          temperature: temperatureToUse,
+        });
+        responseText = openAiResult.responseText;
+        tokensUsed = openAiResult.tokensUsed;
+        providerUsed = openAiResult.providerUsed;
+      }
+    } else if (shouldUseGemini) {
       try {
         const geminiResult = await requestGeminiCompletion({
           model: modelToUse,

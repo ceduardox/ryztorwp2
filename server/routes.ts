@@ -1954,22 +1954,33 @@ async function transcodeToWhatsAppAudio(input: Buffer): Promise<Buffer> {
 // Download audio from WhatsApp and transcribe with Whisper
 async function transcribeWhatsAppAudio(mediaId: string, mimeType?: string): Promise<string | null> {
   const token = process.env.META_ACCESS_TOKEN;
+  const groqKey = process.env.GROQ_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
   
-  logAudioDebug("START", { mediaId, mimeType, hasToken: !!token, hasOpenAI: !!openaiKey });
+  logAudioDebug("START", {
+    mediaId,
+    mimeType,
+    hasToken: !!token,
+    hasGroq: !!groqKey,
+    hasOpenAI: !!openaiKey,
+  });
   
   if (!token) {
     logAudioDebug("ERROR", { reason: "Missing META_ACCESS_TOKEN" });
     return null;
   }
   
-  if (!openaiKey) {
-    logAudioDebug("ERROR", { reason: "Missing OPENAI_API_KEY" });
+  if (!groqKey && !openaiKey) {
+    logAudioDebug("ERROR", { reason: "Missing GROQ_API_KEY and OPENAI_API_KEY" });
     return null;
   }
   
-  // Create OpenAI client with current API key
-  const openai = new OpenAI({ apiKey: openaiKey });
+  const transcriptionProvider = groqKey ? "groq" : "openai";
+  const transcriptionClient = new OpenAI(
+    groqKey
+      ? { apiKey: groqKey, baseURL: "https://api.groq.com/openai/v1" }
+      : { apiKey: openaiKey },
+  );
 
   // Determine file extension from mime type
   // Note: OpenAI Whisper accepts: flac, m4a, mp3, mp4, mpeg, mpga, oga, ogg, wav, webm
@@ -2018,11 +2029,15 @@ async function transcribeWhatsAppAudio(mediaId: string, mimeType?: string): Prom
     fs.writeFileSync(tempPath, Buffer.from(audioResponse.data));
     logAudioDebug("STEP3_SAVED", { path: tempPath, extension });
 
-    // Step 4: Transcribe with OpenAI Whisper
-    logAudioDebug("STEP4_TRANSCRIBE", { model: "whisper-1" });
-    const transcription = await openai.audio.transcriptions.create({
+    // Step 4: Prefer Groq Whisper; retain OpenAI as a compatibility fallback.
+    const transcriptionModel = groqKey ? "whisper-large-v3-turbo" : "whisper-1";
+    logAudioDebug("STEP4_TRANSCRIBE", {
+      provider: transcriptionProvider,
+      model: transcriptionModel,
+    });
+    const transcription = await transcriptionClient.audio.transcriptions.create({
       file: fs.createReadStream(tempPath),
-      model: "whisper-1",
+      model: transcriptionModel,
       language: "es"
     });
     
@@ -5304,6 +5319,7 @@ NO uses saludos formales. Se directo y amigable.`
       hasPhoneId: !!process.env.WA_PHONE_NUMBER_ID,
       phoneId: process.env.WA_PHONE_NUMBER_ID || "NOT SET",
       hasVerifyToken: !!process.env.WA_VERIFY_TOKEN,
+      hasGroqKey: !!process.env.GROQ_API_KEY,
       hasAdminUser: !!process.env.ADMIN_USER,
       hasAdminPass: !!process.env.ADMIN_PASS,
       conversationCount: (await storage.getConversations()).length,
@@ -5410,7 +5426,7 @@ NO uses saludos formales. Se directo y amigable.`
     catalog: z.string().nullable().optional(),
     maxTokens: z.number().min(50).max(500).optional(),
     temperature: z.number().min(0).max(100).optional(),
-    aiProvider: z.enum(["openai", "gemini"]).optional(),
+    aiProvider: z.enum(["openai", "gemini", "groq"]).optional(),
     model: z.string().optional(),
     maxPromptChars: z.number().min(500).max(20000).optional(),
     conversationHistory: z.number().min(1).max(20).optional(),

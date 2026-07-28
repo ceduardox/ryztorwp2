@@ -54,6 +54,7 @@ interface AiSettings {
 }
 
 type AudioResponseMode = "off" | "reply_to_audio" | "from_first_turn" | "from_second_turn";
+type AiProvider = "openai" | "gemini" | "groq";
 
 interface PromptProfiles {
   primaryPrompt: string;
@@ -120,7 +121,7 @@ export default function AIAgentPage() {
   // AI config state
   const [maxTokens, setMaxTokens] = useState(120);
   const [temperature, setTemperature] = useState(70);
-  const [aiProvider, setAiProvider] = useState<"openai" | "gemini">("openai");
+  const [aiProvider, setAiProvider] = useState<AiProvider>("openai");
   const [model, setModel] = useState("gpt-4o-mini");
   const [maxPromptChars, setMaxPromptChars] = useState(2000);
   const [conversationHistory, setConversationHistory] = useState(3);
@@ -152,10 +153,22 @@ export default function AIAgentPage() {
     { value: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite (economico)" },
     { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro (mas completo)" },
   ];
-  const modelOptions = aiProvider === "gemini" ? geminiModelOptions : openAiModelOptions;
+  const groqModelOptions = [
+    { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B (recomendado)" },
+    { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B (mas rapido)" },
+  ];
+  const modelOptions =
+    aiProvider === "gemini"
+      ? geminiModelOptions
+      : aiProvider === "groq"
+        ? groqModelOptions
+        : openAiModelOptions;
 
-  const getDefaultModelForProvider = (provider: "openai" | "gemini") =>
-    provider === "gemini" ? "gemini-2.0-flash" : "gpt-4o-mini";
+  const getDefaultModelForProvider = (provider: AiProvider) => {
+    if (provider === "gemini") return "gemini-2.0-flash";
+    if (provider === "groq") return "llama-3.3-70b-versatile";
+    return "gpt-4o-mini";
+  };
   
   // Product form state
   const [newName, setNewName] = useState("");
@@ -310,7 +323,10 @@ export default function AIAgentPage() {
     if (settings && !configEdited) {
       setMaxTokens(settings.maxTokens || 120);
       setTemperature(settings.temperature || 70);
-      const provider = settings.aiProvider === "gemini" ? "gemini" : "openai";
+      const provider =
+        settings.aiProvider === "gemini" || settings.aiProvider === "groq"
+          ? settings.aiProvider
+          : "openai";
       setAiProvider(provider);
       setModel(settings.model || getDefaultModelForProvider(provider));
       setMaxPromptChars(settings.maxPromptChars || 2000);
@@ -1035,7 +1051,7 @@ export default function AIAgentPage() {
               </div>
               <div>
                 <Label className="text-slate-300">Proveedor de respuesta</Label>
-                <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -1068,6 +1084,22 @@ export default function AIAgentPage() {
                     <div className="font-semibold text-sm text-white">Gemini</div>
                     <div className="text-xs text-slate-400">Test con rollback rapido</div>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAiProvider("groq");
+                      setConfigEdited(true);
+                    }}
+                    className={`rounded-xl border-2 p-3 text-left transition-all ${
+                      aiProvider === "groq"
+                        ? "border-orange-500 bg-orange-500/15 shadow-lg shadow-orange-500/10"
+                        : "border-slate-600/50 bg-slate-800/50 hover:border-orange-500/40"
+                    }`}
+                    data-testid="provider-response-groq"
+                  >
+                    <div className="font-semibold text-sm text-white">Groq</div>
+                    <div className="text-xs text-slate-400">Rapido, usa GROQ_API_KEY</div>
+                  </button>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">Solo cambia la IA que redacta. El audio sigue aparte.</p>
               </div>
@@ -1090,7 +1122,11 @@ export default function AIAgentPage() {
                   ))}
                 </select>
                 <p className="text-xs text-slate-500 mt-1">
-                  {aiProvider === "gemini" ? "Modelo de Gemini para testeo" : "Modelo de OpenAI a usar"}
+                  {aiProvider === "gemini"
+                    ? "Modelo de Gemini para testeo"
+                    : aiProvider === "groq"
+                      ? "Modelo de Groq para respuestas de texto"
+                      : "Modelo de OpenAI a usar"}
                 </p>
               </div>
               <div>
