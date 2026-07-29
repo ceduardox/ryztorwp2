@@ -3469,6 +3469,133 @@ export async function registerRoutes(
     res.json({ conversation, messages });
   });
 
+  app.post("/api/conversations/:id/ai-audio-reply", requireAdmin, async (req, res) => {
+    try {
+      const conversationId = Number(req.params.id);
+      const expectedInboundMessageId = Number(req.body?.lastInboundMessageId);
+      if (!Number.isInteger(conversationId) || conversationId <= 0) {
+        return res.status(400).json({ message: "Conversacion invalida" });
+      }
+      if (!Number.isInteger(expectedInboundMessageId) || expectedInboundMessageId <= 0) {
+        return res.status(400).json({ message: "Mensaje entrante invalido" });
+      }
+
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversacion no encontrada" });
+      }
+
+      const conversationMessages = await storage.getMessages(conversationId);
+      const latestMessage = conversationMessages[conversationMessages.length - 1];
+      if (
+        !latestMessage
+        || latestMessage.id !== expectedInboundMessageId
+        || latestMessage.direction !== "in"
+      ) {
+        return res.status(409).json({
+          message: "La conversacion ya cambio o ya fue respondida. Actualice el chat antes de reintentar.",
+        });
+      }
+
+      const messageForAi = String(latestMessage.text || "").trim();
+      if (!messageForAi) {
+        return res.status(400).json({ message: "El ultimo mensaje no contiene texto para responder" });
+      }
+
+      let advisorName: string | undefined;
+      if (conversation.assignedAgentId) {
+        const assignedAgent = await storage.getAgent(conversation.assignedAgentId);
+        advisorName = getConversationAdvisorName(assignedAgent?.name || null);
+      }
+
+      const aiResult = await generateAiResponse(
+        conversationId,
+        messageForAi,
+        conversationMessages,
+        undefined,
+        advisorName,
+      );
+      if (!aiResult?.response) {
+        return res.status(502).json({ message: "La IA no genero una respuesta" });
+      }
+      if (aiResult.needsHuman) {
+        return res.status(422).json({ message: "La IA indico que esta conversacion requiere atencion humana" });
+      }
+
+      // Recheck immediately before sending to avoid a duplicate if a reply arrived
+      // while the model was generating the response.
+      const messagesBeforeSend = await storage.getMessages(conversationId);
+      const latestBeforeSend = messagesBeforeSend[messagesBeforeSend.length - 1];
+      if (
+        !latestBeforeSend
+        || latestBeforeSend.id !== expectedInboundMessageId
+        || latestBeforeSend.direction !== "in"
+      ) {
+        return res.status(409).json({
+          message: "La conversacion recibio otra actividad y no se envio el audio.",
+        });
+      }
+
+      const aiSettings = await storage.getAiSettings();
+      const ttsProvider = aiSettings?.ttsProvider || "openai";
+      const selectedVoice = aiSettings?.audioVoice || "nova";
+      const elevenlabsVoiceId = aiSettings?.elevenlabsVoiceId || "JBFqnCBsd6RMkjVDRZzb";
+      const ttsSpeed = aiSettings?.ttsSpeed ? aiSettings.ttsSpeed / 100 : 1.0;
+      const ttsInstructions = aiSettings?.ttsInstructions || null;
+
+      const audioMediaId = await sendAudioResponse(
+        conversation.waId,
+        aiResult.response,
+        selectedVoice,
+        {
+          speed: ttsSpeed,
+          instructions: ttsInstructions,
+          provider: ttsProvider,
+          elevenlabsVoiceId,
+        },
+      );
+      if (!audioMediaId) {
+        return res.status(502).json({ message: "No se pudo generar o enviar el audio" });
+      }
+
+      const waMessageId = `admin_ai_audio_${Date.now()}`;
+      await storage.createMessage({
+        conversationId,
+        waMessageId,
+        direction: "out",
+        type: "audio",
+        text: aiResult.response,
+        mediaId: audioMediaId,
+        mimeType: "audio/ogg",
+        timestamp: Math.floor(Date.now() / 1000).toString(),
+        status: "sent",
+        rawJson: {
+          source: "admin_ai_audio_reply",
+          provider: aiSettings?.aiProvider || "openai",
+        },
+      });
+
+      const updateData: any = {
+        lastMessage: aiResult.response,
+        lastMessageTimestamp: new Date(),
+        needsHumanAttention: false,
+      };
+      if (aiResult.orderReady) updateData.orderStatus = "ready";
+      if (aiResult.shouldCall) updateData.shouldCall = true;
+      await storage.updateConversation(conversationId, updateData);
+
+      res.json({
+        success: true,
+        messageId: waMessageId,
+        response: aiResult.response,
+      });
+    } catch (error: any) {
+      const details = error?.response?.data?.error?.message || error?.message || "Error desconocido";
+      console.error("[Admin AI audio reply] Error:", details);
+      res.status(500).json({ message: "No se pudo enviar la respuesta de IA en audio", error: details });
+    }
+  });
+
   const updateMessageTextSchema = z.object({
     text: z.string().trim().min(1).max(4000),
   });
