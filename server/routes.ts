@@ -1386,9 +1386,7 @@ function getAutomaticAudioBlockReason(responseText: string): string | null {
   const importantWrittenPatterns: Array<{ reason: string; pattern: RegExp }> = [
     { reason: "link", pattern: /https?:\/\/|www\./i },
     { reason: "price", pattern: /(?:\bprecio\b|\bcosto\b|\btotal\b|(?:^|\s)(?:bs\.?|bob|usd|\$)(?:\s|$)|\bbolivianos?\b|\bd[oó]lares?\b)/i },
-    { reason: "payment", pattern: /\b(?:pago|transferencia|dep[oó]sito|cuenta|qr|banco|titular)\b/i },
     { reason: "location", pattern: /\b(?:ubicaci[oó]n|direcci[oó]n|domicilio|coordenadas?|maps|calle|avenida|zona)\b/i },
-    { reason: "dosage", pattern: /\b(?:dosis|indicaciones?|c[aá]psulas?|tabletas?|comprimidos?|gotas|tomar|consumir)\b/i },
   ];
 
   return importantWrittenPatterns.find(({ pattern }) => pattern.test(text))?.reason || null;
@@ -2084,6 +2082,7 @@ function normalizeTextForTts(rawText: string): string {
     .replace(/\bwww\.\S+/gi, " ")
     .replace(/\*(.*?)\*/g, "$1")
     .replace(/\|/g, ", ")
+    .replace(/\bQR\b/gi, "cu erre")
     .replace(/(\d[\d.,]*)\s*bs\b/gi, "$1 bolivianos")
     .replace(/\bbs\b/gi, "bolivianos")
     .replace(/[ \t]+\n/g, "\n")
