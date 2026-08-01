@@ -1376,6 +1376,33 @@ function countInboundTurns(
 }
 
 const MAX_AUTOMATIC_TTS_CHARACTERS = 450;
+const CACHED_BERBERINA_WELCOME_AUDIO_PATH = path.resolve(
+  process.cwd(),
+  "server/assets/audio/berberina-bienvenida.ogg",
+);
+
+function normalizeCachedWelcomeMatchText(rawText: string): string {
+  return normalizeTextForTts(rawText)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function shouldUseCachedBerberinaWelcomeAudio(responseText: string, hasOutboundHistory: boolean): boolean {
+  if (process.env.CACHED_WELCOME_AUDIO_ENABLED === "false" || hasOutboundHistory) return false;
+
+  const text = normalizeCachedWelcomeMatchText(responseText);
+  return text.length <= MAX_AUTOMATIC_TTS_CHARACTERS
+    && text.includes("mi nombre es isabella")
+    && text.includes("asesora de ryztor")
+    && text.includes("usted busca la berberina")
+    && text.includes("niveles de azucar")
+    && text.includes("antojos")
+    && text.includes("higado graso");
+}
 
 function getAutomaticAudioBlockReason(responseText: string): string | null {
   const normalizedText = normalizeTextForTts(responseText);
@@ -1646,7 +1673,14 @@ async function processAiResponse(data: BufferedMessage) {
         const ttsInstructions = aiSettings?.ttsInstructions || null;
         console.log("=== SENDING AUDIO ===", ttsProvider, selectedVoice, ttsSpeed);
 
-        const audioMediaId = await sendAudioResponse(from, aiResult.response, selectedVoice, { speed: ttsSpeed, instructions: ttsInstructions, provider: ttsProvider, elevenlabsVoiceId });
+        let audioMediaId: string | null = null;
+        if (shouldUseCachedBerberinaWelcomeAudio(aiResult.response, hasOutboundHistory)) {
+          console.log("[TTS] Using cached Berberina welcome audio", { conversationId });
+          audioMediaId = await sendCachedWelcomeAudio(from);
+        }
+        if (!audioMediaId) {
+          audioMediaId = await sendAudioResponse(from, aiResult.response, selectedVoice, { speed: ttsSpeed, instructions: ttsInstructions, provider: ttsProvider, elevenlabsVoiceId });
+        }
         if (audioMediaId) {
           waMessageId = `audio_${Date.now()}`;
           waResponse = { messages: [{ id: waMessageId }] };
@@ -2238,49 +2272,26 @@ async function generateTtsAudioBuffer(
   };
 }
 
-// Generate audio response and send via WhatsApp
-async function sendAudioResponse(phoneNumber: string, text: string, voice: string = "nova", options: TtsOptions = {}): Promise<string | null> {
+async function uploadAndSendWhatsAppAudio(phoneNumber: string, sourceAudioBuffer: Buffer): Promise<string | null> {
   const token = process.env.META_ACCESS_TOKEN;
   const phoneNumberId = process.env.WA_PHONE_NUMBER_ID;
-  
+
   if (!token || !phoneNumberId) {
     console.log("[TTS] Missing WhatsApp credentials");
     return null;
   }
-  
-  const provider = options.provider || "openai";
-  
+
   let tempPath: string | null = null;
-  
+
   try {
-    const ttsText = normalizeTextForTts(text);
-    if (!ttsText) {
-      console.log("[TTS] Skipping audio: no speech-safe text after normalization");
-      return null;
-    }
-    console.log("[TTS] Prepared speech text", {
-      provider,
-      originalLength: text.length,
-      speechLength: ttsText.length,
-    });
-
-    const generated = await generateTtsAudioBuffer(ttsText, voice, options, "whatsapp");
-    const sourceAudioBuffer = generated.audioBuffer;
-    console.log("[TTS] Audio generated:", sourceAudioBuffer.length, "bytes", {
-      provider,
-      fileExt: generated.fileExt,
-      contentType: generated.contentType,
-    });
-
     const audioBuffer = await transcodeToWhatsAppAudio(sourceAudioBuffer);
     const fileExt = "ogg";
     const contentType = "audio/ogg";
     console.log("[TTS] Audio transcoded for WhatsApp:", audioBuffer.length, "bytes");
-    
+
     tempPath = path.join(os.tmpdir(), `tts_${Date.now()}.${fileExt}`);
     fs.writeFileSync(tempPath, audioBuffer);
-    
-    // Step 3: Upload to WhatsApp Media
+
     const FormData = (await import('form-data')).default;
     const formData = new FormData();
     formData.append('file', fs.createReadStream(tempPath), {
@@ -2300,11 +2311,10 @@ async function sendAudioResponse(phoneNumber: string, text: string, voice: strin
         }
       }
     );
-    
+
     const mediaId = uploadResponse.data.id;
     console.log("[TTS] Media uploaded, ID:", mediaId);
-    
-    // Step 4: Send audio message
+
     const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
     await axios.post(
       `https://graph.facebook.com/v24.0/${phoneNumberId}/messages`,
@@ -2321,10 +2331,9 @@ async function sendAudioResponse(phoneNumber: string, text: string, voice: strin
         }
       }
     );
-    
+
     console.log("[TTS] Audio message sent successfully");
     return mediaId;
-    
   } catch (error: any) {
     console.error("[TTS] Error:", error.message);
     if (error.response?.data) {
@@ -2335,6 +2344,56 @@ async function sendAudioResponse(phoneNumber: string, text: string, voice: strin
     if (tempPath && fs.existsSync(tempPath)) {
       try { fs.unlinkSync(tempPath); } catch (e) {}
     }
+  }
+}
+
+async function sendCachedWelcomeAudio(phoneNumber: string): Promise<string | null> {
+  try {
+    if (!fs.existsSync(CACHED_BERBERINA_WELCOME_AUDIO_PATH)) {
+      console.warn("[TTS] Cached welcome audio file is missing", {
+        path: CACHED_BERBERINA_WELCOME_AUDIO_PATH,
+      });
+      return null;
+    }
+
+    const audioBuffer = fs.readFileSync(CACHED_BERBERINA_WELCOME_AUDIO_PATH);
+    console.log("[TTS] Cached welcome audio loaded", { bytes: audioBuffer.length });
+    return uploadAndSendWhatsAppAudio(phoneNumber, audioBuffer);
+  } catch (error: any) {
+    console.error("[TTS] Cached welcome audio failed:", error.message);
+    return null;
+  }
+}
+
+// Generate audio response and send via WhatsApp
+async function sendAudioResponse(phoneNumber: string, text: string, voice: string = "nova", options: TtsOptions = {}): Promise<string | null> {
+  const provider = options.provider || "openai";
+
+  try {
+    const ttsText = normalizeTextForTts(text);
+    if (!ttsText) {
+      console.log("[TTS] Skipping audio: no speech-safe text after normalization");
+      return null;
+    }
+    console.log("[TTS] Prepared speech text", {
+      provider,
+      originalLength: text.length,
+      speechLength: ttsText.length,
+    });
+
+    const generated = await generateTtsAudioBuffer(ttsText, voice, options, "whatsapp");
+    console.log("[TTS] Audio generated:", generated.audioBuffer.length, "bytes", {
+      provider,
+      fileExt: generated.fileExt,
+      contentType: generated.contentType,
+    });
+    return uploadAndSendWhatsAppAudio(phoneNumber, generated.audioBuffer);
+  } catch (error: any) {
+    console.error("[TTS] Error:", error.message);
+    if (error.response?.data) {
+      console.error("[TTS] Details:", JSON.stringify(error.response.data));
+    }
+    return null;
   }
 }
 
