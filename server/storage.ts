@@ -117,6 +117,12 @@ export interface IStorage {
   deleteAgent(id: number): Promise<void>;
   getActiveAgents(): Promise<Agent[]>;
   assignConversationToAgent(conversationId: number, agentId: number): Promise<void>;
+  reassignConversationIfAgentUnavailable(
+    conversationId: number,
+    expectedAgentId: number | null,
+    nextAgentId: number,
+    triggerWaMessageId: string,
+  ): Promise<boolean>;
   getNextAgentForAssignment(options?: AssignmentOptions): Promise<Agent | undefined>;
   deleteConversation(id: number): Promise<void>;
 
@@ -133,6 +139,7 @@ export class DatabaseStorage implements IStorage {
   private agentAiColumnEnsured = false;
   private aiSettingsColumnsEnsured = false;
   private subadminsTableEnsured = false;
+  private autoReassignmentEventsTableEnsured = false;
 
   private mapFallbackAgentRow(row: any): Agent {
     return {
@@ -824,6 +831,77 @@ export class DatabaseStorage implements IStorage {
 
   async assignConversationToAgent(conversationId: number, agentId: number): Promise<void> {
     await db.update(conversations).set({ assignedAgentId: agentId }).where(eq(conversations.id, conversationId));
+  }
+
+  private async ensureAutoReassignmentEventsTable(): Promise<void> {
+    if (this.autoReassignmentEventsTableEnsured) return;
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS conversation_auto_reassignment_events (
+        id SERIAL PRIMARY KEY,
+        conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        from_agent_id INTEGER REFERENCES agents(id) ON DELETE SET NULL,
+        to_agent_id INTEGER REFERENCES agents(id) ON DELETE SET NULL,
+        trigger_wa_message_id VARCHAR(255) NOT NULL UNIQUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        reverted_at TIMESTAMP
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_conversation_auto_reassignment_events_conversation
+      ON conversation_auto_reassignment_events (conversation_id, created_at DESC)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_conversation_auto_reassignment_events_created_at
+      ON conversation_auto_reassignment_events (created_at DESC)
+    `);
+    this.autoReassignmentEventsTableEnsured = true;
+  }
+
+  async reassignConversationIfAgentUnavailable(
+    conversationId: number,
+    expectedAgentId: number | null,
+    nextAgentId: number,
+    triggerWaMessageId: string,
+  ): Promise<boolean> {
+    await this.ensureAutoReassignmentEventsTable();
+    const result = await db.execute(sql`
+      WITH reassigned AS (
+        UPDATE conversations AS conversation
+        SET
+          assigned_agent_id = ${nextAgentId},
+          updated_at = NOW()
+        WHERE conversation.id = ${conversationId}
+          AND conversation.assigned_agent_id IS NOT DISTINCT FROM ${expectedAgentId}
+          AND NOT EXISTS (
+            SELECT 1
+            FROM agents AS current_agent
+            WHERE current_agent.id = conversation.assigned_agent_id
+              AND current_agent.is_active = true
+          )
+          AND EXISTS (
+            SELECT 1
+            FROM agents AS next_agent
+            WHERE next_agent.id = ${nextAgentId}
+              AND next_agent.is_active = true
+          )
+        RETURNING conversation.id
+      )
+      INSERT INTO conversation_auto_reassignment_events (
+        conversation_id,
+        from_agent_id,
+        to_agent_id,
+        trigger_wa_message_id
+      )
+      SELECT
+        reassigned.id,
+        ${expectedAgentId},
+        ${nextAgentId},
+        ${triggerWaMessageId}
+      FROM reassigned
+      ON CONFLICT (trigger_wa_message_id) DO NOTHING
+      RETURNING id
+    `);
+    return result.rows.length > 0;
   }
 
   async getNextAgentForAssignment(options: AssignmentOptions = {}): Promise<Agent | undefined> {

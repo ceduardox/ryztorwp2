@@ -3097,9 +3097,10 @@ export async function registerRoutes(
 
               // 2. Ensure Conversation Exists (now using correct messageText)
               let conversation = await storage.getConversationByWaId(from);
+              const conversationAlreadyExisted = Boolean(conversation);
+              const incomingAdId = extractAdIdFromIncomingMessage(msg);
               let adProductRouteForAi: string | null = null;
               if (!conversation) {
-                const incomingAdId = extractAdIdFromIncomingMessage(msg);
                 const adRouting = incomingAdId ? await getNextAgentForAdIdRouting(incomingAdId) : {};
                 if (adRouting.rule?.isActive) {
                   adProductRouteForAi = adRouting.rule.productRoute || null;
@@ -3139,6 +3140,42 @@ export async function registerRoutes(
               // 3. Prevent Duplicate Messages
               const existing = await storage.getMessageByWaId(msg.id);
               if (existing) continue;
+
+              // If a customer returns to a conversation owned by an unavailable agent,
+              // move the complete conversation to an active agent before notifications
+              // and AI settings are resolved. The conditional update prevents two
+              // simultaneous inbound messages from reassigning the same chat twice.
+              if (conversationAlreadyExisted) {
+                const assignedAgent = conversation.assignedAgentId
+                  ? await storage.getAgent(conversation.assignedAgentId)
+                  : undefined;
+                if (!assignedAgent || assignedAgent.isActive !== true) {
+                  const adRouting = incomingAdId ? await getNextAgentForAdIdRouting(incomingAdId) : {};
+                  const nextAgent = adRouting.agent || await storage.getNextAgentForAssignment({
+                    excludeAgentIds: await getExclusiveAdRoutingAgentIds(),
+                  });
+
+                  if (nextAgent && nextAgent.id !== conversation.assignedAgentId) {
+                    const previousAgentId = conversation.assignedAgentId ?? null;
+                    const wasReassigned = await storage.reassignConversationIfAgentUnavailable(
+                      conversation.id,
+                      previousAgentId,
+                      nextAgent.id,
+                      msg.id,
+                    );
+                    conversation = await storage.getConversation(conversation.id) || conversation;
+                    if (wasReassigned) {
+                      console.log(
+                        `[Auto-Reassign] Returning conversation ${conversation.id}: agent ${previousAgentId ?? "none"} -> ${nextAgent.name} (id: ${nextAgent.id})`,
+                      );
+                    }
+                  } else if (!nextAgent) {
+                    console.warn(
+                      `[Auto-Reassign] Conversation ${conversation.id} remains assigned to ${conversation.assignedAgentId ?? "none"}: no active agent is available`,
+                    );
+                  }
+                }
+              }
 
               // 4. Save Message (include mediaId for media types)
               const mediaId = msg.image?.id || msg.sticker?.id || msg.audio?.id || msg.video?.id || null;
@@ -3471,6 +3508,7 @@ export async function registerRoutes(
       return;
     }
 
+    await ensureConversationAssignmentEventsTableExists();
     const assignmentRows = await db.execute(sql`
       SELECT
         conversation_id AS "conversationId",
