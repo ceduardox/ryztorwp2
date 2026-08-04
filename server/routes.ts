@@ -1396,9 +1396,9 @@ function shouldUseCachedBerberinaWelcomeAudio(responseText: string, hasOutboundH
 
   const text = normalizeCachedWelcomeMatchText(responseText);
   return text.length <= MAX_AUTOMATIC_TTS_CHARACTERS
-    && text.includes("mi nombre es isabella")
-    && text.includes("asesora de ryztor")
-    && text.includes("usted busca la berberina")
+    && text.includes("hola que gusto saludarle")
+    && text.includes("soy asesora de ryztor")
+    && text.includes("busca la berberina")
     && text.includes("niveles de azucar")
     && text.includes("antojos")
     && text.includes("higado graso");
