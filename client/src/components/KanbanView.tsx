@@ -658,6 +658,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeId, setActiveId] = useState<number | null>(null);
+  const [activeColumn, setActiveColumn] = useState<TabType | null>(null);
   const [readStateByConversation, setReadStateByConversation] = useState<Record<number, number>>(() => readKanbanReadState());
   const [assignmentSeenStateByConversation, setAssignmentSeenStateByConversation] = useState<Record<number, number>>(() => readAssignmentSeenState());
   const [mobileTab, setMobileTab] = useState<TabType>("nuevo");
@@ -756,13 +757,28 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
     return spotlight;
   }, [conversationsByAgent, assignmentSeenStateByConversation]);
 
+  const getConversationColumn = (conv: Conversation): TabType => {
+    if (conv.needsHumanAttention) return "humano";
+    if (conv.orderStatus === "delivered") return "entregado";
+    if (conv.orderStatus === "ready") return "listo";
+    if (conv.orderStatus === "pending") return "proceso";
+    if (conv.shouldCall) return "llamar";
+    return "nuevo";
+  };
+
   const handleSelectConversation = (id: number) => {
     const selected = conversationsByAgent.find((conv) => conv.id === id);
     if (selected) {
       markConversationRead(id, selected.lastMessageTimestamp);
       markAssignmentSeen(id, getAssignedToMeTimestamp(selected));
+      setActiveColumn(getConversationColumn(selected));
     }
     setActiveId(id);
+  };
+
+  const handleCloseConversation = () => {
+    setActiveId(null);
+    setActiveColumn(null);
   };
 
   useEffect(() => {
@@ -812,23 +828,21 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
       !conversationsByAgent.some((conversation) => conversation.id === activeId)
     ) {
       setActiveId(null);
+      setActiveColumn(null);
     }
   }, [activeId, conversationsByAgent]);
+
+  useEffect(() => {
+    if (activeId && !activeColumn && activeConversation?.conversation) {
+      setActiveColumn(getConversationColumn(activeConversation.conversation));
+    }
+  }, [activeId, activeColumn, activeConversation?.conversation]);
 
   useEffect(() => {
     if (activeId && activeConversation?.conversation) {
       markConversationRead(activeId, activeConversation.conversation.lastMessageTimestamp);
     }
   }, [activeId, activeConversation?.conversation?.lastMessageTimestamp]);
-
-  const getConversationColumn = (conv: Conversation): TabType => {
-    if (conv.needsHumanAttention) return "humano";
-    if (conv.orderStatus === "delivered") return "entregado";
-    if (conv.orderStatus === "ready") return "listo";
-    if (conv.orderStatus === "pending") return "proceso";
-    if (conv.shouldCall) return "llamar";
-    return "nuevo";
-  };
 
   const moveCardMutation = useMutation({
     mutationFn: async ({ conversationId, targetColumn }: { conversationId: number; targetColumn: TabType }) => {
@@ -1273,7 +1287,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
           {activeId && activeConversation ? (
             <div className="absolute inset-0 z-10 h-full flex flex-col bg-slate-900">
               <button
-                onClick={() => setActiveId(null)}
+                onClick={handleCloseConversation}
                 className="group px-3 py-2.5 border-b border-slate-700 text-left text-sm text-emerald-400 font-medium flex items-center gap-2 bg-slate-800/50 select-none transition-all duration-75 active:scale-90 active:bg-slate-700 active:text-emerald-200 active:shadow-inner active:brightness-90"
                 data-testid="button-back-kanban"
               >
@@ -1293,8 +1307,12 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
 
       {/* Desktop: Grid view with glassmorphism */}
       <div className="hidden md:flex flex-1 min-h-0">
-        <div className="flex-1 flex gap-0 min-h-0 overflow-hidden p-3">
-          <KanbanColumn
+        <div className={cn(
+          "flex gap-0 min-h-0 overflow-hidden p-3",
+          activeId ? "w-[320px] flex-none" : "flex-1",
+        )}>
+          {(!activeId || activeColumn === "humano") && (
+            <KanbanColumn
             title="Interaccion Humana"
             items={humano}
             activeId={activeId}
@@ -1315,7 +1333,9 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             unreadIds={unreadIds}
             assignedSpotlightIds={assignedSpotlightIds}
           />
-          <KanbanColumn
+          )}
+          {(!activeId || activeColumn === "nuevo") && (
+            <KanbanColumn
             title="Esperando Confirmaci."
             items={nuevos}
             activeId={activeId}
@@ -1336,7 +1356,9 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             unreadIds={unreadIds}
             assignedSpotlightIds={assignedSpotlightIds}
           />
-          <KanbanColumn
+          )}
+          {(!activeId || activeColumn === "llamar") && (
+            <KanbanColumn
             title="Llamar"
             items={llamar}
             activeId={activeId}
@@ -1357,7 +1379,9 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             unreadIds={unreadIds}
             assignedSpotlightIds={assignedSpotlightIds}
           />
-          <KanbanColumn
+          )}
+          {(!activeId || activeColumn === "proceso") && (
+            <KanbanColumn
             title="Pedido en Proceso"
             items={enProceso}
             activeId={activeId}
@@ -1378,7 +1402,9 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             unreadIds={unreadIds}
             assignedSpotlightIds={assignedSpotlightIds}
           />
-          <KanbanColumn
+          )}
+          {(!activeId || activeColumn === "listo") && (
+            <KanbanColumn
             title="Listo para Enviar"
             items={listos}
             activeId={activeId}
@@ -1399,35 +1425,38 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             unreadIds={unreadIds}
             assignedSpotlightIds={assignedSpotlightIds}
           />
-          <KanbanColumn
-            title="Enviados y Entregados"
-            items={entregados}
-            activeId={activeId}
-            onSelect={handleSelectConversation}
-            columnType="entregado"
-            labels={labels}
-            showAgentAssignment={isAdmin}
-            getAssignedAgentName={getAssignedAgentName}
-            enableDrag={canDragKanban}
-            draggingConversationId={draggingConversationId}
-            isDropTarget={dragOverColumn === "entregado"}
-            onDragStartCard={handleDragStartCard}
-            onDragEndCard={handleDragEndCard}
-            onDragOverColumn={handleDragOverColumn}
-            onDropOnColumn={handleDropOnColumn}
-            onLoadMore={onLoadMore}
-            hasMoreConversations={hasMoreConversations}
-            unreadIds={unreadIds}
-            assignedSpotlightIds={assignedSpotlightIds}
-          />
+          )}
+          {(!activeId || activeColumn === "entregado") && (
+            <KanbanColumn
+              title="Enviados y Entregados"
+              items={entregados}
+              activeId={activeId}
+              onSelect={handleSelectConversation}
+              columnType="entregado"
+              labels={labels}
+              showAgentAssignment={isAdmin}
+              getAssignedAgentName={getAssignedAgentName}
+              enableDrag={canDragKanban}
+              draggingConversationId={draggingConversationId}
+              isDropTarget={dragOverColumn === "entregado"}
+              onDragStartCard={handleDragStartCard}
+              onDragEndCard={handleDragEndCard}
+              onDragOverColumn={handleDragOverColumn}
+              onDropOnColumn={handleDropOnColumn}
+              onLoadMore={onLoadMore}
+              hasMoreConversations={hasMoreConversations}
+              unreadIds={unreadIds}
+              assignedSpotlightIds={assignedSpotlightIds}
+            />
+          )}
         </div>
 
         {activeId && activeConversation ? (
-          <div className="w-[420px] border-l border-slate-700/50 flex-shrink-0 bg-slate-900/80 backdrop-blur-xl">
+          <div className="flex-1 min-w-0 border-l border-slate-700/50 bg-slate-900/80 backdrop-blur-xl">
             <ChatArea
               conversation={activeConversation.conversation}
               messages={activeConversation.messages}
-              onClose={() => setActiveId(null)}
+              onClose={handleCloseConversation}
             />
           </div>
         ) : null}
