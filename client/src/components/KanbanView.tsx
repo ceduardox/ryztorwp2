@@ -4,7 +4,7 @@ import type { Conversation, Label } from "@shared/schema";
 import { useConversation } from "@/hooks/use-inbox";
 import { useAuth } from "@/hooks/use-auth";
 import { ChatArea } from "./ChatArea";
-import { Phone, PhoneOff, Clock, AlertCircle, Truck, CheckCircle, Check, Zap, ArrowLeft, Tag, Package, Search, X, Users, CalendarClock, RotateCcw } from "lucide-react";
+import { Phone, PhoneOff, Clock, AlertCircle, Truck, CheckCircle, Check, Zap, ArrowLeft, Tag, Package, Search, X, Users, CalendarClock, RotateCcw, Columns3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -662,6 +662,9 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
   const [readStateByConversation, setReadStateByConversation] = useState<Record<number, number>>(() => readKanbanReadState());
   const [assignmentSeenStateByConversation, setAssignmentSeenStateByConversation] = useState<Record<number, number>>(() => readAssignmentSeenState());
   const [mobileTab, setMobileTab] = useState<TabType>("nuevo");
+  const [visibleColumns, setVisibleColumns] = useState<Set<TabType>>(
+    () => new Set(tabConfig.map((tab) => tab.key)),
+  );
   const [filterLabelId, setFilterLabelId] = useState<number | null>(null);
   const [filterAgentId, setFilterAgentId] = useState<number | null>(null);
   const [draggingConversationId, setDraggingConversationId] = useState<number | null>(null);
@@ -780,6 +783,27 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
     setActiveId(null);
     setActiveColumn(null);
   };
+
+  const toggleColumnVisibility = (column: TabType) => {
+    setVisibleColumns((current) => {
+      if (current.has(column) && current.size === 1) {
+        toast({ title: "Debe quedar al menos una columna visible" });
+        return current;
+      }
+
+      const next = new Set(current);
+      if (next.has(column)) next.delete(column);
+      else next.add(column);
+      return next;
+    });
+  };
+
+  const showAllColumns = () => {
+    setVisibleColumns(new Set(tabConfig.map((tab) => tab.key)));
+  };
+
+  const shouldShowDesktopColumn = (column: TabType) =>
+    activeId ? activeColumn === column : visibleColumns.has(column);
 
   useEffect(() => {
     if (hasAppliedUrlConversation.current) return;
@@ -1198,6 +1222,45 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              className="hidden md:flex h-9 border-slate-600/70 bg-slate-800/70 px-3 text-slate-200 hover:bg-slate-700/80"
+              data-testid="button-visible-columns"
+              title="Elegir columnas visibles"
+            >
+              <Columns3 className="h-4 w-4 text-slate-300" />
+              <span className="ml-2 text-xs">
+                Columnas {visibleColumns.size}/{tabConfig.length}
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-64 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
+            {tabConfig.map((tab) => (
+              <DropdownMenuItem
+                key={tab.key}
+                onSelect={(event) => event.preventDefault()}
+                onClick={() => toggleColumnVisibility(tab.key)}
+                data-testid={`toggle-column-${tab.key}`}
+                className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"
+              >
+                <span className={cn("mr-2 inline-flex", visibleColumns.has(tab.key) ? "text-emerald-400" : "text-transparent")}>
+                  <Check className="h-3.5 w-3.5" />
+                </span>
+                {tab.label}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuItem
+              onClick={showAllColumns}
+              disabled={visibleColumns.size === tabConfig.length}
+              data-testid="show-all-columns"
+              className="!text-cyan-300 focus:bg-slate-700 !focus:text-cyan-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-cyan-100"
+            >
+              Mostrar todas
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         {hasMoreConversations && (
           <Button
             onClick={onLoadMore}
@@ -1311,7 +1374,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
           "flex gap-0 min-h-0 overflow-hidden p-3",
           activeId ? "w-[320px] flex-none" : "flex-1",
         )}>
-          {(!activeId || activeColumn === "humano") && (
+          {shouldShowDesktopColumn("humano") && (
             <KanbanColumn
             title="Interaccion Humana"
             items={humano}
@@ -1334,7 +1397,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             assignedSpotlightIds={assignedSpotlightIds}
           />
           )}
-          {(!activeId || activeColumn === "nuevo") && (
+          {shouldShowDesktopColumn("nuevo") && (
             <KanbanColumn
             title="Esperando Confirmaci."
             items={nuevos}
@@ -1357,7 +1420,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             assignedSpotlightIds={assignedSpotlightIds}
           />
           )}
-          {(!activeId || activeColumn === "llamar") && (
+          {shouldShowDesktopColumn("llamar") && (
             <KanbanColumn
             title="Llamar"
             items={llamar}
@@ -1380,7 +1443,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             assignedSpotlightIds={assignedSpotlightIds}
           />
           )}
-          {(!activeId || activeColumn === "proceso") && (
+          {shouldShowDesktopColumn("proceso") && (
             <KanbanColumn
             title="Pedido en Proceso"
             items={enProceso}
@@ -1403,7 +1466,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             assignedSpotlightIds={assignedSpotlightIds}
           />
           )}
-          {(!activeId || activeColumn === "listo") && (
+          {shouldShowDesktopColumn("listo") && (
             <KanbanColumn
             title="Listo para Enviar"
             items={listos}
@@ -1426,7 +1489,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             assignedSpotlightIds={assignedSpotlightIds}
           />
           )}
-          {(!activeId || activeColumn === "entregado") && (
+          {shouldShowDesktopColumn("entregado") && (
             <KanbanColumn
               title="Enviados y Entregados"
               items={entregados}
