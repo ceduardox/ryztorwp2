@@ -166,8 +166,10 @@ export const aiSettings = pgTable("ai_settings", {
   audioResponseMode: varchar("audio_response_mode", { length: 30 }).default("off"), // "off", "reply_to_audio", "from_first_turn", or "from_second_turn"
   audioModeActivatedAt: timestamp("audio_mode_activated_at"), // Starts fresh turn counting when from_second_turn is enabled
   audioVoice: varchar("audio_voice", { length: 20 }).default("nova"), // TTS voice: nova, alloy, echo, shimmer, coral, sage, ash, ballad, verse
-  ttsProvider: varchar("tts_provider", { length: 20 }).default("openai"), // "openai" or "elevenlabs"
+  ttsProvider: varchar("tts_provider", { length: 20 }).default("openai"), // "openai", "elevenlabs" or "fishaudio"
   elevenlabsVoiceId: varchar("elevenlabs_voice_id", { length: 50 }).default("JBFqnCBsd6RMkjVDRZzb"), // ElevenLabs voice ID
+  fishAudioVoiceId: varchar("fish_audio_voice_id", { length: 100 }), // Fish Audio voice model reference_id
+  fishAudioModel: varchar("fish_audio_model", { length: 30 }).default("s2.1-pro-free"), // Fish Audio model: s2.1-pro-free (gratis) or s2.1-pro (pago)
   ttsSpeed: integer("tts_speed").default(100), // 25-400, divide by 100 for actual value (0.25x - 4.0x)
   ttsInstructions: text("tts_instructions"), // Only for realistic voices - describes tone/style
   learningMode: boolean("learning_mode").default(false), // Enable/disable learning from human responses

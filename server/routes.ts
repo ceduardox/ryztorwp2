@@ -1669,6 +1669,8 @@ async function processAiResponse(data: BufferedMessage) {
         const ttsProvider = aiSettings?.ttsProvider || "openai";
         const selectedVoice = aiSettings?.audioVoice || "nova";
         const elevenlabsVoiceId = aiSettings?.elevenlabsVoiceId || "JBFqnCBsd6RMkjVDRZzb";
+        const fishAudioVoiceId = aiSettings?.fishAudioVoiceId || "";
+        const fishAudioModel = aiSettings?.fishAudioModel || "s2.1-pro-free";
         const ttsSpeed = aiSettings?.ttsSpeed ? aiSettings.ttsSpeed / 100 : 1.0;
         const ttsInstructions = aiSettings?.ttsInstructions || null;
         console.log("=== SENDING AUDIO ===", ttsProvider, selectedVoice, ttsSpeed);
@@ -1679,7 +1681,7 @@ async function processAiResponse(data: BufferedMessage) {
           audioMediaId = await sendCachedWelcomeAudio(from);
         }
         if (!audioMediaId) {
-          audioMediaId = await sendAudioResponse(from, aiResult.response, selectedVoice, { speed: ttsSpeed, instructions: ttsInstructions, provider: ttsProvider, elevenlabsVoiceId });
+          audioMediaId = await sendAudioResponse(from, aiResult.response, selectedVoice, { speed: ttsSpeed, instructions: ttsInstructions, provider: ttsProvider, elevenlabsVoiceId, fishAudioVoiceId, fishAudioModel });
         }
         if (audioMediaId) {
           waMessageId = `audio_${Date.now()}`;
@@ -2099,8 +2101,10 @@ async function transcribeWhatsAppAudio(mediaId: string, mimeType?: string): Prom
 interface TtsOptions {
   speed?: number; // 0.25 - 4.0, default 1.0
   instructions?: string | null; // Only for realistic voices
-  provider?: string; // "openai" or "elevenlabs"
+  provider?: string; // "openai", "elevenlabs" or "fishaudio"
   elevenlabsVoiceId?: string; // ElevenLabs voice ID
+  fishAudioVoiceId?: string; // Fish Audio voice model reference_id
+  fishAudioModel?: string; // Fish Audio model: s2.1-pro-free (gratis) or s2.1-pro (pago)
 }
 
 function normalizeTextForTts(rawText: string): string {
@@ -2212,6 +2216,66 @@ async function generateElevenLabsAudio(text: string, voiceId: string): Promise<B
   throw new Error(`ElevenLabs TTS failed. ${attemptErrors.join(" | ")}`);
 }
 
+// Get Fish Audio API key from environment
+async function getFishAudioApiKey(): Promise<string> {
+  const directApiKey = process.env.FISH_AUDIO_API_KEY;
+  if (directApiKey && directApiKey.trim().length > 0) {
+    return directApiKey.trim();
+  }
+  throw new Error("FISH_AUDIO_API_KEY not configured");
+}
+
+function getFishAudioErrorMessage(error: any): string {
+  const data = error?.response?.data;
+  if (!data) return error?.message || "Unknown Fish Audio error";
+  if (Buffer.isBuffer(data)) {
+    try {
+      return JSON.parse(data.toString("utf8")).message || data.toString("utf8");
+    } catch {
+      return data.toString("utf8");
+    }
+  }
+  if (typeof data === "string") return data;
+  return data?.message || data?.detail || data?.reason || JSON.stringify(data);
+}
+
+const FISH_AUDIO_ALLOWED_MODELS = ["s1", "s2-pro", "s2.1-pro", "s2.1-pro-free"];
+
+// Generate audio buffer using Fish Audio TTS (default: free model s2.1-pro-free)
+async function generateFishAudio(text: string, referenceId: string, speed: number = 1.0, model: string = "s2.1-pro-free"): Promise<Buffer> {
+  const apiKey = await getFishAudioApiKey();
+  const safeSpeed = Math.max(0.5, Math.min(2.0, speed));
+  const fishModel = FISH_AUDIO_ALLOWED_MODELS.includes(model) ? model : "s2.1-pro-free";
+
+  const response = await axios.post(
+    "https://api.fish.audio/v1/tts",
+    {
+      text,
+      reference_id: referenceId,
+      format: "mp3",
+      mp3_bitrate: 128,
+      normalize: true,
+      latency: "normal",
+      prosody: {
+        speed: safeSpeed,
+        volume: 0,
+        normalize_loudness: true,
+      },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        model: fishModel,
+        Accept: "audio/mpeg",
+      },
+      responseType: "arraybuffer",
+    }
+  );
+  console.log("[FishAudio] TTS success", { referenceId, model: fishModel, size: response.data?.byteLength || 0 });
+  return Buffer.from(response.data);
+}
+
 async function generateTtsAudioBuffer(
   text: string,
   voice: string = "nova",
@@ -2220,7 +2284,21 @@ async function generateTtsAudioBuffer(
 ): Promise<{ audioBuffer: Buffer; fileExt: "mp3" | "opus"; contentType: string }> {
   const provider = options.provider || "openai";
   const isElevenLabs = provider === "elevenlabs";
+  const isFishAudio = provider === "fishaudio";
   const openaiKey = process.env.OPENAI_API_KEY;
+
+  if (isFishAudio) {
+    const fishReferenceId = options.fishAudioVoiceId || "";
+    if (!fishReferenceId) {
+      throw new Error("Missing Fish Audio voice (reference_id)");
+    }
+    const audioBuffer = await generateFishAudio(text, fishReferenceId, options.speed || 1.0, options.fishAudioModel || "s2.1-pro-free");
+    return {
+      audioBuffer,
+      fileExt: "mp3",
+      contentType: "audio/mpeg",
+    };
+  }
 
   if (isElevenLabs) {
     const elVoiceId = options.elevenlabsVoiceId || "JBFqnCBsd6RMkjVDRZzb";
@@ -3636,6 +3714,8 @@ export async function registerRoutes(
       const ttsProvider = aiSettings?.ttsProvider || "openai";
       const selectedVoice = aiSettings?.audioVoice || "nova";
       const elevenlabsVoiceId = aiSettings?.elevenlabsVoiceId || "JBFqnCBsd6RMkjVDRZzb";
+      const fishAudioVoiceId = aiSettings?.fishAudioVoiceId || "";
+      const fishAudioModel = aiSettings?.fishAudioModel || "s2.1-pro-free";
       const ttsSpeed = aiSettings?.ttsSpeed ? aiSettings.ttsSpeed / 100 : 1.0;
       const ttsInstructions = aiSettings?.ttsInstructions || null;
 
@@ -3648,6 +3728,8 @@ export async function registerRoutes(
           instructions: ttsInstructions,
           provider: ttsProvider,
           elevenlabsVoiceId,
+          fishAudioVoiceId,
+          fishAudioModel,
         },
       );
       if (!audioMediaId) {
@@ -5656,8 +5738,10 @@ NO uses saludos formales. Se directo y amigable.`
     audioResponseEnabled: z.boolean().optional(),
     audioResponseMode: z.enum(["off", "reply_to_audio", "from_first_turn", "from_second_turn"]).optional(),
     audioVoice: z.string().optional(),
-    ttsProvider: z.enum(["openai", "elevenlabs"]).optional(),
+    ttsProvider: z.enum(["openai", "elevenlabs", "fishaudio"]).optional(),
     elevenlabsVoiceId: z.string().optional(),
+    fishAudioVoiceId: z.string().optional(),
+    fishAudioModel: z.enum(["s1", "s2-pro", "s2.1-pro", "s2.1-pro-free"]).optional(),
     ttsSpeed: z.number().min(25).max(400).optional(),
     ttsInstructions: z.string().nullable().optional(),
     learningMode: z.boolean().optional(),
@@ -5682,9 +5766,11 @@ NO uses saludos formales. Se directo y amigable.`
     content: z.string().min(1),
   });
   const ttsPreviewSchema = z.object({
-    provider: z.enum(["openai", "elevenlabs"]),
+    provider: z.enum(["openai", "elevenlabs", "fishaudio"]),
     voice: z.string().optional(),
     elevenlabsVoiceId: z.string().optional(),
+    fishAudioVoiceId: z.string().optional(),
+    fishAudioModel: z.enum(["s1", "s2-pro", "s2.1-pro", "s2.1-pro-free"]).optional(),
     speed: z.number().min(25).max(400).optional(),
     instructions: z.string().nullable().optional(),
     text: z.string().min(1).max(300).optional(),
@@ -5752,6 +5838,62 @@ NO uses saludos formales. Se directo y amigable.`
     } catch (error: any) {
       console.error("Error fetching ElevenLabs voices:", error.message);
       res.status(500).json({ message: "Error fetching ElevenLabs voices" });
+    }
+  });
+
+  // Get Fish Audio available voices (public Spanish voices + user's own models)
+  app.get("/api/fishaudio/voices", requireAuth, async (req, res) => {
+    try {
+      const apiKey = await getFishAudioApiKey();
+      const headers = { Authorization: `Bearer ${apiKey}` };
+
+      const searchQuery = typeof req.query.search === "string" && req.query.search.trim()
+        ? req.query.search.trim()
+        : null;
+
+      const publicRes = await axios.get("https://api.fish.audio/model", {
+        headers,
+        params: {
+          page_size: 100,
+          page_number: 1,
+          type: "tts",
+          language: "es",
+          ...(searchQuery ? { title: searchQuery } : { sort_by: "task_count" }),
+        },
+      }).catch(() => ({ data: { items: [] } }));
+
+      const selfRes = await axios.get("https://api.fish.audio/model", {
+        headers,
+        params: { page_size: 100, page_number: 1, self: true, type: "tts" },
+      }).catch(() => ({ data: { items: [] } }));
+
+      const dedup = new Map<string, any>();
+      const pushVoice = (v: any, source: "library" | "shared") => {
+        if (!v || !v._id || v.state !== "trained") return;
+        if (!dedup.has(v._id)) {
+          dedup.set(v._id, {
+            voice_id: v._id,
+            name: v.title || "Sin nombre",
+            description: v.description || "",
+            tags: v.tags || [],
+            languages: v.languages || [],
+            author: v.author?.nickname || "",
+            preview_url: v.samples?.[0]?.audio || "",
+            preview_text: v.samples?.[0]?.text || "",
+            task_count: v.task_count || 0,
+            like_count: v.like_count || 0,
+            source,
+          });
+        }
+      };
+
+      (selfRes.data.items || []).forEach((v: any) => pushVoice(v, "library"));
+      (publicRes.data.items || []).forEach((v: any) => pushVoice(v, "shared"));
+
+      res.json(Array.from(dedup.values()));
+    } catch (error: any) {
+      console.error("Error fetching Fish Audio voices:", error.message);
+      res.status(500).json({ message: "Error fetching Fish Audio voices" });
     }
   });
 
@@ -5968,7 +6110,9 @@ NO uses saludos formales. Se directo y amigable.`
       const provider = parsed.provider;
       const voiceId = provider === "elevenlabs"
         ? parsed.elevenlabsVoiceId
-        : parsed.voice || "nova";
+        : provider === "fishaudio"
+          ? parsed.fishAudioVoiceId
+          : parsed.voice || "nova";
 
       if (!voiceId) {
         return res.status(400).json({ message: "Missing voice identifier" });
@@ -5976,15 +6120,18 @@ NO uses saludos formales. Se directo y amigable.`
 
       const speed = parsed.speed ? parsed.speed / 100 : 1.0;
       const instructions = parsed.instructions ?? null;
-      const isElevenlabsPreview = provider === "elevenlabs" && Boolean(parsed.previewUrl);
+      const fishAudioModel = parsed.fishAudioModel || "s2.1-pro-free";
+      const isFreePreview = provider !== "openai" && Boolean(parsed.previewUrl);
       const cacheKey = provider === "elevenlabs"
-        ? `elevenlabs|${voiceId}|${isElevenlabsPreview ? "preview-free-v1" : "preview-paid-v1"}`
-        : `openai|${voiceId}|${speed}|${instructions || ""}|${previewText}`;
+        ? `elevenlabs|${voiceId}|${isFreePreview ? "preview-free-v1" : "preview-paid-v1"}`
+        : provider === "fishaudio"
+          ? `fishaudio|${voiceId}|${speed}|${fishAudioModel}|${previewText}`
+          : `openai|${voiceId}|${speed}|${instructions || ""}|${previewText}`;
 
       const cached = await getCachedTtsPreview(cacheKey);
       res.json({
         saved: Boolean(cached?.audio_data),
-        free: isElevenlabsPreview,
+        free: isFreePreview,
         provider,
       });
     } catch (error: any) {
@@ -6003,7 +6150,9 @@ NO uses saludos formales. Se directo y amigable.`
       const provider = parsed.provider;
       const voiceId = provider === "elevenlabs"
         ? parsed.elevenlabsVoiceId
-        : parsed.voice || "nova";
+        : provider === "fishaudio"
+          ? parsed.fishAudioVoiceId
+          : parsed.voice || "nova";
 
       if (!voiceId) {
         return res.status(400).json({ message: "Missing voice identifier" });
@@ -6011,10 +6160,13 @@ NO uses saludos formales. Se directo y amigable.`
 
       const speed = parsed.speed ? parsed.speed / 100 : 1.0;
       const instructions = parsed.instructions ?? null;
-      const isElevenlabsPreview = provider === "elevenlabs" && Boolean(parsed.previewUrl);
+      const fishAudioModel = parsed.fishAudioModel || "s2.1-pro-free";
+      const isFreePreview = provider !== "openai" && Boolean(parsed.previewUrl);
       const cacheKey = provider === "elevenlabs"
-        ? `elevenlabs|${voiceId}|${isElevenlabsPreview ? "preview-free-v1" : "preview-paid-v1"}`
-        : `openai|${voiceId}|${speed}|${instructions || ""}|${previewText}`;
+        ? `elevenlabs|${voiceId}|${isFreePreview ? "preview-free-v1" : "preview-paid-v1"}`
+        : provider === "fishaudio"
+          ? `fishaudio|${voiceId}|${speed}|${fishAudioModel}|${previewText}`
+          : `openai|${voiceId}|${speed}|${instructions || ""}|${previewText}`;
 
       const setPreviewHeaders = (cacheStatus: "hit" | "miss", isFree: boolean, source: string) => {
         res.setHeader("X-TTS-Cache", cacheStatus);
@@ -6028,7 +6180,7 @@ NO uses saludos formales. Se directo y amigable.`
         const cachedBuffer = Buffer.isBuffer(cached.audio_data)
           ? cached.audio_data
           : Buffer.from(cached.audio_data);
-        setPreviewHeaders("hit", isElevenlabsPreview, "cache");
+        setPreviewHeaders("hit", isFreePreview, "cache");
         res.setHeader("Content-Type", cached.mime_type || "audio/mpeg");
         res.setHeader("Cache-Control", "no-store");
         return res.send(cachedBuffer);
@@ -6037,7 +6189,7 @@ NO uses saludos formales. Se directo y amigable.`
       let audioBuffer: Buffer;
       let contentType: string;
 
-      if (provider === "elevenlabs" && parsed.previewUrl) {
+      if (provider !== "openai" && parsed.previewUrl) {
         const previewRes = await axios.get(parsed.previewUrl, { responseType: "arraybuffer" });
         audioBuffer = Buffer.from(previewRes.data);
         contentType = previewRes.headers["content-type"] || "audio/mpeg";
@@ -6045,6 +6197,8 @@ NO uses saludos formales. Se directo y amigable.`
         const options: TtsOptions = {
           provider,
           elevenlabsVoiceId: provider === "elevenlabs" ? voiceId : parsed.elevenlabsVoiceId,
+          fishAudioVoiceId: provider === "fishaudio" ? voiceId : parsed.fishAudioVoiceId,
+          fishAudioModel,
           speed,
           instructions,
         };
@@ -6061,7 +6215,7 @@ NO uses saludos formales. Se directo y amigable.`
         audioData: audioBuffer,
       });
 
-      setPreviewHeaders("miss", isElevenlabsPreview, isElevenlabsPreview ? "elevenlabs-preview" : "generated");
+      setPreviewHeaders("miss", isFreePreview, isFreePreview ? `${provider}-preview` : "generated");
       res.setHeader("Content-Type", contentType);
       res.setHeader("Cache-Control", "no-store");
       res.send(audioBuffer);
@@ -6069,7 +6223,7 @@ NO uses saludos formales. Se directo y amigable.`
       if (error.name === "ZodError") {
         return res.status(400).json({ message: "Invalid preview payload", errors: error.errors });
       }
-      const details = error?.message || getElevenLabsErrorMessage(error);
+      const details = error?.message || getElevenLabsErrorMessage(error) || getFishAudioErrorMessage(error);
       console.error("Error generating TTS preview:", details);
       res.status(500).json({ message: "Error generating TTS preview", details });
     }
