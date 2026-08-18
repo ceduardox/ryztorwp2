@@ -112,6 +112,21 @@ interface PushSettings {
   notifyPending: boolean;
 }
 
+function formatApiError(err: unknown): string {
+  if (!err) return "Error desconocido";
+  const msg = String((err as any)?.message || err);
+  const idx = msg.indexOf("{");
+  if (idx >= 0) {
+    try {
+      const data = JSON.parse(msg.slice(idx));
+      return data.details || data.message || msg;
+    } catch {
+      // ignore
+    }
+  }
+  return msg;
+}
+
 export default function AIAgentPage() {
   const { toast } = useToast();
   const [primaryPrompt, setPrimaryPrompt] = useState("");
@@ -1380,6 +1395,7 @@ export default function AIAgentPage() {
                     {elVoicesError ? (
                       <div className="p-4 rounded-xl border border-red-500/30 bg-red-500/10 text-center">
                         <p className="text-sm text-red-300">Error al cargar voces. Verifica tu conexión con ElevenLabs.</p>
+                        <p className="text-xs text-red-400/80 mt-1 font-mono break-words">{formatApiError(elVoicesError)}</p>
                       </div>
                     ) : elVoicesLoading || elevenLabsVoices.length === 0 ? (
                       <div className="p-4 rounded-xl border border-violet-500/30 bg-violet-500/10 text-center">

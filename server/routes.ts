@@ -2133,7 +2133,10 @@ function normalizeTextForTts(rawText: string): string {
 
 // Get ElevenLabs API key via Replit connector
 async function getElevenLabsApiKey(): Promise<string> {
-  const directApiKey = process.env.ELEVENLABS_API_KEY;
+  const directApiKey = process.env.ELEVENLABS_API_KEY
+    || process.env.ELEVEN_API_KEY
+    || process.env.XI_API_KEY
+    || process.env.ELEVENLABS_KEY;
   if (directApiKey && directApiKey.trim().length > 0) {
     return directApiKey.trim();
   }
@@ -5837,7 +5840,7 @@ NO uses saludos formales. Se directo y amigable.`
       res.json([...userVoices, ...sharedVoices]);
     } catch (error: any) {
       console.error("Error fetching ElevenLabs voices:", error.message);
-      res.status(500).json({ message: "Error fetching ElevenLabs voices" });
+      res.status(500).json({ message: "Error fetching ElevenLabs voices", details: error?.message || String(error) });
     }
   });
 
