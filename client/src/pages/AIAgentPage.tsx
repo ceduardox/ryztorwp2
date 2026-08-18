@@ -135,6 +135,11 @@ export default function AIAgentPage() {
   const [fishAudioVoiceId, setFishAudioVoiceId] = useState("");
   const [fishAudioModel, setFishAudioModel] = useState("s2.1-pro-free");
   const [voiceSearchQuery, setVoiceSearchQuery] = useState("");
+  const [debouncedVoiceSearch, setDebouncedVoiceSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedVoiceSearch(voiceSearchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [voiceSearchQuery]);
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const [previewMeta, setPreviewMeta] = useState<{ saved: boolean; free: boolean; cache: "hit" | "miss" | null } | null>(null);
   const [previewStatusLoading, setPreviewStatusLoading] = useState(false);
@@ -235,10 +240,20 @@ export default function AIAgentPage() {
     source?: "library" | "shared";
   }
 
+  const fishAudioSearch = ttsProvider === "fishaudio" ? debouncedVoiceSearch : "";
+
   const { data: fishAudioVoices = [], isLoading: fishVoicesLoading, isError: fishVoicesError } = useQuery<FishAudioVoice[]>({
-    queryKey: ["/api/fishaudio/voices"],
+    queryKey: ["/api/fishaudio/voices", fishAudioSearch],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/fishaudio/voices${fishAudioSearch ? `?search=${encodeURIComponent(fishAudioSearch)}` : ""}`,
+        { credentials: "include" },
+      );
+      if (!res.ok) throw new Error("Error al cargar voces de Fish Audio");
+      return res.json();
+    },
     enabled: ttsProvider === "fishaudio" && audioResponseEnabled,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
   });
   const selectedFishVoice = fishAudioVoices.find((voice) => voice.voice_id === fishAudioVoiceId);
   const selectedFishPreviewUrl = selectedFishVoice?.preview_url || "";
@@ -1455,9 +1470,17 @@ export default function AIAgentPage() {
                       <div className="p-4 rounded-xl border border-red-500/30 bg-red-500/10 text-center">
                         <p className="text-sm text-red-300">Error al cargar voces. Verifica la API key de Fish Audio.</p>
                       </div>
-                    ) : fishVoicesLoading || fishAudioVoices.length === 0 ? (
+                    ) : fishVoicesLoading ? (
                       <div className="p-4 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-center">
                         <p className="text-sm text-cyan-300">Cargando voces de Fish Audio...</p>
+                      </div>
+                    ) : fishAudioVoices.length === 0 ? (
+                      <div className="p-4 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-center">
+                        <p className="text-sm text-cyan-300">
+                          {voiceSearchQuery.trim()
+                            ? `No se encontraron voces para "${voiceSearchQuery.trim()}". Prueba con otro término (ej: argentina, rioplatense, femenina).`
+                            : "No hay voces disponibles."}
+                        </p>
                       </div>
                     ) : (
                       <>
