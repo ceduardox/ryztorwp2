@@ -5379,6 +5379,26 @@ export async function registerRoutes(
     res.json(updated);
   });
 
+  // Mark conversation as read (persisted in DB, does not reorder kanban)
+  app.patch("/api/conversations/:id/read", requireAuth, async (req, res) => {
+    const id = parseInt(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: "Invalid conversation id" });
+    }
+    const parsed = z.object({
+      lastReadAt: z.string().optional(),
+    }).safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid body" });
+    }
+    const lastReadAt = parsed.data.lastReadAt ? new Date(parsed.data.lastReadAt) : new Date();
+    if (Number.isNaN(lastReadAt.getTime())) {
+      return res.status(400).json({ error: "Invalid lastReadAt" });
+    }
+    const updated = await storage.updateConversationLastReadAt(id, lastReadAt);
+    res.json(updated);
+  });
+
   // Toggle should call (purchase probability indicator)
   app.patch("/api/conversations/:id/should-call", requireAuth, async (req, res) => {
     const id = parseInt(req.params.id);

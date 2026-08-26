@@ -160,6 +160,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   const [newQmText, setNewQmText] = useState("");
   const [newQmImageUrl, setNewQmImageUrl] = useState("");
   const [showQuickMessageDialog, setShowQuickMessageDialog] = useState(false);
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [editingQuickMessageId, setEditingQuickMessageId] = useState<number | null>(null);
   const [showReminderDialog, setShowReminderDialog] = useState(false);
   const [reminderAtInput, setReminderAtInput] = useState("");
@@ -2715,7 +2716,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
               if (!open) resetQuickMessageForm();
             }}
           >
-            <DropdownMenu>
+            <DropdownMenu open={quickMenuOpen} onOpenChange={setQuickMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 md:h-10 md:w-10 flex-shrink-0">
                   <Zap className="h-4 w-4 md:h-5 md:w-5" />
@@ -2736,6 +2737,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
+                          setQuickMenuOpen(false);
                           openQuickMessageEditor(qm);
                         }}
                         aria-label="Editar mensaje rapido"
@@ -2750,6 +2752,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
+                          setQuickMenuOpen(false);
                           deleteQuickMessageMutation.mutate(qm.id);
                         }}
                         aria-label="Eliminar mensaje rapido"
@@ -2766,12 +2769,13 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <DialogContent>
+            <DialogContent className="max-h-[88vh] overflow-y-auto w-[calc(100%-2rem)] sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>{editingQuickMessageId ? "Editar Mensaje Rapido" : "Nuevo Mensaje Rapido"}</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4 mt-4">
-                <div className="space-y-2">
+              <div className="space-y-4 mt-2">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Imagen (opcional)</label>
                   <Input
                     ref={quickMessageImageInputRef}
                     type="file"
@@ -2797,10 +2801,20 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                     </div>
                   )}
                 </div>
-                <Input placeholder="Nombre (ej: Saludo)" value={newQmName} onChange={(e) => setNewQmName(e.target.value)} />
-                <Textarea placeholder="Texto del mensaje" value={newQmText} onChange={(e) => setNewQmText(e.target.value)} rows={3} />
-                <Input placeholder="URL de imagen (opcional)" value={newQmImageUrl} onChange={(e) => setNewQmImageUrl(e.target.value)} />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Nombre</label>
+                  <Input placeholder="Ej: Saludo" value={newQmName} onChange={(e) => setNewQmName(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Texto del mensaje</label>
+                  <Textarea placeholder="Escribe el mensaje que se insertará..." value={newQmText} onChange={(e) => setNewQmText(e.target.value)} rows={3} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">URL de imagen (opcional)</label>
+                  <Input placeholder="https://..." value={newQmImageUrl} onChange={(e) => setNewQmImageUrl(e.target.value)} />
+                </div>
                 <Button
+                  className="w-full"
                   onClick={saveQuickMessage}
                   disabled={
                     !newQmName.trim() ||
@@ -2856,7 +2870,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
               requestAnimationFrame(() => resizeMessageInput());
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Escribe un mensaje..."
+            placeholder="Escribir..."
             className="flex-1 min-w-0 min-h-[40px] max-h-[200px] md:max-h-[140px] resize-none overflow-hidden border-0 bg-white dark:bg-[#2a3942] rounded-3xl px-3 md:px-4 py-2 text-sm leading-[1.35] focus-visible:ring-0"
             rows={1}
           />

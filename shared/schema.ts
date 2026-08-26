@@ -63,6 +63,7 @@ export const conversations = pgTable("conversations", {
   assignedAgentId: integer("assigned_agent_id").references(() => agents.id),
   lastMessage: text("last_message"),
   lastMessageTimestamp: timestamp("last_message_timestamp"),
+  lastReadAt: timestamp("last_read_at"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

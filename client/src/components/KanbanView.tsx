@@ -83,7 +83,6 @@ interface ColumnProps {
   assignedSpotlightIds: Set<number>;
 }
 
-const KANBAN_READ_STATE_KEY = "ryzapp_kanban_read_state_v1";
 const KANBAN_ASSIGNMENT_SEEN_STATE_KEY = "ryzapp_kanban_assignment_seen_state_v1";
 
 interface AgentListItem {
@@ -116,35 +115,6 @@ function formatDate(timestamp: Date | string | null): string {
   
   const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
   return `${monthNames[date.getMonth()]} ${date.getDate()}, ${timeStr}`;
-}
-
-function readKanbanReadState(): Record<number, number> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(KANBAN_READ_STATE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Record<string, number>;
-    const normalized: Record<number, number> = {};
-    for (const [key, value] of Object.entries(parsed || {})) {
-      const id = Number(key);
-      const ts = Number(value);
-      if (Number.isInteger(id) && id > 0 && Number.isFinite(ts) && ts > 0) {
-        normalized[id] = ts;
-      }
-    }
-    return normalized;
-  } catch {
-    return {};
-  }
-}
-
-function persistKanbanReadState(state: Record<number, number>) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(KANBAN_READ_STATE_KEY, JSON.stringify(state));
-  } catch {
-    // ignore storage errors
-  }
 }
 
 function readAssignmentSeenState(): Record<number, number> {
@@ -659,7 +629,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
   const queryClient = useQueryClient();
   const [activeId, setActiveId] = useState<number | null>(null);
   const [activeColumn, setActiveColumn] = useState<TabType | null>(null);
-  const [readStateByConversation, setReadStateByConversation] = useState<Record<number, number>>(() => readKanbanReadState());
+  const [readStateByConversation, setReadStateByConversation] = useState<Record<number, number>>({});
   const [assignmentSeenStateByConversation, setAssignmentSeenStateByConversation] = useState<Record<number, number>>(() => readAssignmentSeenState());
   const [mobileTab, setMobileTab] = useState<TabType>("nuevo");
   const [visibleColumns, setVisibleColumns] = useState<Set<TabType>>(
@@ -711,15 +681,37 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
   };
   const selectedAgentName = filterAgentId ? (agentNameById.get(filterAgentId) || `Agente ${filterAgentId}`) : "Todos";
 
+  const persistReadToDb = (conversationId: number, ts: number) => {
+    fetch(`/api/conversations/${conversationId}/read`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lastReadAt: new Date(ts).toISOString() }),
+    }).catch(() => {
+      // ignore network errors; will re-sync from server on next fetch
+    });
+  };
+
+  useEffect(() => {
+    setReadStateByConversation((prev) => {
+      let next = prev;
+      for (const conv of conversations) {
+        const dbTs = conv.lastReadAt ? new Date(conv.lastReadAt).getTime() : 0;
+        if (dbTs > 0 && dbTs > (next[conv.id] || 0)) {
+          next = { ...next, [conv.id]: dbTs };
+        }
+      }
+      return next;
+    });
+  }, [conversations]);
+
   const markConversationRead = (conversationId: number, lastMessageTimestamp?: Date | string | null) => {
     const ts = lastMessageTimestamp ? new Date(lastMessageTimestamp).getTime() : Date.now();
     if (!Number.isFinite(ts) || ts <= 0) return;
     setReadStateByConversation((prev) => {
       if ((prev[conversationId] || 0) >= ts) return prev;
-      const next = { ...prev, [conversationId]: ts };
-      persistKanbanReadState(next);
-      return next;
+      return { ...prev, [conversationId]: ts };
     });
+    persistReadToDb(conversationId, ts);
   };
 
   const markAssignmentSeen = (conversationId: number, assignedToMeTimestamp: number) => {

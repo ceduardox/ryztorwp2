@@ -59,6 +59,7 @@ export interface IStorage {
   getConversationByWaId(waId: string): Promise<Conversation | undefined>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   updateConversation(id: number, updates: Partial<Conversation>): Promise<Conversation>;
+  updateConversationLastReadAt(id: number, lastReadAt: Date): Promise<Conversation | undefined>;
 
   // Messages
   getMessages(conversationId: number): Promise<Message[]>;
@@ -212,6 +213,10 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`
       ALTER TABLE conversations
       ADD COLUMN IF NOT EXISTS call_updated_at TIMESTAMP
+    `);
+    await db.execute(sql`
+      ALTER TABLE conversations
+      ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMP
     `);
     this.reminderColumnsEnsured = true;
   }
@@ -442,6 +447,16 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(conversations)
       .set({ ...updates, updatedAt: new Date() })
+      .where(eq(conversations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateConversationLastReadAt(id: number, lastReadAt: Date): Promise<Conversation | undefined> {
+    await this.ensureConversationReminderColumns();
+    const [updated] = await db
+      .update(conversations)
+      .set({ lastReadAt })
       .where(eq(conversations.id, id))
       .returning();
     return updated;
