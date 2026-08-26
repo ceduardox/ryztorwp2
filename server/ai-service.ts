@@ -278,14 +278,14 @@ export async function generateAiResponse(
     if (matchingProducts.length > 0) {
       // User mentioned specific product(s) - include only those
       productContext = matchingProducts.map(p => 
-        `${p.name} - ${p.price || "Consultar precio"}\n${p.description || ""}\n${getProductImageContext(p)}`
+        `${p.name} - ${p.price || "Consultar precio"}${p.comboQty ? `\nCOMBO: ${p.comboQty} por ${p.comboPrice || "Consultar"}` : ""}\n${p.description || ""}\n${getProductImageContext(p)}`
       ).join("\n\n");
       productInContext = matchingProducts[0];
     } else {
       // Check if it's a follow-up question about a product mentioned earlier
       const historyProduct = findProductInHistory(recentMessages, allProducts);
       if (historyProduct) {
-        productContext = `${historyProduct.name} - ${historyProduct.price || "Consultar precio"}\n${historyProduct.description || ""}\n${getProductImageContext(historyProduct)}`;
+        productContext = `${historyProduct.name} - ${historyProduct.price || "Consultar precio"}${historyProduct.comboQty ? `\nCOMBO: ${historyProduct.comboQty} por ${historyProduct.comboPrice || "Consultar"}` : ""}\n${historyProduct.description || ""}\n${getProductImageContext(historyProduct)}`;
         productInContext = historyProduct;
       } else if (isCatalogQuery(userMessage)) {
         // General product query without specific product - show list

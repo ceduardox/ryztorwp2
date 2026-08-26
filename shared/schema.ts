@@ -221,13 +221,15 @@ export type InsertAiLog = z.infer<typeof insertAiLogSchema>;
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 100 }).notNull(),
-  keywords: varchar("keywords", { length: 200 }), // Alternative names/keywords for search
+  keywords: varchar("keywords", { length: 500 }), // Alternative names/keywords for search
   description: text("description"),
   price: varchar("price", { length: 50 }), // e.g., "280 Bs"
   imageUrl: text("image_url"),
   imageBottleUrl: text("image_bottle_url"),
   imageDoseUrl: text("image_dose_url"),
   imageIngredientsUrl: text("image_ingredients_url"),
+  comboQty: integer("combo_qty"),
+  comboPrice: varchar("combo_price", { length: 50 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

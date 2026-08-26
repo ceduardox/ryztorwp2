@@ -284,6 +284,14 @@ async function ensureProductImageColumnsExist() {
     ALTER TABLE products
     ADD COLUMN IF NOT EXISTS image_ingredients_url TEXT
   `);
+  await db.execute(sql`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS combo_qty INTEGER
+  `);
+  await db.execute(sql`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS combo_price VARCHAR(50)
+  `);
   productImageColumnsEnsured = true;
 }
 

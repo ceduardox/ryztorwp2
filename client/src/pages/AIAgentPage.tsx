@@ -78,6 +78,8 @@ interface Product {
   imageBottleUrl?: string | null;
   imageDoseUrl?: string | null;
   imageIngredientsUrl?: string | null;
+  comboQty?: number | null;
+  comboPrice?: string | null;
   createdAt: string;
 }
 
@@ -313,6 +315,8 @@ export default function AIAgentPage() {
   const [newKeywords, setNewKeywords] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newPrice, setNewPrice] = useState("");
+  const [newComboQty, setNewComboQty] = useState("");
+  const [newComboPrice, setNewComboPrice] = useState("");
   const [newImageUrl, setNewImageUrl] = useState("");
   const [newImageBottleUrl, setNewImageBottleUrl] = useState("");
   const [newImageDoseUrl, setNewImageDoseUrl] = useState("");
@@ -326,6 +330,8 @@ export default function AIAgentPage() {
   const [editKeywords, setEditKeywords] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editPrice, setEditPrice] = useState("");
+  const [editComboQty, setEditComboQty] = useState("");
+  const [editComboPrice, setEditComboPrice] = useState("");
   const [editImageUrl, setEditImageUrl] = useState("");
   const [editImageBottleUrl, setEditImageBottleUrl] = useState("");
   const [editImageDoseUrl, setEditImageDoseUrl] = useState("");
@@ -579,6 +585,8 @@ export default function AIAgentPage() {
       setNewKeywords("");
       setNewDescription("");
       setNewPrice("");
+      setNewComboQty("");
+      setNewComboPrice("");
       setNewImageUrl("");
       setNewImageBottleUrl("");
       setNewImageDoseUrl("");
@@ -932,6 +940,8 @@ export default function AIAgentPage() {
       keywords: newKeywords || null,
       description: newDescription || null,
       price: newPrice || null,
+      comboQty: newComboQty ? parseInt(newComboQty) : null,
+      comboPrice: newComboPrice || null,
       imageUrl: newImageUrl || null,
       imageBottleUrl: newImageBottleUrl || null,
       imageDoseUrl: newImageDoseUrl || null,
@@ -945,6 +955,8 @@ export default function AIAgentPage() {
     setEditKeywords(product.keywords || "");
     setEditDescription(product.description || "");
     setEditPrice(product.price || "");
+    setEditComboQty(product.comboQty ? String(product.comboQty) : "");
+    setEditComboPrice(product.comboPrice || "");
     setEditImageUrl(product.imageUrl || "");
     setEditImageBottleUrl(product.imageBottleUrl || "");
     setEditImageDoseUrl(product.imageDoseUrl || "");
@@ -960,6 +972,8 @@ export default function AIAgentPage() {
         keywords: editKeywords || null,
         description: editDescription || null,
         price: editPrice || null,
+        comboQty: editComboQty ? parseInt(editComboQty) : null,
+        comboPrice: editComboPrice || null,
         imageUrl: editImageUrl || null,
         imageBottleUrl: editImageBottleUrl || null,
         imageDoseUrl: editImageDoseUrl || null,
@@ -1780,6 +1794,30 @@ export default function AIAgentPage() {
                   />
                 </div>
               </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="text-slate-300">Combo cantidad (opcional)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    placeholder="Ej: 2"
+                    value={newComboQty}
+                    onChange={(e) => setNewComboQty(e.target.value)}
+                    data-testid="input-product-combo-qty"
+                    className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
+                  />
+                </div>
+                <div>
+                  <Label className="text-slate-300">Combo precio (opcional)</Label>
+                  <Input
+                    placeholder="Ej: 500 Bs"
+                    value={newComboPrice}
+                    onChange={(e) => setNewComboPrice(e.target.value)}
+                    data-testid="input-product-combo-price"
+                    className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
+                  />
+                </div>
+              </div>
               <div>
                 <Label className="text-slate-300">Palabras clave (separadas por coma)</Label>
                 <Input
@@ -1898,6 +1936,24 @@ export default function AIAgentPage() {
                               className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
                             />
                           </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Input
+                              type="number"
+                              min={1}
+                              placeholder="Combo cantidad (ej: 2)"
+                              value={editComboQty}
+                              onChange={(e) => setEditComboQty(e.target.value)}
+                              data-testid={`input-edit-combo-qty-${product.id}`}
+                              className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
+                            />
+                            <Input
+                              placeholder="Combo precio (ej: 500 Bs)"
+                              value={editComboPrice}
+                              onChange={(e) => setEditComboPrice(e.target.value)}
+                              data-testid={`input-edit-combo-price-${product.id}`}
+                              className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
+                            />
+                          </div>
                           <Input
                             placeholder="Palabras clave"
                             value={editKeywords}
@@ -2003,6 +2059,11 @@ export default function AIAgentPage() {
                         {product.price && (
                           <span className="absolute left-2 top-2 rounded-full bg-emerald-500/90 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg shadow-black/30">
                             {product.price}
+                          </span>
+                        )}
+                        {product.comboQty && product.comboPrice && (
+                          <span className="absolute right-2 top-2 rounded-full bg-cyan-500/90 px-2 py-1 text-[10px] font-bold text-white shadow-lg shadow-black/30">
+                            {product.comboQty}x {product.comboPrice}
                           </span>
                         )}
                       </div>
