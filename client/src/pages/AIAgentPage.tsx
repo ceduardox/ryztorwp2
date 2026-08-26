@@ -26,7 +26,10 @@ import {
   X,
   Check,
   MessageSquare,
-  Clock
+  Clock,
+  ImagePlus,
+  Upload,
+  Link as LinkIcon
 } from "lucide-react";
 
 interface AiSettings {
@@ -125,6 +128,117 @@ function formatApiError(err: unknown): string {
     }
   }
   return msg;
+}
+
+interface ImageSlotProps {
+  label: string;
+  value: string;
+  onChange: (url: string) => void;
+  testId: string;
+  urlTestId: string;
+  fileTestId: string;
+  onFile: (file: File | null) => void;
+  uploading: boolean;
+  progress: number;
+  resolveUrl: (raw?: string | null) => string;
+}
+
+function ImageSlot({
+  label,
+  value,
+  onChange,
+  testId,
+  urlTestId,
+  fileTestId,
+  onFile,
+  uploading,
+  progress,
+  resolveUrl,
+}: ImageSlotProps) {
+  const absoluteUrl = resolveUrl(value);
+  return (
+    <div className="space-y-1.5">
+      <div
+        className="group/slot relative aspect-square w-full overflow-hidden rounded-xl border border-slate-700/60 bg-slate-950/60 transition-colors hover:border-violet-500/50"
+        data-testid={testId}
+      >
+        <input
+          type="file"
+          accept="image/*"
+          id={fileTestId}
+          className="sr-only"
+          data-testid={fileTestId}
+          onChange={(e) => {
+            onFile(e.target.files?.[0] || null);
+            e.target.value = "";
+          }}
+        />
+        <label
+          htmlFor={fileTestId}
+          className="absolute inset-0 block cursor-pointer"
+          title={absoluteUrl ? `Cambiar ${label}` : `Subir ${label}`}
+        >
+          {absoluteUrl ? (
+            <img
+              src={absoluteUrl}
+              alt={label}
+              loading="lazy"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-500 transition-colors group-hover/slot:text-violet-300">
+              <ImagePlus className="h-7 w-7" />
+              <span className="px-2 text-center text-[11px] font-medium leading-tight text-slate-400">
+                {label}
+              </span>
+            </div>
+          )}
+        </label>
+
+        {absoluteUrl && (
+          <>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-gradient-to-t from-black/80 to-transparent py-1.5 text-[11px] text-slate-100 opacity-0 transition-opacity group-hover/slot:opacity-100">
+              <Upload className="h-3.5 w-3.5" />
+              Toca para reemplazar
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onChange("");
+              }}
+              className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-slate-300 transition-colors hover:bg-red-500/80 hover:text-white"
+              aria-label={`Quitar imagen ${label}`}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </>
+        )}
+
+        {uploading && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-slate-950/85">
+            <Loader2 className="h-6 w-6 animate-spin text-violet-400" />
+            <div className="w-3/4">
+              <Progress value={progress} className="h-1.5 bg-slate-800" />
+            </div>
+            <span className="text-[11px] font-medium text-violet-300">{progress}%</span>
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <LinkIcon className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+        <input
+          type="text"
+          placeholder="Pega URL de la imagen"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          data-testid={urlTestId}
+          className="w-full min-w-0 rounded-lg border border-slate-700/60 bg-slate-900/70 px-2 py-1.5 text-xs text-white placeholder:text-slate-600 focus:border-violet-500/60 focus:outline-none focus:ring-1 focus:ring-violet-500/30"
+        />
+      </div>
+    </div>
+  );
 }
 
 export default function AIAgentPage() {
@@ -805,27 +919,8 @@ export default function AIAgentPage() {
     return value;
   };
 
-  const renderImagePreview = (rawUrl: string, label: string, testId: string) => {
-    const absoluteUrl = resolveProductImageUrl(rawUrl);
-    if (!absoluteUrl) return null;
-    return (
-      <div className="rounded-md border border-slate-700/50 bg-slate-950/60 p-2 space-y-1" data-testid={testId}>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] text-slate-300">{label}</span>
-          <a href={absoluteUrl} target="_blank" rel="noreferrer" className="text-[11px] text-cyan-300 hover:text-cyan-200 underline">
-            Abrir
-          </a>
-        </div>
-        <img
-          src={absoluteUrl}
-          alt={label}
-          className="h-16 w-16 rounded object-cover border border-slate-700/60 bg-slate-900"
-          loading="lazy"
-        />
-        <p className="text-[10px] text-slate-400 break-all">{absoluteUrl}</p>
-      </div>
-    );
-  };
+  const getProductMainImage = (product: Product) =>
+    product.imageUrl || product.imageBottleUrl || product.imageDoseUrl || product.imageIngredientsUrl || "";
 
   const handleAddProduct = () => {
     if (!newName.trim()) {
@@ -1703,100 +1798,59 @@ export default function AIAgentPage() {
                 />
               </div>
               <div className="space-y-3">
-                <Label className="text-slate-300">Imagenes del producto (con % de carga)</Label>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Input
-                      placeholder="URL imagen principal"
-                      value={newImageUrl}
-                      onChange={(e) => setNewImageUrl(e.target.value)}
-                      data-testid="input-product-image-main"
-                      className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
-                    />
-                    {renderImagePreview(newImageUrl, "Imagen principal", "preview-product-image-main")}
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleSelectAndUploadProductImage(e.target.files?.[0] || null, "principal", setNewImageUrl)}
-                      data-testid="input-product-image-main-file"
-                      className="bg-slate-900/80 text-slate-100 border-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-slate-600"
-                    />
-                    {uploadingSlots.principal && (
-                      <div className="space-y-1">
-                        <Progress value={uploadProgress.principal || 0} className="h-2" />
-                        <p className="text-xs text-slate-400">{uploadProgress.principal || 0}%</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Input
-                      placeholder="URL imagen frasco"
-                      value={newImageBottleUrl}
-                      onChange={(e) => setNewImageBottleUrl(e.target.value)}
-                      data-testid="input-product-image-bottle"
-                      className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
-                    />
-                    {renderImagePreview(newImageBottleUrl, "Imagen frasco", "preview-product-image-bottle")}
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleSelectAndUploadProductImage(e.target.files?.[0] || null, "frasco", setNewImageBottleUrl)}
-                      data-testid="input-product-image-bottle-file"
-                      className="bg-slate-900/80 text-slate-100 border-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-slate-600"
-                    />
-                    {uploadingSlots.frasco && (
-                      <div className="space-y-1">
-                        <Progress value={uploadProgress.frasco || 0} className="h-2" />
-                        <p className="text-xs text-slate-400">{uploadProgress.frasco || 0}%</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Input
-                      placeholder="URL imagen dosis"
-                      value={newImageDoseUrl}
-                      onChange={(e) => setNewImageDoseUrl(e.target.value)}
-                      data-testid="input-product-image-dose"
-                      className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
-                    />
-                    {renderImagePreview(newImageDoseUrl, "Imagen dosis", "preview-product-image-dose")}
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleSelectAndUploadProductImage(e.target.files?.[0] || null, "dosis", setNewImageDoseUrl)}
-                      data-testid="input-product-image-dose-file"
-                      className="bg-slate-900/80 text-slate-100 border-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-slate-600"
-                    />
-                    {uploadingSlots.dosis && (
-                      <div className="space-y-1">
-                        <Progress value={uploadProgress.dosis || 0} className="h-2" />
-                        <p className="text-xs text-slate-400">{uploadProgress.dosis || 0}%</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Input
-                      placeholder="URL imagen ingredientes"
-                      value={newImageIngredientsUrl}
-                      onChange={(e) => setNewImageIngredientsUrl(e.target.value)}
-                      data-testid="input-product-image-ingredients"
-                      className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
-                    />
-                    {renderImagePreview(newImageIngredientsUrl, "Imagen ingredientes", "preview-product-image-ingredients")}
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleSelectAndUploadProductImage(e.target.files?.[0] || null, "ingredientes", setNewImageIngredientsUrl)}
-                      data-testid="input-product-image-ingredients-file"
-                      className="bg-slate-900/80 text-slate-100 border-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-slate-600"
-                    />
-                    {uploadingSlots.ingredientes && (
-                      <div className="space-y-1">
-                        <Progress value={uploadProgress.ingredientes || 0} className="h-2" />
-                        <p className="text-xs text-slate-400">{uploadProgress.ingredientes || 0}%</p>
-                      </div>
-                    )}
-                  </div>
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-slate-300">Imágenes del producto</Label>
+                  <span className="text-[11px] text-slate-500">Toca el recuadro para subir o pega una URL</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <ImageSlot
+                    label="Principal"
+                    value={newImageUrl}
+                    onChange={setNewImageUrl}
+                    testId="preview-product-image-main"
+                    urlTestId="input-product-image-main"
+                    fileTestId="input-product-image-main-file"
+                    onFile={(f) => handleSelectAndUploadProductImage(f, "principal", setNewImageUrl)}
+                    uploading={uploadingSlots.principal || false}
+                    progress={uploadProgress.principal || 0}
+                    resolveUrl={resolveProductImageUrl}
+                  />
+                  <ImageSlot
+                    label="Frasco"
+                    value={newImageBottleUrl}
+                    onChange={setNewImageBottleUrl}
+                    testId="preview-product-image-bottle"
+                    urlTestId="input-product-image-bottle"
+                    fileTestId="input-product-image-bottle-file"
+                    onFile={(f) => handleSelectAndUploadProductImage(f, "frasco", setNewImageBottleUrl)}
+                    uploading={uploadingSlots.frasco || false}
+                    progress={uploadProgress.frasco || 0}
+                    resolveUrl={resolveProductImageUrl}
+                  />
+                  <ImageSlot
+                    label="Dosis"
+                    value={newImageDoseUrl}
+                    onChange={setNewImageDoseUrl}
+                    testId="preview-product-image-dose"
+                    urlTestId="input-product-image-dose"
+                    fileTestId="input-product-image-dose-file"
+                    onFile={(f) => handleSelectAndUploadProductImage(f, "dosis", setNewImageDoseUrl)}
+                    uploading={uploadingSlots.dosis || false}
+                    progress={uploadProgress.dosis || 0}
+                    resolveUrl={resolveProductImageUrl}
+                  />
+                  <ImageSlot
+                    label="Ingredientes"
+                    value={newImageIngredientsUrl}
+                    onChange={setNewImageIngredientsUrl}
+                    testId="preview-product-image-ingredients"
+                    urlTestId="input-product-image-ingredients"
+                    fileTestId="input-product-image-ingredients-file"
+                    onFile={(f) => handleSelectAndUploadProductImage(f, "ingredientes", setNewImageIngredientsUrl)}
+                    uploading={uploadingSlots.ingredientes || false}
+                    progress={uploadProgress.ingredientes || 0}
+                    resolveUrl={resolveProductImageUrl}
+                  />
                 </div>
               </div>
               <Button onClick={handleAddProduct} disabled={createProductMutation.isPending} data-testid="button-add-product" className="bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white shadow-lg shadow-emerald-500/30">
@@ -1806,202 +1860,197 @@ export default function AIAgentPage() {
             </div>
 
             {productsLoading ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin" />
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-violet-400" />
               </div>
             ) : products.length > 0 ? (
-              <div className="border rounded-md divide-y">
-                {products.map((product) => (
-                  <div key={product.id} className="p-3" data-testid={`product-item-${product.id}`}>
-                    {editingId === product.id ? (
-                      <div className="space-y-3">
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <Input
-                            placeholder="Nombre"
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            data-testid={`input-edit-name-${product.id}`}
-                            className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
-                          />
-                          <Input
-                            placeholder="Precio"
-                            value={editPrice}
-                            onChange={(e) => setEditPrice(e.target.value)}
-                            data-testid={`input-edit-price-${product.id}`}
-                            className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-                        <Input
-                          placeholder="Palabras clave"
-                          value={editKeywords}
-                          onChange={(e) => setEditKeywords(e.target.value)}
-                          data-testid={`input-edit-keywords-${product.id}`}
-                          className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
-                        />
-                        <Textarea
-                          placeholder="Descripción"
-                          value={editDescription}
-                          onChange={(e) => setEditDescription(e.target.value)}
-                          rows={2}
-                          data-testid={`textarea-edit-description-${product.id}`}
-                          className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
-                        />
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <Input
-                            placeholder="URL imagen principal"
-                            value={editImageUrl}
-                            onChange={(e) => setEditImageUrl(e.target.value)}
-                            data-testid={`input-edit-image-main-${product.id}`}
-                            className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
-                          />
-                          {renderImagePreview(editImageUrl, "Imagen principal", `preview-edit-image-main-${product.id}`)}
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleSelectAndUploadProductImage(e.target.files?.[0] || null, `edit-principal-${product.id}`, setEditImageUrl)}
-                            data-testid={`input-edit-image-main-file-${product.id}`}
-                            className="bg-slate-900/80 text-slate-100 border-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-slate-600"
-                          />
-                          {(uploadingSlots[`edit-principal-${product.id}`] || false) && (
-                            <div className="sm:col-span-2 space-y-1">
-                              <Progress value={uploadProgress[`edit-principal-${product.id}`] || 0} className="h-2" />
-                              <p className="text-xs text-slate-500">{uploadProgress[`edit-principal-${product.id}`] || 0}%</p>
-                            </div>
-                          )}
-                          <Input
-                            placeholder="URL imagen frasco"
-                            value={editImageBottleUrl}
-                            onChange={(e) => setEditImageBottleUrl(e.target.value)}
-                            data-testid={`input-edit-image-bottle-${product.id}`}
-                            className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
-                          />
-                          {renderImagePreview(editImageBottleUrl, "Imagen frasco", `preview-edit-image-bottle-${product.id}`)}
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleSelectAndUploadProductImage(e.target.files?.[0] || null, `edit-frasco-${product.id}`, setEditImageBottleUrl)}
-                            data-testid={`input-edit-image-bottle-file-${product.id}`}
-                            className="bg-slate-900/80 text-slate-100 border-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-slate-600"
-                          />
-                          {(uploadingSlots[`edit-frasco-${product.id}`] || false) && (
-                            <div className="sm:col-span-2 space-y-1">
-                              <Progress value={uploadProgress[`edit-frasco-${product.id}`] || 0} className="h-2" />
-                              <p className="text-xs text-slate-500">{uploadProgress[`edit-frasco-${product.id}`] || 0}%</p>
-                            </div>
-                          )}
-                          <Input
-                            placeholder="URL imagen dosis"
-                            value={editImageDoseUrl}
-                            onChange={(e) => setEditImageDoseUrl(e.target.value)}
-                            data-testid={`input-edit-image-dose-${product.id}`}
-                            className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
-                          />
-                          {renderImagePreview(editImageDoseUrl, "Imagen dosis", `preview-edit-image-dose-${product.id}`)}
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleSelectAndUploadProductImage(e.target.files?.[0] || null, `edit-dosis-${product.id}`, setEditImageDoseUrl)}
-                            data-testid={`input-edit-image-dose-file-${product.id}`}
-                            className="bg-slate-900/80 text-slate-100 border-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-slate-600"
-                          />
-                          {(uploadingSlots[`edit-dosis-${product.id}`] || false) && (
-                            <div className="sm:col-span-2 space-y-1">
-                              <Progress value={uploadProgress[`edit-dosis-${product.id}`] || 0} className="h-2" />
-                              <p className="text-xs text-slate-500">{uploadProgress[`edit-dosis-${product.id}`] || 0}%</p>
-                            </div>
-                          )}
-                          <Input
-                            placeholder="URL imagen ingredientes"
-                            value={editImageIngredientsUrl}
-                            onChange={(e) => setEditImageIngredientsUrl(e.target.value)}
-                            data-testid={`input-edit-image-ingredients-${product.id}`}
-                            className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
-                          />
-                          {renderImagePreview(editImageIngredientsUrl, "Imagen ingredientes", `preview-edit-image-ingredients-${product.id}`)}
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleSelectAndUploadProductImage(e.target.files?.[0] || null, `edit-ingredientes-${product.id}`, setEditImageIngredientsUrl)}
-                            data-testid={`input-edit-image-ingredients-file-${product.id}`}
-                            className="bg-slate-900/80 text-slate-100 border-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-slate-600"
-                          />
-                          {(uploadingSlots[`edit-ingredientes-${product.id}`] || false) && (
-                            <div className="sm:col-span-2 space-y-1">
-                              <Progress value={uploadProgress[`edit-ingredientes-${product.id}`] || 0} className="h-2" />
-                              <p className="text-xs text-slate-500">{uploadProgress[`edit-ingredientes-${product.id}`] || 0}%</p>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={saveEdit} disabled={updateProductMutation.isPending}>
-                            {updateProductMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
-                            Guardar
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
-                            <X className="h-4 w-4 mr-1" /> Cancelar
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium">{product.name}</span>
-                            {product.price && (
-                              <span className="text-sm bg-primary/10 text-primary px-2 py-0.5 rounded">
-                                {product.price}
-                              </span>
-                            )}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {products.map((product) =>
+                  editingId === product.id ? (
+                    <div key={product.id} className="sm:col-span-2 lg:col-span-3">
+                      <div className="rounded-2xl border border-violet-500/40 bg-slate-950/60 p-4 shadow-lg shadow-violet-500/5">
+                        <div className="mb-3 flex items-center gap-2">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/20">
+                            <Pencil className="h-4 w-4 text-violet-300" />
                           </div>
-                          {product.keywords && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Palabras clave: {product.keywords}
-                            </p>
-                          )}
-                          {product.description && (
-                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                              {product.description}
-                            </p>
-                          )}
-                          {(product.imageUrl || product.imageBottleUrl || product.imageDoseUrl || product.imageIngredientsUrl) && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Imagenes: {[
-                                product.imageUrl ? "principal" : null,
-                                product.imageBottleUrl ? "frasco" : null,
-                                product.imageDoseUrl ? "dosis" : null,
-                                product.imageIngredientsUrl ? "ingredientes" : null,
-                              ].filter(Boolean).join(", ")}
-                            </p>
-                          )}
+                          <h4 className="truncate text-sm font-semibold text-white">
+                            Editando: {product.name}
+                          </h4>
                         </div>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => startEditing(product)}
-                            data-testid={`button-edit-product-${product.id}`}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteProductMutation.mutate(product.id)}
-                            disabled={deleteProductMutation.isPending}
-                            data-testid={`button-delete-product-${product.id}`}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                        <div className="space-y-3">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Input
+                              placeholder="Nombre"
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              data-testid={`input-edit-name-${product.id}`}
+                              className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
+                            />
+                            <Input
+                              placeholder="Precio"
+                              value={editPrice}
+                              onChange={(e) => setEditPrice(e.target.value)}
+                              data-testid={`input-edit-price-${product.id}`}
+                              className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
+                            />
+                          </div>
+                          <Input
+                            placeholder="Palabras clave"
+                            value={editKeywords}
+                            onChange={(e) => setEditKeywords(e.target.value)}
+                            data-testid={`input-edit-keywords-${product.id}`}
+                            className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
+                          />
+                          <Textarea
+                            placeholder="Descripción"
+                            value={editDescription}
+                            onChange={(e) => setEditDescription(e.target.value)}
+                            rows={2}
+                            data-testid={`textarea-edit-description-${product.id}`}
+                            className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
+                          />
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            <ImageSlot
+                              label="Principal"
+                              value={editImageUrl}
+                              onChange={setEditImageUrl}
+                              testId={`preview-edit-image-main-${product.id}`}
+                              urlTestId={`input-edit-image-main-${product.id}`}
+                              fileTestId={`input-edit-image-main-file-${product.id}`}
+                              onFile={(f) => handleSelectAndUploadProductImage(f, `edit-principal-${product.id}`, setEditImageUrl)}
+                              uploading={uploadingSlots[`edit-principal-${product.id}`] || false}
+                              progress={uploadProgress[`edit-principal-${product.id}`] || 0}
+                              resolveUrl={resolveProductImageUrl}
+                            />
+                            <ImageSlot
+                              label="Frasco"
+                              value={editImageBottleUrl}
+                              onChange={setEditImageBottleUrl}
+                              testId={`preview-edit-image-bottle-${product.id}`}
+                              urlTestId={`input-edit-image-bottle-${product.id}`}
+                              fileTestId={`input-edit-image-bottle-file-${product.id}`}
+                              onFile={(f) => handleSelectAndUploadProductImage(f, `edit-frasco-${product.id}`, setEditImageBottleUrl)}
+                              uploading={uploadingSlots[`edit-frasco-${product.id}`] || false}
+                              progress={uploadProgress[`edit-frasco-${product.id}`] || 0}
+                              resolveUrl={resolveProductImageUrl}
+                            />
+                            <ImageSlot
+                              label="Dosis"
+                              value={editImageDoseUrl}
+                              onChange={setEditImageDoseUrl}
+                              testId={`preview-edit-image-dose-${product.id}`}
+                              urlTestId={`input-edit-image-dose-${product.id}`}
+                              fileTestId={`input-edit-image-dose-file-${product.id}`}
+                              onFile={(f) => handleSelectAndUploadProductImage(f, `edit-dosis-${product.id}`, setEditImageDoseUrl)}
+                              uploading={uploadingSlots[`edit-dosis-${product.id}`] || false}
+                              progress={uploadProgress[`edit-dosis-${product.id}`] || 0}
+                              resolveUrl={resolveProductImageUrl}
+                            />
+                            <ImageSlot
+                              label="Ingredientes"
+                              value={editImageIngredientsUrl}
+                              onChange={setEditImageIngredientsUrl}
+                              testId={`preview-edit-image-ingredients-${product.id}`}
+                              urlTestId={`input-edit-image-ingredients-${product.id}`}
+                              fileTestId={`input-edit-image-ingredients-file-${product.id}`}
+                              onFile={(f) => handleSelectAndUploadProductImage(f, `edit-ingredientes-${product.id}`, setEditImageIngredientsUrl)}
+                              uploading={uploadingSlots[`edit-ingredientes-${product.id}`] || false}
+                              progress={uploadProgress[`edit-ingredientes-${product.id}`] || 0}
+                              resolveUrl={resolveProductImageUrl}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={saveEdit}
+                              disabled={updateProductMutation.isPending}
+                              className="bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white shadow-lg shadow-emerald-500/20"
+                            >
+                              {updateProductMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
+                              Guardar cambios
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
+                              <X className="h-4 w-4 mr-1" /> Cancelar
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  ) : (
+                    <div
+                      key={product.id}
+                      className="group/card relative flex flex-col overflow-hidden rounded-2xl border border-slate-700/50 bg-slate-900/50 transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-500/40 hover:shadow-xl hover:shadow-violet-500/5"
+                      data-testid={`product-item-${product.id}`}
+                    >
+                      <div className="relative aspect-square overflow-hidden bg-slate-950/60">
+                        {getProductMainImage(product) ? (
+                          <img
+                            src={resolveProductImageUrl(getProductMainImage(product))}
+                            alt={product.name}
+                            loading="lazy"
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover/card:scale-105"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-800 to-slate-950">
+                            <Package className="h-12 w-12 text-slate-600" />
+                            <span className="text-[11px] text-slate-600">Sin imagen</span>
+                          </div>
+                        )}
+                        {product.price && (
+                          <span className="absolute left-2 top-2 rounded-full bg-emerald-500/90 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg shadow-black/30">
+                            {product.price}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-1 flex-col gap-1.5 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-white" title={product.name}>
+                            {product.name}
+                          </h4>
+                          <div className="flex shrink-0 gap-1">
+                            <button
+                              type="button"
+                              onClick={() => startEditing(product)}
+                              data-testid={`button-edit-product-${product.id}`}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-700/60 hover:text-white"
+                              aria-label={`Editar ${product.name}`}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteProductMutation.mutate(product.id)}
+                              disabled={deleteProductMutation.isPending}
+                              data-testid={`button-delete-product-${product.id}`}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-500/20 hover:text-red-400 disabled:opacity-50"
+                              aria-label={`Eliminar ${product.name}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        {product.keywords && (
+                          <p className="truncate text-[11px] text-slate-500" title={product.keywords}>
+                            Claves: {product.keywords}
+                          </p>
+                        )}
+                        {product.description && (
+                          <p className="line-clamp-2 text-xs leading-snug text-slate-400">
+                            {product.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                )}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No hay productos. Agrega tu primer producto arriba.
-              </p>
+              <div className="rounded-xl border border-dashed border-slate-700/60 bg-slate-950/40 py-10 text-center">
+                <Package className="mx-auto mb-2 h-8 w-8 text-slate-600" />
+                <p className="text-sm text-slate-500">
+                  No hay productos todavía. Agrega tu primer producto arriba.
+                </p>
+              </div>
             )}
           </div>
         </div>
