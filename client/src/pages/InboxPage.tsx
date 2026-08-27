@@ -38,7 +38,7 @@ export default function InboxPage() {
     () => {
       const query = searchQuery.trim();
       if (query) {
-        return Math.min(Math.max(visibleConversations, 200), MAX_SERVER_LIMIT);
+        return Math.min(Math.max(visibleConversations, 400), MAX_SERVER_LIMIT);
       }
       // Keep enough backlog so operational columns can show their own 50 (+20) cards.
       return Math.min(Math.max(visibleConversations * 6, 120), MAX_SERVER_LIMIT);

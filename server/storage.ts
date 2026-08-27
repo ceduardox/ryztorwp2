@@ -389,11 +389,11 @@ export class DatabaseStorage implements IStorage {
             .from(conversations)
             .where(baseWhere)
             .orderBy(desc(conversations.updatedAt))
-            .limit(safeLimit || 200)
+            .limit(safeLimit || 400)
         : db.select({ id: conversations.id })
             .from(conversations)
             .orderBy(desc(conversations.updatedAt))
-            .limit(safeLimit || 200));
+            .limit(safeLimit || 400));
       const recentIds = recentIdsResult.map((r) => r.id);
 
       if (recentIds.length === 0) {
