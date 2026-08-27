@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft, Volume2 } from "lucide-react";
+import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft, Volume2, Lock, LockOpen } from "lucide-react";
 import type { Conversation, Message, Label, QuickMessage, Agent } from "@shared/schema";
 import {
   DropdownMenu,
@@ -993,6 +993,44 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
       toast({ title: "Error al eliminar", variant: "destructive" });
     },
   });
+
+  const lockConversationMutation = useMutation({
+    mutationFn: async ({ locked, password }: { locked: boolean; password: string }) => {
+      const res = await fetch(`/api/conversations/${conversation.id}/lock`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locked, password }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Error al cambiar el estado del chat");
+      }
+      return res.json();
+    },
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/conversations/${conversation.id}`] });
+      if (updated?.locked) {
+        toast({ title: "Chat cerrado" });
+      } else {
+        toast({ title: "Chat desbloqueado" });
+      }
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleToggleLock = () => {
+    const password = window.prompt(
+      conversation.locked
+        ? "Ingresa la contraseña para desbloquear este chat:"
+        : "Ingresa la contraseña para cerrar este chat:",
+      "",
+    );
+    if (password === null) return;
+    lockConversationMutation.mutate({ locked: !conversation.locked, password });
+  };
 
   const clearAttentionMutation = useMutation({
     mutationFn: async () => {
@@ -1987,6 +2025,24 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
           <Button
             variant="ghost"
             size="icon"
+            className={cn(
+              "flex-shrink-0 h-7 w-7",
+              conversation.locked
+                ? "bg-red-500/20 text-red-300"
+                : "text-slate-400 hover:text-red-300",
+            )}
+            onClick={handleToggleLock}
+            title={conversation.locked ? "Chat cerrado por ISABELLA - Click para desbloquear" : "Cerrar chat (bloquear eliminación y movimiento)"}
+            data-testid="button-lock-conversation"
+          >
+            {conversation.locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
+          </Button>
+        )}
+
+        {isAdmin && !conversation.locked && (
+          <Button
+            variant="ghost"
+            size="icon"
             className="flex-shrink-0 h-7 w-7 text-red-400"
             onClick={() => {
               if (confirm("¿Eliminar esta conversación y todos sus mensajes?")) {
@@ -1998,6 +2054,13 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
           >
             <Trash2 className="h-4 w-4" />
           </Button>
+        )}
+
+        {conversation.locked && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-red-400/40 bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-300">
+            <Lock className="h-3 w-3" />
+            Cerrado por ISABELLA
+          </span>
         )}
 
         {/* Learn Button */}

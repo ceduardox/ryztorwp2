@@ -4,7 +4,7 @@ import type { Conversation, Label } from "@shared/schema";
 import { useConversation } from "@/hooks/use-inbox";
 import { useAuth } from "@/hooks/use-auth";
 import { ChatArea } from "./ChatArea";
-import { Phone, PhoneOff, Clock, AlertCircle, Truck, CheckCircle, Check, Zap, ArrowLeft, Tag, Package, Search, X, Users, CalendarClock, RotateCcw, Columns3 } from "lucide-react";
+import { Phone, PhoneOff, Clock, AlertCircle, Truck, CheckCircle, Check, Zap, ArrowLeft, Tag, Package, Search, X, Users, CalendarClock, RotateCcw, Columns3, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -252,6 +252,7 @@ function KanbanCard({
   const badge = getBadgeConfig();
   const showPhone = conv.shouldCall || columnType === "llamar";
   const isUrgent = columnType === "humano";
+  const isLocked = Boolean(conv.locked);
   const callStatus = ((conv as any).callStatus || "") as Exclude<CallStatus, "clear"> | "";
   const callAttempts = Number((conv as any).callAttempts || 0);
   const showCallChip = true;
@@ -287,16 +288,17 @@ function KanbanCard({
   
   return (
     <div
-      draggable={enableDrag}
+      draggable={enableDrag && !isLocked}
       onDragStart={() => onDragStartCard(conv.id)}
       onDragEnd={onDragEndCard}
       onClick={onSelect}
       className={cn(
         "relative rounded-xl p-4 cursor-pointer backdrop-blur-sm select-none",
-        enableDrag && "cursor-grab active:cursor-grabbing",
+        enableDrag && !isLocked && "cursor-grab active:cursor-grabbing",
         "border border-slate-700/50 shadow-lg shadow-black/20",
         "transition-transform duration-100 active:scale-[0.97]",
         getCardStyle(),
+        isLocked && "border-red-400/50 bg-red-950/20",
         isActive && "ring-2 ring-emerald-500/50 shadow-emerald-500/20",
         isAssignedSpotlight && "border-cyan-300/80 bg-cyan-950/30 shadow-cyan-500/20 ring-1 ring-cyan-300/40",
         isUrgent && "animate-ring-pulse",
@@ -331,6 +333,15 @@ function KanbanCard({
               {name}
             </span>
             <div className="flex items-center gap-1">
+              {isLocked && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full border border-red-400/50 bg-red-500/15 px-2 py-0.5 text-[10px] font-bold tracking-wide text-red-300"
+                  title="Chat cerrado por ISABELLA"
+                >
+                  <Lock className="h-3 w-3" />
+                  CERRADO
+                </span>
+              )}
               {isUnread && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-cyan-300/60 bg-cyan-400/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-cyan-100 shadow-[0_0_10px_rgba(34,211,238,0.25)]">
                   <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
@@ -473,7 +484,7 @@ function KanbanCard({
           <div className="flex items-center gap-1 mt-2 text-xs text-slate-500">
             {columnType === "nuevo" && <Clock className="h-3 w-3" />}
             <span>{formatDate(conv.lastMessageTimestamp)}</span>
-            {enableDrag && (
+            {enableDrag && !isLocked && (
               <span className="ml-auto rounded-full border border-slate-600/60 bg-slate-900/70 px-1.5 py-0.5 text-[10px] text-slate-400">
                 arrastrar
               </span>

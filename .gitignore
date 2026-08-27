@@ -5,3 +5,8 @@ server/public
 vite.config.ts.*
 *.tar.gz
 gsk_*.txt
+.env
+.env.*
+!.env.example
+*.log
+webhook_debug_production.json

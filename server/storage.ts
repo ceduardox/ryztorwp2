@@ -218,6 +218,10 @@ export class DatabaseStorage implements IStorage {
       ALTER TABLE conversations
       ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMP
     `);
+    await db.execute(sql`
+      ALTER TABLE conversations
+      ADD COLUMN IF NOT EXISTS locked BOOLEAN NOT NULL DEFAULT false
+    `);
     this.reminderColumnsEnsured = true;
   }
 

@@ -3880,6 +3880,10 @@ export async function registerRoutes(
   app.delete("/api/conversations/:id", requireAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id as string);
+      const conversation = await storage.getConversation(id);
+      if (conversation?.locked) {
+        return res.status(403).json({ message: "Este chat está cerrado y no se puede eliminar" });
+      }
       await storage.deleteConversation(id);
       res.json({ success: true });
     } catch (error) {
@@ -5266,6 +5270,11 @@ export async function registerRoutes(
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid order status. Must be null, 'pending', 'ready', or 'delivered'", details: parsed.error.errors });
     }
+
+    const conversation = await storage.getConversation(id);
+    if (conversation?.locked) {
+      return res.status(403).json({ error: "Este chat está cerrado y no se puede mover" });
+    }
     
     const updated = await storage.updateConversation(id, { orderStatus: parsed.data.orderStatus });
     if (parsed.data.orderStatus === "pending") {
@@ -5312,6 +5321,10 @@ export async function registerRoutes(
   // Clear human attention flag
   app.patch("/api/conversations/:id/clear-attention", requireAuth, async (req, res) => {
     const id = parseInt(req.params.id);
+    const conversation = await storage.getConversation(id);
+    if (conversation?.locked) {
+      return res.status(403).json({ error: "Este chat está cerrado y no se puede mover" });
+    }
     const updated = await storage.updateConversation(id, { needsHumanAttention: false });
     res.json(updated);
   });
@@ -5325,6 +5338,11 @@ export async function registerRoutes(
 
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid column" });
+    }
+
+    const conversation = await storage.getConversation(id);
+    if (conversation?.locked) {
+      return res.status(403).json({ error: "Este chat está cerrado y no se puede mover" });
     }
 
     const { column } = parsed.data;
@@ -5387,6 +5405,39 @@ export async function registerRoutes(
     res.json(updated);
   });
 
+  // Lock/unlock a conversation (blocks delete and kanban moves until unlocked)
+  app.patch("/api/conversations/:id/lock", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ message: "Invalid conversation id" });
+      }
+      const parsed = z
+        .object({
+          locked: z.boolean(),
+          password: z.string(),
+        })
+        .safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid body" });
+      }
+      const { locked, password } = parsed.data;
+      const LOCK_PASSWORD = process.env.CHAT_LOCK_PASSWORD || "2020";
+      if (password !== LOCK_PASSWORD) {
+        return res.status(403).json({ message: "Contraseña incorrecta" });
+      }
+      const conversation = await storage.getConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversación no encontrada" });
+      }
+      const updated = await storage.updateConversation(id, { locked });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error locking conversation:", error);
+      res.status(500).json({ message: "Error locking conversation" });
+    }
+  });
+
   // Mark conversation as read (persisted in DB, does not reorder kanban)
   app.patch("/api/conversations/:id/read", requireAuth, async (req, res) => {
     const id = parseInt(req.params.id);
@@ -5411,6 +5462,10 @@ export async function registerRoutes(
   app.patch("/api/conversations/:id/should-call", requireAuth, async (req, res) => {
     const id = parseInt(req.params.id);
     const { shouldCall } = req.body;
+    const conversation = await storage.getConversation(id);
+    if (conversation?.locked) {
+      return res.status(403).json({ error: "Este chat está cerrado y no se puede mover" });
+    }
     const updated = await storage.updateConversation(id, { shouldCall: !!shouldCall });
     res.json(updated);
   });

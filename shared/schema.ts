@@ -64,6 +64,7 @@ export const conversations = pgTable("conversations", {
   lastMessage: text("last_message"),
   lastMessageTimestamp: timestamp("last_message_timestamp"),
   lastReadAt: timestamp("last_read_at"),
+  locked: boolean("locked").default(false),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
