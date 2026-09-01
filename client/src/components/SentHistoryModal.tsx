@@ -37,6 +37,15 @@ function formatDateTime(value?: string | Date | null) {
   });
 }
 
+function daysSince(value?: string | Date | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
 export function SentHistoryModal({
   open,
   onOpenChange,
@@ -105,6 +114,7 @@ export function SentHistoryModal({
               {rows.map((conv) => {
                 const phone = formatWaPhone(conv.waId);
                 const name = conv.contactName || phone || "Sin nombre";
+                const days = daysSince(conv.lastMessageTimestamp);
                 return (
                   <li key={conv.id}>
                     <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 hover:bg-slate-800">
@@ -127,6 +137,13 @@ export function SentHistoryModal({
                           </div>
                         </div>
                       </button>
+                      <div
+                        title="Días desde el último mensaje"
+                        className="flex items-center justify-center w-12 h-10 rounded-lg bg-slate-700/40 text-slate-200 text-sm font-semibold tabular-nums"
+                      >
+                        {days === null ? "—" : days}
+                        <span className="ml-0.5 text-[10px] text-slate-400 font-normal">d</span>
+                      </div>
                       <button
                         type="button"
                         onClick={() => copyPhone(phone)}
