@@ -5458,6 +5458,20 @@ export async function registerRoutes(
     res.json(updated);
   });
 
+  // Toggle contacted flag (contactado / no contactado)
+  app.patch("/api/conversations/:id/contacted", requireAuth, async (req, res) => {
+    const id = parseInt(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: "Invalid conversation id" });
+    }
+    const parsed = z.object({ contacted: z.boolean() }).safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid body" });
+    }
+    const updated = await storage.updateConversation(id, { contacted: parsed.data.contacted });
+    res.json(updated);
+  });
+
   // Toggle should call (purchase probability indicator)
   app.patch("/api/conversations/:id/should-call", requireAuth, async (req, res) => {
     const id = parseInt(req.params.id);

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, Search, Phone, Inbox as InboxIcon } from "lucide-react";
+import { Copy, Check, Search, Phone, Inbox as InboxIcon, UserCheck } from "lucide-react";
 
 const LIMIT = 5000;
 const LIMIT_STEP = 100;
@@ -62,6 +62,7 @@ export function SentHistoryModal({
   const [daysPreset, setDaysPreset] = useState<string>("all");
   const [daysMin, setDaysMin] = useState<string>("");
   const [daysMax, setDaysMax] = useState<string>("");
+  const [contactedLocal, setContactedLocal] = useState<Record<number, boolean>>({});
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -101,6 +102,21 @@ export function SentHistoryModal({
     });
   };
 
+  const toggleContacted = async (id: number, current: boolean) => {
+    try {
+      const res = await fetch(`/api/conversations/${id}/contacted`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contacted: !current }),
+      });
+      if (!res.ok) throw new Error("No se pudo actualizar");
+      await res.json();
+      setContactedLocal((map) => ({ ...map, [id]: !current }));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl bg-slate-900 border-slate-700 text-slate-100">
@@ -114,62 +130,64 @@ export function SentHistoryModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="relative mb-2">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre, número o mensaje..."
-            className="pl-9 bg-slate-950 border-slate-700 text-slate-100 placeholder:text-slate-500"
-          />
-        </div>
+        <div className="grid grid-cols-1 gap-2 mb-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nombre, número o mensaje..."
+              className="pl-9 bg-slate-950 border-slate-700 text-slate-100 placeholder:text-slate-500"
+            />
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          <select
-            value={daysPreset}
-            onChange={(e) => {
-              setDaysPreset(e.target.value);
-              if (e.target.value !== "all") {
-                setDaysMin("");
-                setDaysMax("");
-              }
-            }}
-            className="h-9 px-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none"
-          >
-            <option value="all">Todos los días</option>
-            <option value="1">Últimas 24 h</option>
-            <option value="3">Últimos 3 días</option>
-            <option value="7">Últimos 7 días</option>
-            <option value="15">Últimos 15 días</option>
-            <option value="30">Últimos 30 días</option>
-            <option value="90">Últimos 90 días</option>
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={daysPreset}
+              onChange={(e) => {
+                setDaysPreset(e.target.value);
+                if (e.target.value !== "all") {
+                  setDaysMin("");
+                  setDaysMax("");
+                }
+              }}
+              className="h-9 px-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none"
+            >
+              <option value="all">Todos los días</option>
+              <option value="1">Últimas 24 h</option>
+              <option value="3">Últimos 3 días</option>
+              <option value="7">Últimos 7 días</option>
+              <option value="15">Últimos 15 días</option>
+              <option value="30">Últimos 30 días</option>
+              <option value="90">Últimos 90 días</option>
+            </select>
 
-          <span className="text-slate-500 text-sm">Rango:</span>
-          <Input
-            type="number"
-            min="0"
-            value={daysMin}
-            onChange={(e) => {
-              setDaysMin(e.target.value);
-              setDaysPreset("all");
-            }}
-            placeholder="Min"
-            className="w-20 h-9 bg-slate-950 border-slate-700 text-slate-100 text-sm"
-          />
-          <span className="text-slate-500 text-sm">–</span>
-          <Input
-            type="number"
-            min="0"
-            value={daysMax}
-            onChange={(e) => {
-              setDaysMax(e.target.value);
-              setDaysPreset("all");
-            }}
-            placeholder="Max"
-            className="w-20 h-9 bg-slate-950 border-slate-700 text-slate-100 text-sm"
-          />
-          <span className="text-slate-500 text-sm">días</span>
+            <span className="text-slate-500 text-sm">Rango:</span>
+            <Input
+              type="number"
+              min="0"
+              value={daysMin}
+              onChange={(e) => {
+                setDaysMin(e.target.value);
+                setDaysPreset("all");
+              }}
+              placeholder="Min"
+              className="w-20 h-9 bg-slate-950 border-slate-700 text-slate-100 text-sm"
+            />
+            <span className="text-slate-500 text-sm">–</span>
+            <Input
+              type="number"
+              min="0"
+              value={daysMax}
+              onChange={(e) => {
+                setDaysMax(e.target.value);
+                setDaysPreset("all");
+              }}
+              placeholder="Max"
+              className="w-20 h-9 bg-slate-950 border-slate-700 text-slate-100 text-sm"
+            />
+            <span className="text-slate-500 text-sm">días</span>
+          </div>
         </div>
 
         <div className="max-h-[60vh] overflow-y-auto pr-1">
@@ -180,13 +198,14 @@ export function SentHistoryModal({
               {rows.map(({ conv, days }) => {
                 const phone = formatWaPhone(conv.waId);
                 const name = conv.contactName || phone || "Sin nombre";
+                const isContacted = contactedLocal[conv.id] ?? conv.contacted;
                 return (
                   <li key={conv.id}>
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 hover:bg-slate-800">
+                    <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 hover:bg-slate-800">
                       <Link
                         href={`/?conversationId=${conv.id}`}
                         onClick={() => onOpenChange(false)}
-                        className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                        className="flex items-center gap-3 flex-1 min-w-0 basis-full sm:basis-auto text-left"
                         title="Abrir chat"
                       >
                         <div className="h-10 w-10 flex-0 flex items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400 font-semibold text-sm">
@@ -206,6 +225,19 @@ export function SentHistoryModal({
                         {days === null ? "—" : days}
                         <span className="ml-0.5 text-[10px] text-slate-400 font-normal">d</span>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleContacted(conv.id, isContacted)}
+                        title={isContacted ? "Contactado" : "Marcar como contactado"}
+                        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                          isContacted
+                            ? "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
+                            : "bg-slate-700/60 text-slate-300 hover:bg-slate-700"
+                        }`}
+                      >
+                        <UserCheck className="h-3.5 w-3.5" />
+                        {isContacted ? "Contactado" : "No contactado"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => copyPhone(phone)}
