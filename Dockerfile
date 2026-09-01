@@ -1,10 +1,17 @@
-FROM mcr.microsoft.com/playwright:v1.60.0-noble
+FROM node:20-slim
 WORKDIR /app
-RUN echo "USING_PLAYWRIGHT_DOCKER_IMAGE=v1.60.0-noble"
+
+# ffmpeg para procesar audio/video. La imagen de Playwright ya no se usa
+# (nadie importa playwright; solo se usa ffmpeg-static y ffmpeg del sistema).
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
 RUN npm ci
+
 COPY . .
 RUN npm run build
+
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000

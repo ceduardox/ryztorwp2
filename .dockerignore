@@ -1,0 +1,12 @@
+# Reducir el contexto de build (antes: ~415 MB -> ahora ~1-2 MB)
+node_modules
+dist
+.git
+.gitignore
+.DS_Store
+.env
+.env.*
+*.log
+*.pdf
+attached_assets
+webhook_debug_production.json
