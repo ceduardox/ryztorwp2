@@ -83,7 +83,7 @@ export function SentHistoryModal({
             Enviados y entregados
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Lista de contactos con su número y fecha. Toca el número para copiarlo.
+            Toca el nombre para abrir el chat. Toca el número para copiarlo.
           </DialogDescription>
         </DialogHeader>
 
@@ -108,15 +108,25 @@ export function SentHistoryModal({
                 return (
                   <li key={conv.id}>
                     <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 hover:bg-slate-800">
-                      <div className="h-10 w-10 flex-0 flex items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400 font-semibold text-sm">
-                        {initialOf(conv.contactName)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-slate-100 truncate">{name}</div>
-                        <div className="text-xs text-slate-400 truncate">
-                          {formatDateTime(conv.lastMessageTimestamp)}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onOpenChange(false);
+                          window.location.href = `/?conversationId=${conv.id}`;
+                        }}
+                        className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                        title="Abrir chat"
+                      >
+                        <div className="h-10 w-10 flex-0 flex items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400 font-semibold text-sm">
+                          {initialOf(conv.contactName)}
                         </div>
-                      </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-slate-100 truncate">{name}</div>
+                          <div className="text-xs text-slate-400 truncate">
+                            {formatDateTime(conv.lastMessageTimestamp)}
+                          </div>
+                        </div>
+                      </button>
                       <button
                         type="button"
                         onClick={() => copyPhone(phone)}

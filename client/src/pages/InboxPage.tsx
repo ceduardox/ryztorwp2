@@ -313,6 +313,10 @@ export default function InboxPage() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="end" className="mb-2 w-48 bg-slate-900 border-slate-700 text-slate-200">
+            <DropdownMenuItem onClick={() => setHistoryOpen(true)} className="focus:bg-slate-800">
+              <History className="h-4 w-4 mr-2 text-emerald-400" />
+              Enviados y entregados
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setLocation("/report")} className="focus:bg-slate-800">
               <FileText className="h-4 w-4 mr-2 text-amber-300" />
               Informe
