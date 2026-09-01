@@ -4,8 +4,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { useConversation, useConversations } from "@/hooks/use-inbox";
 import { NotificationBell } from "@/components/NotificationBell";
 import { KanbanView } from "@/components/KanbanView";
+import { SentHistoryModal } from "@/components/SentHistoryModal";
 import { Button } from "@/components/ui/button";
-import { LogOut, Bot, BotOff, ClipboardList, LayoutGrid, Sparkles, MessageSquare, Zap, Activity, BarChart3, Search, X, Users, Bell, Clock, EllipsisVertical, KeyRound, FileText } from "lucide-react";
+import { LogOut, Bot, BotOff, ClipboardList, LayoutGrid, Sparkles, MessageSquare, Zap, Activity, BarChart3, Search, X, Users, Bell, Clock, EllipsisVertical, KeyRound, FileText, History } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Link, useLocation } from "wouter";
 import {
@@ -32,6 +33,7 @@ export default function InboxPage() {
   const [location, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleConversations, setVisibleConversations] = useState(INITIAL_VISIBLE_CONVERSATIONS);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const maxDays = 30;
   const iaHref = isAdmin ? "/ai-agent" : "/agent-ai";
   const serverLimit = useMemo(
@@ -211,6 +213,9 @@ export default function InboxPage() {
               <FileText className="h-5 w-5" />
             </Button>
           </Link>
+          <Button variant="ghost" size="icon" title="Enviados y entregados" data-testid="button-history-desktop" onClick={() => setHistoryOpen(true)} className="text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10">
+            <History className="h-5 w-5" />
+          </Button>
           {isAdmin && (
             <>
               <Link href="/follow-up">
@@ -345,6 +350,8 @@ export default function InboxPage() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <SentHistoryModal open={historyOpen} onOpenChange={setHistoryOpen} />
     </div>
   );
 }
