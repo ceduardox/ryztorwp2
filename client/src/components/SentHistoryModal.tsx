@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useConversations } from "@/hooks/use-inbox";
+import { Link } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Copy, Check, Search, Phone, Inbox as InboxIcon } from "lucide-react";
 
 const LIMIT = 5000;
+const LIMIT_STEP = 100;
 
 function initialOf(name?: string | null) {
   if (!name) return "?";
@@ -53,7 +55,8 @@ export function SentHistoryModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { data: conversations = [] } = useConversations(LIMIT);
+  const [listLimit, setListLimit] = useState(LIMIT_STEP);
+  const { data: conversations = [] } = useConversations(listLimit);
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const [daysPreset, setDaysPreset] = useState<string>("all");
@@ -180,12 +183,9 @@ export function SentHistoryModal({
                 return (
                   <li key={conv.id}>
                     <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 hover:bg-slate-800">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onOpenChange(false);
-                          window.location.href = `/?conversationId=${conv.id}`;
-                        }}
+                      <Link
+                        href={`/?conversationId=${conv.id}`}
+                        onClick={() => onOpenChange(false)}
                         className="flex items-center gap-3 flex-1 min-w-0 text-left"
                         title="Abrir chat"
                       >
@@ -198,7 +198,7 @@ export function SentHistoryModal({
                             {formatDateTime(conv.lastMessageTimestamp)}
                           </div>
                         </div>
-                      </button>
+                      </Link>
                       <div
                         title="Días desde el último mensaje"
                         className="flex items-center justify-center w-12 h-10 rounded-lg bg-slate-700/40 text-slate-200 text-sm font-semibold tabular-nums"
@@ -226,6 +226,20 @@ export function SentHistoryModal({
               })}
             </ul>
           )}
+          <div className="flex items-center justify-center gap-3 pt-3">
+            <span className="text-xs text-slate-500">
+              {conversations.length} contactos cargados
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={rows.length < listLimit || listLimit >= LIMIT}
+              onClick={() => setListLimit((l) => Math.min(l + LIMIT_STEP, LIMIT))}
+              className="h-9 border-slate-600 text-slate-200 hover:bg-slate-800"
+            >
+              Cargar más (+{LIMIT_STEP})
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
