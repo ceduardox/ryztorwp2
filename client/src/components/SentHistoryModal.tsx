@@ -56,9 +56,16 @@ export function SentHistoryModal({
   const { data: conversations = [] } = useConversations(LIMIT);
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
+  const [daysPreset, setDaysPreset] = useState<string>("all");
+  const [daysMin, setDaysMin] = useState<string>("");
+  const [daysMax, setDaysMax] = useState<string>("");
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const min = daysMin !== "" ? Math.max(0, Number(daysMin)) : null;
+    const max = daysMax !== "" ? Math.max(0, Number(daysMax)) : null;
+    const presetNum = daysPreset !== "all" ? Number(daysPreset) : null;
+
     const list = conversations
       .filter((c) => {
         if (!query) return true;
@@ -68,13 +75,21 @@ export function SentHistoryModal({
           c.lastMessage?.toLowerCase().includes(query)
         );
       })
+      .map((c) => ({ conv: c, days: daysSince(c.lastMessageTimestamp) }))
+      .filter(({ days }) => {
+        if (days === null) return false;
+        if (presetNum !== null) return days <= presetNum;
+        if (min !== null && days < min) return false;
+        if (max !== null && days > max) return false;
+        return true;
+      })
       .sort((a, b) => {
-        const at = a.lastMessageTimestamp ? new Date(a.lastMessageTimestamp).getTime() : 0;
-        const bt = b.lastMessageTimestamp ? new Date(b.lastMessageTimestamp).getTime() : 0;
+        const at = a.conv.lastMessageTimestamp ? new Date(a.conv.lastMessageTimestamp).getTime() : 0;
+        const bt = b.conv.lastMessageTimestamp ? new Date(b.conv.lastMessageTimestamp).getTime() : 0;
         return bt - at;
       });
     return list;
-  }, [conversations, search]);
+  }, [conversations, search, daysPreset, daysMin, daysMax]);
 
   const copyPhone = (phone: string) => {
     navigator.clipboard.writeText(phone).then(() => {
@@ -96,7 +111,7 @@ export function SentHistoryModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="relative mb-3">
+        <div className="relative mb-2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
           <Input
             value={search}
@@ -106,15 +121,62 @@ export function SentHistoryModal({
           />
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <select
+            value={daysPreset}
+            onChange={(e) => {
+              setDaysPreset(e.target.value);
+              if (e.target.value !== "all") {
+                setDaysMin("");
+                setDaysMax("");
+              }
+            }}
+            className="h-9 px-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none"
+          >
+            <option value="all">Todos los días</option>
+            <option value="1">Últimas 24 h</option>
+            <option value="3">Últimos 3 días</option>
+            <option value="7">Últimos 7 días</option>
+            <option value="15">Últimos 15 días</option>
+            <option value="30">Últimos 30 días</option>
+            <option value="90">Últimos 90 días</option>
+          </select>
+
+          <span className="text-slate-500 text-sm">Rango:</span>
+          <Input
+            type="number"
+            min="0"
+            value={daysMin}
+            onChange={(e) => {
+              setDaysMin(e.target.value);
+              setDaysPreset("all");
+            }}
+            placeholder="Min"
+            className="w-20 h-9 bg-slate-950 border-slate-700 text-slate-100 text-sm"
+          />
+          <span className="text-slate-500 text-sm">–</span>
+          <Input
+            type="number"
+            min="0"
+            value={daysMax}
+            onChange={(e) => {
+              setDaysMax(e.target.value);
+              setDaysPreset("all");
+            }}
+            placeholder="Max"
+            className="w-20 h-9 bg-slate-950 border-slate-700 text-slate-100 text-sm"
+          />
+          <span className="text-slate-500 text-sm">días</span>
+        </div>
+
         <div className="max-h-[60vh] overflow-y-auto pr-1">
           {rows.length === 0 ? (
             <p className="text-center text-slate-500 py-8">Sin resultados.</p>
           ) : (
             <ul className="flex flex-col gap-2">
-              {rows.map((conv) => {
+              {rows.map(({ conv, days }) => {
                 const phone = formatWaPhone(conv.waId);
                 const name = conv.contactName || phone || "Sin nombre";
-                const days = daysSince(conv.lastMessageTimestamp);
                 return (
                   <li key={conv.id}>
                     <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 hover:bg-slate-800">
