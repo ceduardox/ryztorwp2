@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, Fragment } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -139,6 +139,37 @@ function getSingleEmojiType(text: string): "heart" | "emoji" | null {
     return "heart";
   }
   return "emoji";
+}
+
+function getMessageDate(msg: { timestamp?: string | null; createdAt?: string | Date | null }): Date | null {
+  if (msg.timestamp) {
+    const secs = parseInt(msg.timestamp, 10);
+    if (!isNaN(secs) && secs > 0) return new Date(secs * 1000);
+  }
+  if (msg.createdAt) {
+    const d = new Date(msg.createdAt as any);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
+function isSameCalendarDay(a: Date | null, b: Date | null): boolean {
+  if (!a || !b) return false;
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function formatDaySeparator(date: Date): string {
+  const now = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  const sameDay = (x: Date, y: Date) => x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
+  if (sameDay(date, now)) return "Hoy";
+  if (sameDay(date, yesterday)) return "Ayer";
+  const sameYear = date.getFullYear() === now.getFullYear();
+  if (sameYear) {
+    return date.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+  }
+  return date.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" });
 }
 
 export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
@@ -2208,10 +2239,15 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
           setLongPressPressingMessageId(null);
         }}
       >
-        {messages.map((msg) => {
+        {messages.map((msg, idx) => {
           const isOut = msg.direction === "out";
           const canEditMessage = isOut && msg.type === "text" && Boolean(msg.text?.trim());
           const isEditingThisMessage = editingMessageId === msg.id;
+
+          // WhatsApp-style day separator: show when day changes vs previous message
+          const currDate = getMessageDate(msg);
+          const prevDate = idx > 0 ? getMessageDate(messages[idx - 1]) : null;
+          const showDaySeparator = Boolean(currDate) && (idx === 0 || !isSameCalendarDay(currDate, prevDate));
           
           // Parse parent message info from WhatsApp's raw payload
           const raw = msg.rawJson as any;
@@ -2219,7 +2255,15 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
           const parentMsg = parentMessageId ? messages.find((m) => m.waMessageId === parentMessageId) : null;
 
           return (
-            <div key={msg.id} className={cn("flex w-full", isOut ? "justify-end" : "justify-start")}>
+            <Fragment key={msg.id}>
+              {showDaySeparator && currDate && (
+                <div className="flex w-full justify-center py-1">
+                  <span className="rounded-md bg-[#f0f2f5] dark:bg-[#182229] px-3 py-1.5 text-[11px] font-medium capitalize text-slate-600 dark:text-slate-300 shadow-sm">
+                    {formatDaySeparator(currDate)}
+                  </span>
+                </div>
+              )}
+            <div className={cn("flex w-full", isOut ? "justify-end" : "justify-start")}>
               <div
                 id={`msg-id-${msg.id}`}
                 className={cn(
@@ -2600,6 +2644,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                 </div>
               </div>
             </div>
+            </Fragment>
           );
         })}
       </div>
