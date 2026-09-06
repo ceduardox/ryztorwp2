@@ -1641,6 +1641,26 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
         })}
       </div>
 
+      {/* Mobile: selector de columna KISS */}
+      <div className={cn("md:hidden flex items-center gap-2 px-3 py-2 bg-slate-800/80 backdrop-blur-lg border-b border-slate-700/50", isMobileChatOpen && "hidden")}>
+        <Button variant="outline" size="icon" className="h-8 w-8 border-slate-600/70 bg-slate-800/70" disabled={columnOrder.indexOf(mobileTab) === 0} onClick={() => moveMobileTab("prev")} data-testid="mobile-prev-column"><ChevronUp className="h-4 w-4 -rotate-90" /></Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="flex-1 h-8 border-slate-600/70 bg-slate-800/70 px-3 text-slate-200 justify-between" data-testid="mobile-column-picker">
+              <span className="flex items-center gap-2 truncate"><span className="truncate text-sm font-medium">{columnData[mobileTab].title}</span><span className="text-xs px-1.5 py-0.5 rounded-full bg-white/20 font-bold">{columnData[mobileTab].items.length}</span></span><ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="center" className="w-64 !bg-slate-900 !border-slate-700 !text-slate-200">
+            {orderedTabConfig.map((tab) => (
+              <DropdownMenuItem key={tab.key} onClick={() => setMobileTab(tab.key)} data-testid={`mobile-pick-${tab.key}`} className={cn("!text-slate-300 focus:bg-slate-700", mobileTab === tab.key && "!bg-slate-700 !text-white")}>
+                <span className="flex-1 truncate">{tab.label}</span><span className="ml-2 text-xs px-1.5 py-0.5 rounded-full bg-slate-700">{columnData[tab.key].items.length}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button variant="outline" size="icon" className="h-8 w-8 border-slate-600/70 bg-slate-800/70" disabled={columnOrder.indexOf(mobileTab) === columnOrder.length - 1} onClick={() => moveMobileTab("next")} data-testid="mobile-next-column"><ChevronDown className="h-4 w-4 -rotate-90" /></Button>
+      </div>
+
       {/* Mobile: Single column view */}
       <div
         className="md:hidden flex-1 overflow-hidden relative"
