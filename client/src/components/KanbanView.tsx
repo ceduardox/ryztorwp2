@@ -81,6 +81,13 @@ interface ColumnProps {
   hasMoreConversations: boolean;
   unreadIds: Set<number>;
   assignedSpotlightIds: Set<number>;
+  onRename?: (columnType: TabType, title: string) => void;
+  isEditingTitle?: boolean;
+  editingTitle?: string;
+  onEditingTitleChange?: (value: string) => void;
+  onStartEditTitle?: (columnType: TabType) => void;
+  onCancelEditTitle?: () => void;
+  onSaveEditTitle?: (columnType: TabType) => void;
 }
 
 const KANBAN_ASSIGNMENT_SEEN_STATE_KEY = "ryzapp_kanban_assignment_seen_state_v1";
@@ -542,7 +549,7 @@ function KanbanCard({
   );
 }
 
-function KanbanColumn({ title, items, activeId, onSelect, columnType, labels, showAgentAssignment, getAssignedAgentName, enableDrag, draggingConversationId, isDropTarget, onDragStartCard, onDragEndCard, onDragOverColumn, onDropOnColumn, onLoadMore, hasMoreConversations, unreadIds, assignedSpotlightIds }: ColumnProps) {
+function KanbanColumn({ title, items, activeId, onSelect, columnType, labels, showAgentAssignment, getAssignedAgentName, enableDrag, draggingConversationId, isDropTarget, onDragStartCard, onDragEndCard, onDragOverColumn, onDropOnColumn, onLoadMore, hasMoreConversations, unreadIds, assignedSpotlightIds, onRename, isEditingTitle, editingTitle, onEditingTitleChange, onStartEditTitle, onCancelEditTitle, onSaveEditTitle }: ColumnProps) {
   const lastAutoLoadItemCount = useRef<number | null>(null);
 
   const handleColumnScroll = (event: UIEvent<HTMLDivElement>) => {
@@ -622,12 +629,46 @@ function KanbanColumn({ title, items, activeId, onSelect, columnType, labels, sh
         getColumnHeaderStyle()
       )}>
         <div className="absolute inset-0 animate-glow-line" />
-        <div className="relative flex items-center gap-2">
+        <div className="relative flex items-center gap-2 flex-1 min-w-0">
           {getColumnIcon()}
-          <span className="font-semibold text-sm">{title}</span>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm font-bold">
-            {items.length}
-          </span>
+          {isEditingTitle ? (
+            <span className="flex items-center gap-1 flex-1 min-w-0">
+              <input
+                value={editingTitle ?? ""}
+                onChange={(e) => onEditingTitleChange?.(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onSaveEditTitle?.(columnType);
+                  if (e.key === "Escape") onCancelEditTitle?.();
+                }}
+                autoFocus
+                maxLength={30}
+                className="h-7 text-sm bg-white/20 border-white/30 text-white placeholder:text-white/60 rounded px-2 flex-1 min-w-0 focus:bg-white/30 focus:border-white/50"
+                placeholder={title}
+                data-testid={`edit-column-header-${columnType}`}
+                onClick={(e) => e.stopPropagation()}
+              />
+              <button type="button" onClick={() => onSaveEditTitle?.(columnType)} className="p-1 rounded bg-white/20 hover:bg-white/30" title="Guardar"><Check className="h-3.5 w-3.5" /></button>
+              <button type="button" onClick={() => onCancelEditTitle?.()} className="p-1 rounded hover:bg-white/10" title="Cancelar"><X className="h-3.5 w-3.5" /></button>
+            </span>
+          ) : (
+            <>
+              <span className="font-semibold text-sm truncate">{title}</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm font-bold shrink-0">
+                {items.length}
+              </span>
+              {onStartEditTitle && (
+                <button
+                  type="button"
+                  onClick={() => onStartEditTitle(columnType)}
+                  className="ml-1 p-1 rounded hover:bg-white/20 opacity-70 hover:opacity-100 shrink-0"
+                  title="Renombrar columna"
+                  data-testid={`rename-header-${columnType}`}
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5" onScroll={handleColumnScroll}>
@@ -1609,6 +1650,12 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
               hasMoreConversations={hasMoreConversations}
               unreadIds={unreadIds}
               assignedSpotlightIds={assignedSpotlightIds}
+              isEditingTitle={editingColumnKey === mobileTab}
+              editingTitle={editingColumnTitle}
+              onEditingTitleChange={setEditingColumnTitle}
+              onStartEditTitle={(k) => { setEditingColumnKey(k); setEditingColumnTitle(columnTitles[k]); }}
+              onCancelEditTitle={() => setEditingColumnKey(null)}
+              onSaveEditTitle={(k) => saveColumnTitle(k, editingColumnTitle)}
             />
           </div>
 
@@ -1664,6 +1711,12 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
                 hasMoreConversations={hasMoreConversations}
                 unreadIds={unreadIds}
                 assignedSpotlightIds={assignedSpotlightIds}
+                isEditingTitle={editingColumnKey === tab.key}
+                editingTitle={editingColumnTitle}
+                onEditingTitleChange={setEditingColumnTitle}
+                onStartEditTitle={(k) => { setEditingColumnKey(k); setEditingColumnTitle(columnTitles[k]); }}
+                onCancelEditTitle={() => setEditingColumnKey(null)}
+                onSaveEditTitle={(k) => saveColumnTitle(k, editingColumnTitle)}
               />
             );
           })}
