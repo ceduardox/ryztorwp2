@@ -4,7 +4,7 @@ import type { Conversation, Label } from "@shared/schema";
 import { useConversation } from "@/hooks/use-inbox";
 import { useAuth } from "@/hooks/use-auth";
 import { ChatArea } from "./ChatArea";
-import { Phone, PhoneOff, Clock, AlertCircle, Truck, CheckCircle, Check, Zap, ArrowLeft, Tag, Package, Search, X, Users, CalendarClock, RotateCcw, Columns3, Lock } from "lucide-react";
+import { Phone, PhoneOff, Clock, AlertCircle, Truck, CheckCircle, Check, Zap, ArrowLeft, Tag, Package, Search, X, Users, CalendarClock, RotateCcw, Columns3, Lock, ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,6 +84,7 @@ interface ColumnProps {
 }
 
 const KANBAN_ASSIGNMENT_SEEN_STATE_KEY = "ryzapp_kanban_assignment_seen_state_v1";
+const KANBAN_COLUMN_ORDER_KEY = "ryzapp_kanban_column_order_v1";
 
 interface AgentListItem {
   id: number;
@@ -141,6 +142,28 @@ function persistAssignmentSeenState(state: Record<number, number>) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(KANBAN_ASSIGNMENT_SEEN_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function readKanbanColumnOrder(): string[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(KANBAN_COLUMN_ORDER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    return parsed.filter((v: unknown) => typeof v === "string");
+  } catch {
+    return null;
+  }
+}
+
+function persistKanbanColumnOrder(order: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(KANBAN_COLUMN_ORDER_KEY, JSON.stringify(order));
   } catch {
     // ignore storage errors
   }
@@ -646,6 +669,14 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
   const [visibleColumns, setVisibleColumns] = useState<Set<TabType>>(
     () => new Set(tabConfig.map((tab) => tab.key)),
   );
+  const [columnOrder, setColumnOrder] = useState<TabType[]>(() => {
+    const saved = readKanbanColumnOrder();
+    const valid = tabConfig.map((t) => t.key);
+    if (saved && saved.length === valid.length && valid.every((k) => (saved as string[]).includes(k))) {
+      return saved as TabType[];
+    }
+    return [...valid];
+  });
   const [filterLabelId, setFilterLabelId] = useState<number | null>(null);
   const [filterAgentId, setFilterAgentId] = useState<number | null>(null);
   const [draggingConversationId, setDraggingConversationId] = useState<number | null>(null);
@@ -804,6 +835,30 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
   const showAllColumns = () => {
     setVisibleColumns(new Set(tabConfig.map((tab) => tab.key)));
   };
+
+  const moveColumnOrder = (key: TabType, dir: -1 | 1) => {
+    setColumnOrder((prev) => {
+      const idx = prev.indexOf(key);
+      const nextIdx = idx + dir;
+      if (idx < 0 || nextIdx < 0 || nextIdx >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(idx, 1);
+      next.splice(nextIdx, 0, moved);
+      persistKanbanColumnOrder(next);
+      return next;
+    });
+  };
+
+  const resetColumnOrder = () => {
+    const def = tabConfig.map((t) => t.key);
+    setColumnOrder([...def]);
+    persistKanbanColumnOrder(def);
+  };
+
+  const orderedTabConfig = useMemo(
+    () => columnOrder.map((k) => tabConfig.find((t) => t.key === k)!).filter(Boolean),
+    [columnOrder],
+  );
 
   const shouldShowDesktopColumn = (column: TabType) =>
     activeId ? activeColumn === column : visibleColumns.has(column);
@@ -979,7 +1034,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
   };
 
   const moveMobileTab = (direction: "next" | "prev") => {
-    const order: TabType[] = ["humano", "nuevo", "llamar", "proceso", "listo", "entregado"];
+    const order: TabType[] = columnOrder;
     const currentIndex = order.indexOf(mobileTab);
     const nextIndex = direction === "next"
       ? Math.min(order.length - 1, currentIndex + 1)
@@ -1239,19 +1294,42 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
               </span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-64 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
-            {tabConfig.map((tab) => (
+          <DropdownMenuContent align="start" className="w-72 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
+            {orderedTabConfig.map((tab, idx) => (
               <DropdownMenuItem
                 key={tab.key}
                 onSelect={(event) => event.preventDefault()}
-                onClick={() => toggleColumnVisibility(tab.key)}
                 data-testid={`toggle-column-${tab.key}`}
-                className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"
+                className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100 flex items-center justify-between gap-2"
               >
-                <span className={cn("mr-2 inline-flex", visibleColumns.has(tab.key) ? "text-emerald-400" : "text-transparent")}>
-                  <Check className="h-3.5 w-3.5" />
+                <span className="flex items-center gap-2 flex-1 cursor-pointer" onClick={() => toggleColumnVisibility(tab.key)}>
+                  <span className={cn("inline-flex", visibleColumns.has(tab.key) ? "text-emerald-400" : "text-transparent")}>
+                    <Check className="h-3.5 w-3.5" />
+                  </span>
+                  {tab.label}
                 </span>
-                {tab.label}
+                <span className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    disabled={idx === 0}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveColumnOrder(tab.key, -1); }}
+                    className="p-1 rounded hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Mover izquierda"
+                    data-testid={`move-left-${tab.key}`}
+                  >
+                    <ChevronUp className="h-3.5 w-3.5 -rotate-90" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={idx === orderedTabConfig.length - 1}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveColumnOrder(tab.key, 1); }}
+                    className="p-1 rounded hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Mover derecha"
+                    data-testid={`move-right-${tab.key}`}
+                  >
+                    <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+                  </button>
+                </span>
               </DropdownMenuItem>
             ))}
             <DropdownMenuItem
@@ -1261,6 +1339,14 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
               className="!text-cyan-300 focus:bg-slate-700 !focus:text-cyan-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-cyan-100"
             >
               Mostrar todas
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={resetColumnOrder}
+              data-testid="reset-column-order"
+              className="!text-slate-400 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-2" />
+              Restablecer orden
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -1281,7 +1367,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
         "md:hidden flex overflow-x-auto bg-slate-800/80 backdrop-blur-lg border-b border-slate-700/50 gap-1 p-2",
         isMobileChatOpen && "hidden",
       )}>
-        {tabConfig.map((tab) => {
+        {orderedTabConfig.map((tab) => {
           const Icon = tab.icon;
           const count = columnData[tab.key].items.length;
           return (
@@ -1377,144 +1463,34 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
           "flex gap-0 min-h-0 overflow-hidden p-3",
           activeId ? "w-[320px] flex-none" : "flex-1",
         )}>
-          {shouldShowDesktopColumn("humano") && (
-            <KanbanColumn
-            title="Interaccion Humana"
-            items={humano}
-            activeId={activeId}
-            onSelect={handleSelectConversation}
-            columnType="humano"
-            labels={labels}
-            showAgentAssignment={isAdmin}
-            getAssignedAgentName={getAssignedAgentName}
-            enableDrag={canDragKanban}
-            draggingConversationId={draggingConversationId}
-            isDropTarget={dragOverColumn === "humano"}
-            onDragStartCard={handleDragStartCard}
-            onDragEndCard={handleDragEndCard}
-            onDragOverColumn={handleDragOverColumn}
-            onDropOnColumn={handleDropOnColumn}
-            onLoadMore={onLoadMore}
-            hasMoreConversations={hasMoreConversations}
-            unreadIds={unreadIds}
-            assignedSpotlightIds={assignedSpotlightIds}
-          />
-          )}
-          {shouldShowDesktopColumn("nuevo") && (
-            <KanbanColumn
-            title="Esperando Confirmaci."
-            items={nuevos}
-            activeId={activeId}
-            onSelect={handleSelectConversation}
-            columnType="nuevo"
-            labels={labels}
-            showAgentAssignment={isAdmin}
-            getAssignedAgentName={getAssignedAgentName}
-            enableDrag={canDragKanban}
-            draggingConversationId={draggingConversationId}
-            isDropTarget={dragOverColumn === "nuevo"}
-            onDragStartCard={handleDragStartCard}
-            onDragEndCard={handleDragEndCard}
-            onDragOverColumn={handleDragOverColumn}
-            onDropOnColumn={handleDropOnColumn}
-            onLoadMore={onLoadMore}
-            hasMoreConversations={hasMoreConversations}
-            unreadIds={unreadIds}
-            assignedSpotlightIds={assignedSpotlightIds}
-          />
-          )}
-          {shouldShowDesktopColumn("llamar") && (
-            <KanbanColumn
-            title="Llamar"
-            items={llamar}
-            activeId={activeId}
-            onSelect={handleSelectConversation}
-            columnType="llamar"
-            labels={labels}
-            showAgentAssignment={isAdmin}
-            getAssignedAgentName={getAssignedAgentName}
-            enableDrag={canDragKanban}
-            draggingConversationId={draggingConversationId}
-            isDropTarget={dragOverColumn === "llamar"}
-            onDragStartCard={handleDragStartCard}
-            onDragEndCard={handleDragEndCard}
-            onDragOverColumn={handleDragOverColumn}
-            onDropOnColumn={handleDropOnColumn}
-            onLoadMore={onLoadMore}
-            hasMoreConversations={hasMoreConversations}
-            unreadIds={unreadIds}
-            assignedSpotlightIds={assignedSpotlightIds}
-          />
-          )}
-          {shouldShowDesktopColumn("proceso") && (
-            <KanbanColumn
-            title="Pedido en Proceso"
-            items={enProceso}
-            activeId={activeId}
-            onSelect={handleSelectConversation}
-            columnType="proceso"
-            labels={labels}
-            showAgentAssignment={isAdmin}
-            getAssignedAgentName={getAssignedAgentName}
-            enableDrag={canDragKanban}
-            draggingConversationId={draggingConversationId}
-            isDropTarget={dragOverColumn === "proceso"}
-            onDragStartCard={handleDragStartCard}
-            onDragEndCard={handleDragEndCard}
-            onDragOverColumn={handleDragOverColumn}
-            onDropOnColumn={handleDropOnColumn}
-            onLoadMore={onLoadMore}
-            hasMoreConversations={hasMoreConversations}
-            unreadIds={unreadIds}
-            assignedSpotlightIds={assignedSpotlightIds}
-          />
-          )}
-          {shouldShowDesktopColumn("listo") && (
-            <KanbanColumn
-            title="Listo para Enviar"
-            items={listos}
-            activeId={activeId}
-            onSelect={handleSelectConversation}
-            columnType="listo"
-            labels={labels}
-            showAgentAssignment={isAdmin}
-            getAssignedAgentName={getAssignedAgentName}
-            enableDrag={canDragKanban}
-            draggingConversationId={draggingConversationId}
-            isDropTarget={dragOverColumn === "listo"}
-            onDragStartCard={handleDragStartCard}
-            onDragEndCard={handleDragEndCard}
-            onDragOverColumn={handleDragOverColumn}
-            onDropOnColumn={handleDropOnColumn}
-            onLoadMore={onLoadMore}
-            hasMoreConversations={hasMoreConversations}
-            unreadIds={unreadIds}
-            assignedSpotlightIds={assignedSpotlightIds}
-          />
-          )}
-          {shouldShowDesktopColumn("entregado") && (
-            <KanbanColumn
-              title="Enviados y Entregados"
-              items={entregados}
-              activeId={activeId}
-              onSelect={handleSelectConversation}
-              columnType="entregado"
-              labels={labels}
-              showAgentAssignment={isAdmin}
-              getAssignedAgentName={getAssignedAgentName}
-              enableDrag={canDragKanban}
-              draggingConversationId={draggingConversationId}
-              isDropTarget={dragOverColumn === "entregado"}
-              onDragStartCard={handleDragStartCard}
-              onDragEndCard={handleDragEndCard}
-              onDragOverColumn={handleDragOverColumn}
-              onDropOnColumn={handleDropOnColumn}
-              onLoadMore={onLoadMore}
-              hasMoreConversations={hasMoreConversations}
-              unreadIds={unreadIds}
-              assignedSpotlightIds={assignedSpotlightIds}
-            />
-          )}
+          {orderedTabConfig.map((tab) => {
+            if (!shouldShowDesktopColumn(tab.key)) return null;
+            const data = columnData[tab.key];
+            return (
+              <KanbanColumn
+                key={tab.key}
+                title={data.title}
+                items={data.items}
+                activeId={activeId}
+                onSelect={handleSelectConversation}
+                columnType={tab.key}
+                labels={labels}
+                showAgentAssignment={isAdmin}
+                getAssignedAgentName={getAssignedAgentName}
+                enableDrag={canDragKanban}
+                draggingConversationId={draggingConversationId}
+                isDropTarget={dragOverColumn === tab.key}
+                onDragStartCard={handleDragStartCard}
+                onDragEndCard={handleDragEndCard}
+                onDragOverColumn={handleDragOverColumn}
+                onDropOnColumn={handleDropOnColumn}
+                onLoadMore={onLoadMore}
+                hasMoreConversations={hasMoreConversations}
+                unreadIds={unreadIds}
+                assignedSpotlightIds={assignedSpotlightIds}
+              />
+            );
+          })}
         </div>
 
         {activeId && activeConversation ? (
