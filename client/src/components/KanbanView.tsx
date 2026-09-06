@@ -4,7 +4,7 @@ import type { Conversation, Label } from "@shared/schema";
 import { useConversation } from "@/hooks/use-inbox";
 import { useAuth } from "@/hooks/use-auth";
 import { ChatArea } from "./ChatArea";
-import { Phone, PhoneOff, Clock, AlertCircle, Truck, CheckCircle, Check, Zap, ArrowLeft, Tag, Package, Search, X, Users, CalendarClock, RotateCcw, Columns3, Lock, ChevronUp, ChevronDown } from "lucide-react";
+import { Phone, PhoneOff, Clock, AlertCircle, Truck, CheckCircle, Check, Zap, ArrowLeft, Tag, Package, Search, X, Users, CalendarClock, RotateCcw, Columns3, Lock, ChevronUp, ChevronDown, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,6 +85,7 @@ interface ColumnProps {
 
 const KANBAN_ASSIGNMENT_SEEN_STATE_KEY = "ryzapp_kanban_assignment_seen_state_v1";
 const KANBAN_COLUMN_ORDER_KEY = "ryzapp_kanban_column_order_v1";
+const KANBAN_COLUMN_TITLES_KEY = "ryzapp_kanban_column_titles_v1";
 
 interface AgentListItem {
   id: number;
@@ -164,6 +165,28 @@ function persistKanbanColumnOrder(order: string[]) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(KANBAN_COLUMN_ORDER_KEY, JSON.stringify(order));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function readKanbanColumnTitles(): Record<string, string> | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(KANBAN_COLUMN_TITLES_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return parsed as Record<string, string>;
+  } catch {
+    return null;
+  }
+}
+
+function persistKanbanColumnTitles(titles: Record<string, string>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(KANBAN_COLUMN_TITLES_KEY, JSON.stringify(titles));
   } catch {
     // ignore storage errors
   }
@@ -677,6 +700,14 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
     }
     return [...valid];
   });
+  const [columnTitles, setColumnTitles] = useState<Record<TabType, string>>(() => {
+    const saved = readKanbanColumnTitles();
+    const base: Record<TabType, string> = {} as Record<TabType, string>;
+    for (const t of tabConfig) base[t.key] = (saved?.[t.key] && typeof saved[t.key] === "string" && saved[t.key].trim()) ? saved[t.key].trim().slice(0, 30) : t.label;
+    return base;
+  });
+  const [editingColumnKey, setEditingColumnKey] = useState<TabType | null>(null);
+  const [editingColumnTitle, setEditingColumnTitle] = useState("");
   const [filterLabelId, setFilterLabelId] = useState<number | null>(null);
   const [filterAgentId, setFilterAgentId] = useState<number | null>(null);
   const [draggingConversationId, setDraggingConversationId] = useState<number | null>(null);
@@ -855,9 +886,29 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
     persistKanbanColumnOrder(def);
   };
 
+  const saveColumnTitle = (key: TabType, title: string) => {
+    const trimmed = title.trim().slice(0, 30) || tabConfig.find((t) => t.key === key)!.label;
+    setColumnTitles((prev) => {
+      const next = { ...prev, [key]: trimmed };
+      persistKanbanColumnTitles(next);
+      return next;
+    });
+    setEditingColumnKey(null);
+  };
+
+  const resetColumnTitles = () => {
+    const base: Record<TabType, string> = {} as Record<TabType, string>;
+    for (const t of tabConfig) base[t.key] = t.label;
+    setColumnTitles(base);
+    persistKanbanColumnTitles(base);
+  };
+
   const orderedTabConfig = useMemo(
-    () => columnOrder.map((k) => tabConfig.find((t) => t.key === k)!).filter(Boolean),
-    [columnOrder],
+    () => columnOrder.map((k) => {
+      const base = tabConfig.find((t) => t.key === k)!;
+      return { ...base, label: columnTitles[k] || base.label };
+    }).filter(Boolean),
+    [columnOrder, columnTitles],
   );
 
   const shouldShowDesktopColumn = (column: TabType) =>
@@ -1003,14 +1054,14 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
     ).slice(0, displayLimit);
 
     return {
-      humano: { items: humano, title: "Interaccion Humana" },
-      nuevo: { items: nuevos, title: "Esperando Confirmaci." },
-      llamar: { items: llamar, title: "Llamar" },
-      proceso: { items: enProceso, title: "Pedido en Proceso" },
-      listo: { items: listos, title: "Listo para Enviar" },
-      entregado: { items: entregados, title: "Enviados y Entregados" },
+      humano: { items: humano, title: columnTitles["humano"] },
+      nuevo: { items: nuevos, title: columnTitles["nuevo"] },
+      llamar: { items: llamar, title: columnTitles["llamar"] },
+      proceso: { items: enProceso, title: columnTitles["proceso"] },
+      listo: { items: listos, title: columnTitles["listo"] },
+      entregado: { items: entregados, title: columnTitles["entregado"] },
     };
-  }, [filtered, assignedSpotlightIds, displayLimit]);
+  }, [filtered, assignedSpotlightIds, displayLimit, columnTitles]);
 
   const {
     humano: { items: humano },
@@ -1294,7 +1345,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
               </span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-72 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
+          <DropdownMenuContent align="start" className="w-80 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
             {orderedTabConfig.map((tab, idx) => (
               <DropdownMenuItem
                 key={tab.key}
@@ -1302,34 +1353,81 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
                 data-testid={`toggle-column-${tab.key}`}
                 className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100 flex items-center justify-between gap-2"
               >
-                <span className="flex items-center gap-2 flex-1 cursor-pointer" onClick={() => toggleColumnVisibility(tab.key)}>
-                  <span className={cn("inline-flex", visibleColumns.has(tab.key) ? "text-emerald-400" : "text-transparent")}>
-                    <Check className="h-3.5 w-3.5" />
+                {editingColumnKey === tab.key ? (
+                  <span className="flex items-center gap-1 flex-1" onClick={(e) => e.preventDefault()}>
+                    <Input
+                      value={editingColumnTitle}
+                      onChange={(e) => setEditingColumnTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveColumnTitle(tab.key, editingColumnTitle);
+                        if (e.key === "Escape") setEditingColumnKey(null);
+                      }}
+                      autoFocus
+                      maxLength={30}
+                      className="h-7 text-xs bg-slate-800 border-slate-600 flex-1 min-w-0"
+                      placeholder={tab.label}
+                      data-testid={`edit-column-input-${tab.key}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); saveColumnTitle(tab.key, editingColumnTitle); }}
+                      className="p-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white"
+                      title="Guardar"
+                      data-testid={`save-column-${tab.key}`}
+                    >
+                      <Check className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingColumnKey(null); }}
+                      className="p-1 rounded hover:bg-slate-600"
+                      title="Cancelar"
+                      data-testid={`cancel-edit-${tab.key}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   </span>
-                  {tab.label}
-                </span>
-                <span className="flex items-center gap-0.5">
-                  <button
-                    type="button"
-                    disabled={idx === 0}
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveColumnOrder(tab.key, -1); }}
-                    className="p-1 rounded hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="Mover izquierda"
-                    data-testid={`move-left-${tab.key}`}
-                  >
-                    <ChevronUp className="h-3.5 w-3.5 -rotate-90" />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={idx === orderedTabConfig.length - 1}
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveColumnOrder(tab.key, 1); }}
-                    className="p-1 rounded hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="Mover derecha"
-                    data-testid={`move-right-${tab.key}`}
-                  >
-                    <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
-                  </button>
-                </span>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-2 flex-1 cursor-pointer min-w-0" onClick={() => toggleColumnVisibility(tab.key)}>
+                      <span className={cn("inline-flex shrink-0", visibleColumns.has(tab.key) ? "text-emerald-400" : "text-transparent")}>
+                        <Check className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="truncate text-xs">{tab.label}</span>
+                    </span>
+                    <span className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingColumnKey(tab.key); setEditingColumnTitle(columnTitles[tab.key]); }}
+                        className="p-1 rounded hover:bg-slate-600"
+                        title="Renombrar"
+                        data-testid={`rename-column-${tab.key}`}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveColumnOrder(tab.key, -1); }}
+                        className="p-1 rounded hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Mover izquierda"
+                        data-testid={`move-left-${tab.key}`}
+                      >
+                        <ChevronUp className="h-3.5 w-3.5 -rotate-90" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === orderedTabConfig.length - 1}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveColumnOrder(tab.key, 1); }}
+                        className="p-1 rounded hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Mover derecha"
+                        data-testid={`move-right-${tab.key}`}
+                      >
+                        <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+                      </button>
+                    </span>
+                  </>
+                )}
               </DropdownMenuItem>
             ))}
             <DropdownMenuItem
@@ -1347,6 +1445,14 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             >
               <RotateCcw className="h-3.5 w-3.5 mr-2" />
               Restablecer orden
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={resetColumnTitles}
+              data-testid="reset-column-titles"
+              className="!text-slate-400 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-2" />
+              Restablecer nombres
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
