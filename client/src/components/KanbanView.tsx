@@ -1471,11 +1471,8 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
         )}
       </div>
 
-      {/* Mobile: Tab bar - Futuristic */}
-      <div className={cn(
-        "md:hidden flex overflow-x-auto bg-slate-800/80 backdrop-blur-lg border-b border-slate-700/50 gap-1 p-2",
-        isMobileChatOpen && "hidden",
-      )}>
+      {/* Mobile: Tab bar - oculto KISS (queda buscador + Ver mas arriba) */}
+      <div className="hidden">
         {orderedTabConfig.map((tab) => {
           const Icon = tab.icon;
           const count = columnData[tab.key].items.length;
