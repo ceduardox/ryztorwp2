@@ -1335,13 +1335,16 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
-              className="hidden md:flex h-9 border-slate-600/70 bg-slate-800/70 px-3 text-slate-200 hover:bg-slate-700/80"
+              className="flex h-9 border-slate-600/70 bg-slate-800/70 px-3 text-slate-200 hover:bg-slate-700/80"
               data-testid="button-visible-columns"
-              title="Elegir columnas visibles"
+              title="Elegir columnas visibles / reordenar / renombrar"
             >
               <Columns3 className="h-4 w-4 text-slate-300" />
-              <span className="ml-2 text-xs">
+              <span className="ml-2 text-xs hidden sm:inline">
                 Columnas {visibleColumns.size}/{tabConfig.length}
+              </span>
+              <span className="ml-2 text-xs sm:hidden">
+                {visibleColumns.size}/{tabConfig.length}
               </span>
             </Button>
           </DropdownMenuTrigger>
