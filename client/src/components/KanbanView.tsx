@@ -1221,6 +1221,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
           )}
         </div>
 
+        <div className="hidden md:flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -1459,11 +1460,12 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
         {hasMoreConversations && (
           <Button
             onClick={onLoadMore}
             variant="outline"
-            className="md:hidden h-9 border-slate-600/70 bg-slate-800/70 text-slate-200 hover:bg-slate-700/80"
+            className="h-9 border-slate-600/70 bg-slate-800/70 text-slate-200 hover:bg-slate-700/80"
             data-testid="button-load-more-conversations-mobile"
           >
             Ver mas (+20)
@@ -1471,7 +1473,75 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
         )}
       </div>
 
-      {/* Mobile: Tab bar - oculto KISS (queda buscador + Ver mas arriba) */}
+      <div className={cn("md:hidden flex items-center gap-2 px-3 py-2 bg-slate-800/50 backdrop-blur-lg border-b border-slate-700/30", isMobileChatOpen && "hidden")}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" className="h-9 w-9 border-slate-600/70 bg-slate-800/70 text-slate-200 hover:bg-slate-700/80" data-testid="button-filter-labels-mobile" title="Etiquetas">
+              <Tag className="h-4 w-4 text-slate-300" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
+            <DropdownMenuItem onClick={() => setFilterLabelId(null)} data-testid="filter-label-all-mobile" className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100">
+              <span className={cn("mr-2 inline-flex", !filterLabelId ? "text-emerald-400" : "text-transparent")}><Check className="h-3.5 w-3.5" /></span>Todas
+            </DropdownMenuItem>
+            {ownedLabels.map((label) => (
+              <DropdownMenuItem key={label.id} onClick={() => setFilterLabelId(filterLabelId === label.id ? null : label.id)} data-testid={`filter-label-${label.id}-mobile`} className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100">
+                <span className={cn("mr-2 inline-flex", filterLabelId === label.id ? "text-emerald-400" : "text-transparent")}><Check className="h-3.5 w-3.5" /></span>{label.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" className="h-9 w-9 border-slate-600/70 bg-slate-800/70 text-slate-200 hover:bg-slate-700/80" data-testid="button-filter-dates-mobile" title="Filtro fechas">
+              <Clock className="h-4 w-4 text-slate-300" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
+            {[{ days: 0, label: "Todo el historial" },{ days: 7, label: "Ultimos 7 dias" },{ days: 14, label: "Ultimos 14 dias" },{ days: 30, label: "Ultimos 30 dias" }].map(({ days, label }) => (
+              <DropdownMenuItem key={days} onClick={() => onDaysChange(days)} data-testid={`filter-days-${days}-mobile`} className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100">
+                <span className={cn("mr-2 inline-flex", daysToShow === days ? "text-cyan-400" : "text-transparent")}><Check className="h-3.5 w-3.5" /></span>{label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {isAdmin ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-9 border-slate-600/70 bg-slate-800/70 px-2 text-slate-200 hover:bg-slate-700/80" data-testid="button-filter-agents-mobile" title={`Agente: ${selectedAgentName}`}>
+                <Users className="h-4 w-4 text-slate-300" /><span className="ml-2 text-xs max-w-[90px] truncate">{selectedAgentName}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
+              <DropdownMenuItem onClick={() => setFilterAgentId(null)} data-testid="filter-agent-all-mobile" className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"><span className={cn("mr-2 inline-flex", !filterAgentId ? "text-emerald-400" : "text-transparent")}><Check className="h-3.5 w-3.5" /></span>Todos</DropdownMenuItem>
+              {agents.map((agent) => (<DropdownMenuItem key={agent.id} onClick={() => setFilterAgentId(filterAgentId === agent.id ? null : agent.id)} data-testid={`filter-agent-${agent.id}-mobile`} className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"><span className={cn("mr-2 inline-flex", filterAgentId === agent.id ? "text-emerald-400" : "text-transparent")}><Check className="h-3.5 w-3.5" /></span>{agent.name}</DropdownMenuItem>))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="flex flex-1 h-9 border-slate-600/70 bg-slate-800/70 px-3 text-slate-200 hover:bg-slate-700/80" data-testid="button-visible-columns-mobile" title="Columnas">
+              <Columns3 className="h-4 w-4 text-slate-300" /><span className="ml-2 text-xs">Columnas {visibleColumns.size}/{tabConfig.length}</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-80 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
+            {orderedTabConfig.map((tab, idx) => (
+              <DropdownMenuItem key={tab.key} onSelect={(event) => event.preventDefault()} data-testid={`toggle-column-${tab.key}-mobile`} className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100 flex items-center justify-between gap-2">
+                {editingColumnKey === tab.key ? (
+                  <span className="flex items-center gap-1 flex-1" onClick={(e) => e.preventDefault()}><Input value={editingColumnTitle} onChange={(e) => setEditingColumnTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveColumnTitle(tab.key, editingColumnTitle); if (e.key === "Escape") setEditingColumnKey(null); }} autoFocus maxLength={30} className="h-7 text-xs bg-slate-800 border-slate-600 flex-1 min-w-0" placeholder={tab.label} /><button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); saveColumnTitle(tab.key, editingColumnTitle); }} className="p-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white"><Check className="h-3 w-3" /></button><button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingColumnKey(null); }} className="p-1 rounded hover:bg-slate-600"><X className="h-3 w-3" /></button></span>
+                ) : (
+                  <><span className="flex items-center gap-2 flex-1 cursor-pointer min-w-0" onClick={() => toggleColumnVisibility(tab.key)}><span className={cn("inline-flex shrink-0", visibleColumns.has(tab.key) ? "text-emerald-400" : "text-transparent")}><Check className="h-3.5 w-3.5" /></span><span className="truncate text-xs">{tab.label}</span></span><span className="flex items-center gap-0.5 shrink-0"><button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingColumnKey(tab.key); setEditingColumnTitle(columnTitles[tab.key]); }} className="p-1 rounded hover:bg-slate-600" title="Renombrar"><Pencil className="h-3 w-3" /></button><button type="button" disabled={idx === 0} onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveColumnOrder(tab.key, -1); }} className="p-1 rounded hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"><ChevronUp className="h-3.5 w-3.5 -rotate-90" /></button><button type="button" disabled={idx === orderedTabConfig.length - 1} onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveColumnOrder(tab.key, 1); }} className="p-1 rounded hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"><ChevronDown className="h-3.5 w-3.5 -rotate-90" /></button></span></>
+                )}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuItem onClick={showAllColumns} disabled={visibleColumns.size === tabConfig.length} className="!text-cyan-300 focus:bg-slate-700 !focus:text-cyan-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-cyan-100">Mostrar todas</DropdownMenuItem>
+            <DropdownMenuItem onClick={resetColumnOrder} className="!text-slate-400 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"><RotateCcw className="h-3.5 w-3.5 mr-2" />Restablecer orden</DropdownMenuItem>
+            <DropdownMenuItem onClick={resetColumnTitles} className="!text-slate-400 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"><RotateCcw className="h-3.5 w-3.5 mr-2" />Restablecer nombres</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Mobile: Tab bar - oculto KISS */}
       <div className="hidden">
         {orderedTabConfig.map((tab) => {
           const Icon = tab.icon;
