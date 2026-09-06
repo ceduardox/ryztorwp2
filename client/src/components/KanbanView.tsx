@@ -88,6 +88,9 @@ interface ColumnProps {
   onStartEditTitle?: (columnType: TabType) => void;
   onCancelEditTitle?: () => void;
   onSaveEditTitle?: (columnType: TabType) => void;
+  onMoveColumn?: (columnType: TabType, dir: -1 | 1) => void;
+  canMoveLeft?: boolean;
+  canMoveRight?: boolean;
 }
 
 const KANBAN_ASSIGNMENT_SEEN_STATE_KEY = "ryzapp_kanban_assignment_seen_state_v1";
@@ -549,7 +552,7 @@ function KanbanCard({
   );
 }
 
-function KanbanColumn({ title, items, activeId, onSelect, columnType, labels, showAgentAssignment, getAssignedAgentName, enableDrag, draggingConversationId, isDropTarget, onDragStartCard, onDragEndCard, onDragOverColumn, onDropOnColumn, onLoadMore, hasMoreConversations, unreadIds, assignedSpotlightIds, onRename, isEditingTitle, editingTitle, onEditingTitleChange, onStartEditTitle, onCancelEditTitle, onSaveEditTitle }: ColumnProps) {
+function KanbanColumn({ title, items, activeId, onSelect, columnType, labels, showAgentAssignment, getAssignedAgentName, enableDrag, draggingConversationId, isDropTarget, onDragStartCard, onDragEndCard, onDragOverColumn, onDropOnColumn, onLoadMore, hasMoreConversations, unreadIds, assignedSpotlightIds, onRename, isEditingTitle, editingTitle, onEditingTitleChange, onStartEditTitle, onCancelEditTitle, onSaveEditTitle, onMoveColumn, canMoveLeft, canMoveRight }: ColumnProps) {
   const lastAutoLoadItemCount = useRef<number | null>(null);
 
   const handleColumnScroll = (event: UIEvent<HTMLDivElement>) => {
@@ -666,6 +669,30 @@ function KanbanColumn({ title, items, activeId, onSelect, columnType, labels, sh
                 >
                   <Pencil className="h-3 w-3" />
                 </button>
+              )}
+              {onMoveColumn && (
+                <>
+                  <button
+                    type="button"
+                    disabled={!canMoveLeft}
+                    onClick={() => onMoveColumn(columnType, -1)}
+                    className="p-1 rounded hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                    title="Mover izquierda"
+                    data-testid={`move-header-left-${columnType}`}
+                  >
+                    <ChevronUp className="h-3 w-3 -rotate-90" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canMoveRight}
+                    onClick={() => onMoveColumn(columnType, 1)}
+                    className="p-1 rounded hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                    title="Mover derecha"
+                    data-testid={`move-header-right-${columnType}`}
+                  >
+                    <ChevronDown className="h-3 w-3 -rotate-90" />
+                  </button>
+                </>
               )}
             </>
           )}
@@ -1656,6 +1683,9 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
               onStartEditTitle={(k) => { setEditingColumnKey(k); setEditingColumnTitle(columnTitles[k]); }}
               onCancelEditTitle={() => setEditingColumnKey(null)}
               onSaveEditTitle={(k) => saveColumnTitle(k, editingColumnTitle)}
+              onMoveColumn={moveColumnOrder}
+              canMoveLeft={columnOrder.indexOf(mobileTab) > 0}
+              canMoveRight={columnOrder.indexOf(mobileTab) < columnOrder.length - 1}
             />
           </div>
 
@@ -1686,7 +1716,7 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
           "flex gap-0 min-h-0 overflow-hidden p-3",
           activeId ? "w-[320px] flex-none" : "flex-1",
         )}>
-          {orderedTabConfig.map((tab) => {
+          {orderedTabConfig.map((tab, idx) => {
             if (!shouldShowDesktopColumn(tab.key)) return null;
             const data = columnData[tab.key];
             return (
@@ -1717,6 +1747,9 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
                 onStartEditTitle={(k) => { setEditingColumnKey(k); setEditingColumnTitle(columnTitles[k]); }}
                 onCancelEditTitle={() => setEditingColumnKey(null)}
                 onSaveEditTitle={(k) => saveColumnTitle(k, editingColumnTitle)}
+                onMoveColumn={moveColumnOrder}
+                canMoveLeft={idx > 0}
+                canMoveRight={idx < orderedTabConfig.length - 1}
               />
             );
           })}
