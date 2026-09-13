@@ -32,6 +32,14 @@ const INCOMING_PUSH_COOLDOWN_MS = 60000;
 const FIRST_CONTACT_TOP_LEVEL_BUTTONS = "[BOTONES: Azucar y peso, Dolor y estres, Dolor articular]";
 const FIRST_CONTACT_AZUCAR_PESO_BUTTONS = "[BOTONES: Solo diabetes, Diabetes + peso]";
 const DEFAULT_ADVISOR_NAME = "Isabella";
+// Numeros que reciben el comprobante de "pedido listo" por WhatsApp (repartidor/admin).
+// Se pueden configurar varios, separados por coma, con la env DELIVERY_NOTIFY_NUMBER.
+const DELIVERY_NOTIFY_NUMBERS = String(
+  process.env.DELIVERY_NOTIFY_NUMBER || "971521038925,59176044345",
+)
+  .split(",")
+  .map((n) => n.replace(/\D/g, ""))
+  .filter(Boolean);
 const upsertSubadminSchema = z.object({
   name: z.string().trim().min(1).max(100),
   username: z.string().trim().min(1).max(50),
@@ -1427,6 +1435,121 @@ function getAutomaticAudioBlockReason(responseText: string): string | null {
   return importantWrittenPatterns.find(({ pattern }) => pattern.test(text))?.reason || null;
 }
 
+// ============ PEDIDO LISTO -> aviso por WhatsApp al repartidor/admin ============
+const DELIVERY_TOKEN_REGEX =
+  /\[(?:PEDIDO_LISTO|LLAMAR|NECESITO_HUMANO|IMAGEN:[^\]]*|BOTONES:[^\]]*|LISTA:[^\]]*)\]/gi;
+
+interface DeliveryNotifyParams {
+  conversationId: number;
+  waId: string;
+  contactName: string;
+  vendorName: string | null;
+  recentMessages: StoredMessage[];
+}
+
+function formatDeliveryFallback(params: DeliveryNotifyParams): string {
+  const gpsSource = [...params.recentMessages]
+    .reverse()
+    .find((m) => m.text && /\[Ubicacion GPS:/i.test(m.text));
+  const coords = gpsSource?.text?.match(/\[Ubicacion GPS:\s*([^\]]+)\]/i)?.[1]?.trim();
+  const hoy = new Date().toLocaleDateString("es-BO", { weekday: "long", day: "2-digit", month: "2-digit" });
+  return [
+    `DELIVERY: ${hoy}`,
+    `Vendedor: ${params.vendorName || "Por confirmar"}`,
+    `Producto: ${"Por confirmar"}`,
+    "",
+    `1) Nombre: ${params.contactName}`,
+    `2) Teléfono:`,
+    ` wa.me/${params.waId}`,
+    `3) GPS y descripción:`,
+    coords ? `https://www.google.com/maps?q=${coords.replace(/\s*,\s*/, ",")}` : "Por confirmar",
+    `4) Hora de la entrega:`,
+    `Por confirmar`,
+    `5) Método de pago:`,
+    `Por confirmar`,
+    `6) Unidades a entregar:`,
+    ` Por confirmar`,
+    "",
+    `TOTAL Por confirmar BS`,
+  ].join("\n");
+}
+
+async function buildDeliveryOrderMessage(params: DeliveryNotifyParams): Promise<string> {
+  const hoy = new Date().toLocaleDateString("es-BO", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  const instruccion = [
+    "[SISTEMA INTERNO - NO ES UN MENSAJE AL CLIENTE]",
+    `Hoy es ${hoy} (Bolivia).`,
+    "Lee la conversacion y genera UNICAMENTE un comprobante de entrega con EXACTAMENTE este formato, sin saludo ni texto adicional:",
+    "",
+    "DELIVERY: <dia y fecha de entrega>",
+    `Vendedor: ${params.vendorName || "<vendedor>"}`,
+    "Producto: <producto>",
+    "",
+    "1) Nombre: <nombre del cliente>",
+    "2) Telefono:",
+    ` wa.me/${params.waId}`,
+    "3) GPS y descripcion:",
+    "<si hay coordenadas usa https://www.google.com/maps?q=LAT,LON ; si no, la direccion o referencia>",
+    "4) Hora de la entrega:",
+    "<hora mencionada>",
+    "5) Metodo de pago:",
+    "<efectivo/qr/otro>",
+    "6) Unidades a entregar:",
+    " <producto> (<precio> Bs)",
+    "",
+    "TOTAL <monto> BS",
+    "",
+    'Si un dato no aparece en la conversacion, escribe "Por confirmar". No inventes. No agregues nada mas.',
+  ].join("\n");
+
+  try {
+    const result = await generateAiResponse(
+      params.conversationId,
+      instruccion,
+      params.recentMessages,
+      undefined,
+      params.vendorName || undefined,
+    );
+    const text = (result?.response || "").replace(DELIVERY_TOKEN_REGEX, "").trim();
+    if (text && text.length > 20) return text;
+  } catch (error) {
+    console.error("[DeliveryNotify] Fallo la generacion con IA:", error);
+  }
+  return formatDeliveryFallback(params);
+}
+
+async function notifyDeliveryOrder(params: DeliveryNotifyParams): Promise<void> {
+  if (DELIVERY_NOTIFY_NUMBERS.length === 0) return;
+  const message = await buildDeliveryOrderMessage(params);
+
+  let anySent = false;
+  for (const number of DELIVERY_NOTIFY_NUMBERS) {
+    try {
+      await sendToWhatsApp(number, "text", { text: message });
+      console.log("[DeliveryNotify] Comprobante enviado a", number);
+      anySent = true;
+    } catch (error: any) {
+      console.error(
+        `[DeliveryNotify] Fallo el envio a ${number}:`,
+        error?.response?.data || error?.message,
+      );
+    }
+  }
+
+  if (!anySent) {
+    sendPushNotification(
+      "Pedido Listo para Enviar",
+      `${params.contactName}: no se pudo enviar el comprobante por WhatsApp`,
+      { conversationId: params.conversationId.toString(), waId: params.waId, event: "order_ready" },
+    );
+  }
+}
+
 async function processAiResponse(data: BufferedMessage) {
   const { conversationId, messageForAi, from, name, imageBase64ForAi, wasAudioMessage, adProductRoute } = data;
   const conversation = await storage.getConversation(conversationId);
@@ -1726,6 +1849,7 @@ async function processAiResponse(data: BufferedMessage) {
       };
 
       if (aiResult.orderReady) {
+        const wasAlreadyReady = conversation.orderStatus === "ready";
         updateData.orderStatus = 'ready';
         console.log("=== MARKING ORDER AS READY ===", conversationId);
         sendPushNotification(
@@ -1734,6 +1858,15 @@ async function processAiResponse(data: BufferedMessage) {
           { conversationId: conversationId.toString(), waId: from, event: "order_ready" },
           getConversationPushOptions(conversation)
         );
+        if (!wasAlreadyReady) {
+          void notifyDeliveryOrder({
+            conversationId,
+            waId: from,
+            contactName: name || conversation.contactName || from,
+            vendorName: assignedAgentName,
+            recentMessages,
+          });
+        }
       }
 
       if (aiResult.shouldCall) {
@@ -3081,6 +3214,14 @@ export async function registerRoutes(
               console.log("Type:", msg.type);
               const from = msg.from; // wa_id
               const name = value.contacts?.[0]?.profile?.name || from;
+
+              // Los numeros de aviso de pedidos (repartidor/admin) solo se usan para
+              // ABRIR la ventana de 24h de WhatsApp. No deben crear conversacion ni
+              // disparar la IA. Se ignoran por completo.
+              if (DELIVERY_NOTIFY_NUMBERS.includes(String(from).replace(/\D/g, ""))) {
+                console.log("[DeliveryNotify] Inbound del numero de aviso ignorado");
+                continue;
+              }
               
               let messageText: string | null = null;
               let messageForAi: string | null = null;
