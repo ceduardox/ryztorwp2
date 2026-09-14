@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RYZTOR × CÍRCULO 1 — Presentación de la empresa</title>
+<link rel="icon" href="./img/energy-strips.jpeg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --night:#0B0E2D; --night2:#12163d;
+    --violet:#392099; --violet2:#5426E8; --lav:#7a5cff; --steel:#7d83b5;
+    --coral:#FF6259; --coral2:#F13F3B; --green:#37E39B;
+    --ink:#fff; --muted:#A9A7C2; --soft:#D9D7EE;
+    --line:rgba(255,255,255,.10);
+    --card:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+    --r:18px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Montserrat',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    background:
+      radial-gradient(1100px 500px at 90% 0%, rgba(84,38,232,.30), transparent 60%),
+      radial-gradient(800px 480px at 0% 30%, rgba(255,98,89,.12), transparent 55%),
+      var(--night);
+    background-attachment:fixed;
+    color:var(--ink);line-height:1.55;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+
+  /* Barra de progreso + menú */
+  .progress{position:fixed;left:0;top:0;height:3px;width:0;background:linear-gradient(90deg,var(--violet2),var(--coral));z-index:100}
+  .topbar{position:sticky;top:0;z-index:90;backdrop-filter:blur(14px);background:rgba(11,14,45,.82);border-bottom:1px solid var(--line)}
+  .topbar .wrap{display:flex;align-items:center;justify-content:space-between;height:60px}
+  .brand{display:flex;align-items:center;gap:.6rem;font-weight:900;letter-spacing:.12em;font-size:.8rem}
+  .brand .dot{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,var(--coral),var(--coral2));display:grid;place-items:center;font-size:.95rem;box-shadow:0 8px 22px rgba(255,98,89,.35)}
+  .topbar nav{display:flex;gap:1.1rem}
+  .topbar nav a{color:var(--muted);text-decoration:none;font-size:.78rem;font-weight:700}
+  .topbar nav a:hover{color:#fff}
+
+  section.block{padding:64px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+  .eyebrow{font-size:.7rem;font-weight:800;letter-spacing:.3em;text-transform:uppercase;color:var(--coral);margin-bottom:.9rem}
+  h1{font-size:clamp(2rem,6vw,3.6rem);font-weight:900;line-height:1.05;letter-spacing:-.02em}
+  h2{font-size:clamp(1.5rem,4vw,2.4rem);font-weight:900;line-height:1.1;letter-spacing:-.02em}
+  h2 span{color:var(--coral)}
+  .lead{color:var(--soft);font-size:clamp(.95rem,2.4vw,1.12rem);font-weight:500;max-width:62ch;margin-top:1rem}
+  .sub{color:var(--muted);font-size:.92rem;max-width:64ch;margin-top:1rem}
+
+  .grid{display:grid;gap:1rem;margin-top:1.8rem}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:1.4rem}
+  .card h3{font-size:1rem;font-weight:800;margin:.7rem 0 .4rem}
+  .card p{color:var(--muted);font-size:.86rem}
+  .ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:rgba(84,38,232,.25);color:#B9A6FF}
+  .ico .lucide{width:21px;height:21px}
+  .ico.coral{background:rgba(255,98,89,.16);color:var(--coral)}
+  .ico.green{background:rgba(55,227,155,.14);color:var(--green)}
+
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:1.4rem}
+  .kpi .num{font-size:clamp(1.6rem,5vw,2.4rem);font-weight:900;letter-spacing:-.02em;line-height:1}
+  .kpi .num.coral{color:var(--coral)}
+  .kpi .lbl{margin-top:.55rem;color:var(--muted);font-size:.78rem;font-weight:600}
+
+  .trust{display:flex;gap:.55rem;flex-wrap:wrap;margin-top:1.5rem}
+  .trust .t{display:inline-flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:100px;padding:.55rem 1rem;font-size:.76rem;font-weight:700}
+  .trust .lucide{width:16px;height:16px}
+
+  .prod-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem;margin-top:1.8rem}
+  .prod-grid img{width:100%;aspect-ratio:1;object-fit:contain;background:rgba(255,255,255,.045);border:1px solid var(--line);border-radius:16px;padding:10px}
+
+  /* Producto */
+  .product{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:1.6rem;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:1.6rem;margin-top:1.4rem}
+  .product .ph{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:16px;display:grid;place-items:center;padding:1rem;min-height:260px}
+  .product .ph img{max-width:100%;max-height:300px;object-fit:contain;filter:drop-shadow(0 14px 30px rgba(0,0,0,.35))}
+  .product h3{font-size:clamp(1.3rem,3.5vw,1.8rem);font-weight:900}
+  .ben{list-style:none;margin-top:1rem;display:flex;flex-direction:column;gap:.55rem}
+  .ben li{display:flex;gap:.6rem;align-items:flex-start;color:#E4E2F4;font-size:.9rem;font-weight:600}
+  .ben .lucide{width:18px;height:18px;flex:0 0 auto;margin-top:2px}
+  .prices{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-top:1.2rem}
+  .prices div{background:rgba(255,255,255,.045);border:1px solid var(--line);border-radius:12px;padding:.7rem .5rem;text-align:center}
+  .prices b{display:block;font-size:clamp(1rem,3.4vw,1.35rem);font-weight:900}
+  .prices small{color:var(--muted);font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
+
+  /* Gráficas */
+  .chartbox{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:1.4rem;margin-top:1.6rem}
+  .chartbox canvas{width:100%!important}
+  .h-tall{height:340px;position:relative}
+  .h-mid{height:300px;position:relative}
+  .chips{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1.1rem}
+  .chips span{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:100px;padding:.4rem .9rem;font-size:.74rem;font-weight:700;color:#E4E2F4}
+
+  /* Comunidad */
+  .flow{display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;margin-top:1.8rem}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:1rem .7rem;text-align:center}
+  .step .n{width:30px;height:30px;border-radius:50%;margin:0 auto .55rem;display:grid;place-items:center;background:linear-gradient(135deg,var(--violet2),var(--coral));font-weight:900;font-size:.85rem}
+  .step b{display:block;font-size:.82rem;font-weight:800}
+  .step small{color:var(--muted);font-size:.7rem;font-weight:600;display:block;margin-top:.3rem;line-height:1.35}
+
+  .check{display:flex;align-items:center;gap:.7rem;background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:13px;padding:.8rem 1rem;font-weight:700;font-size:.84rem}
+  .check .lucide{width:18px;height:18px;color:var(--green);flex:0 0 auto}
+
+  table.ops{width:100%;border-collapse:collapse;margin-top:1.6rem;font-size:.85rem}
+  table.ops th{text-align:left;color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;padding:.7rem .8rem;border-bottom:1px solid var(--line)}
+  table.ops td{padding:.8rem;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top;font-weight:600;color:#E4E2F4}
+  table.ops td:first-child{color:#fff;font-weight:800}
+
+  footer{padding:56px 0 70px;text-align:center}
+  footer .pill{display:inline-block;margin-top:1.4rem;background:linear-gradient(135deg,var(--coral),var(--coral2));color:#fff;font-weight:800;padding:.95rem 1.8rem;border-radius:14px;font-size:.95rem;text-decoration:none;box-shadow:0 18px 40px rgba(255,98,89,.3)}
+
+  .reveal{opacity:0;transform:translateY(20px);transition:opacity .6s ease,transform .6s ease}
+  .reveal.in{opacity:1;transform:none}
+
+  @media (max-width:900px){
+    .g3,.g4{grid-template-columns:repeat(2,1fr)}
+    .flow{grid-template-columns:repeat(2,1fr)}
+    .product{grid-template-columns:1fr}
+    .product .ph{min-height:0}
+    .product .ph img{max-height:240px}
+    .topbar nav{display:none}
+  }
+  @media (max-width:560px){
+    .g2{grid-template-columns:1fr}
+    .g3,.g4{grid-template-columns:1fr}
+    .prod-grid{grid-template-columns:repeat(2,1fr)}
+    .flow{grid-template-columns:1fr}
+    section.block{padding:44px 0}
+    .h-tall{height:300px}
+  }
+  /* Hero estilo dossier */
+  .hero-grid{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);gap:2.5rem;align-items:center}
+  .hero-eyebrow{display:flex;align-items:center;gap:.9rem;font-size:.7rem;font-weight:800;letter-spacing:.3em;color:var(--coral)}
+  .hero-eyebrow::before{content:"";width:44px;height:2px;background:var(--coral);display:inline-block;flex:0 0 auto}
+  .hero-title{font-family:'Anton',Montserrat,sans-serif;font-weight:400;font-size:clamp(2.6rem,6.5vw,4.4rem);line-height:1.04;margin-top:1.1rem}
+  .hero-title span{color:var(--coral)}
+  .hero-visual{position:relative;border:1px solid var(--line);border-radius:22px;overflow:hidden;background:linear-gradient(180deg,rgba(11,14,45,0) 55%,rgba(11,14,45,.35)),url("./img/fondo1.png");background-size:cover;background-position:center;min-height:440px;display:flex;align-items:flex-end;padding:1rem}
+  .vert-words{position:absolute;right:1rem;top:1.2rem;display:flex;flex-direction:column;gap:.7rem;font-size:.66rem;font-weight:700;letter-spacing:.28em;color:#8f90b8;border-right:2px solid rgba(122,92,255,.6);padding-right:.9rem;text-align:right;z-index:2}
+  .kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);background:rgba(10,13,40,.72);border:1px solid var(--line);border-radius:18px;margin-top:2rem;overflow:hidden}
+  .kpi-strip .cell{display:flex;gap:1rem;align-items:center;padding:1.4rem 1.6rem}
+  .kpi-strip .cell+.cell{border-left:1px solid var(--line)}
+  .kpi-strip .lucide{width:34px;height:34px;color:var(--coral);flex:0 0 auto}
+  .kpi-strip .n{font-size:clamp(1.7rem,3.4vw,2.5rem);font-weight:900;letter-spacing:-.02em;line-height:1}
+  .kpi-strip .n.coral{color:var(--coral)}
+  .kpi-strip .l{color:var(--muted);font-size:.76rem;font-weight:600;margin-top:.3rem}
+  .growtag{display:inline-flex;align-items:center;margin-top:.55rem;font-size:.6rem;font-weight:800;letter-spacing:.12em;color:var(--coral);border:1px solid rgba(255,98,89,.45);border-radius:100px;padding:.25rem .7rem}
+  @media (max-width:900px){
+    .hero-grid{grid-template-columns:1fr}
+    .hero-visual{min-height:380px;background-image:linear-gradient(180deg,rgba(11,14,45,0) 55%,rgba(11,14,45,.35)),url("./img/fondo2.png")}
+    .vert-words{display:none}
+    .kpi-strip{grid-template-columns:1fr}
+    .kpi-strip .cell+.cell{border-left:0;border-top:1px solid var(--line)}
+  }
+
+  /* Legibilidad y sistema visual */
+  body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  h1,h2{text-wrap:balance}
+  section.block, footer{scroll-margin-top:68px}
+  .card p{font-size:.9rem}
+  .ben li{font-size:.93rem}
+  table.ops{font-size:.88rem}
+  .prices small{font-size:.68rem}
+  .rule{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1rem}
+  .rule span{display:inline-flex;align-items:center;gap:.45rem;font-size:.76rem;font-weight:700;color:var(--muted)}
+  .rule i{width:12px;height:12px;border-radius:4px;display:inline-block}
+  .money-rows{display:grid;grid-template-columns:repeat(2,1fr);gap:.8rem;margin-top:1.4rem}
+  .money-row{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:1.1rem 1.2rem}
+  .mr-head{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;margin-bottom:.5rem}
+  .mr-head b{font-size:1rem;font-weight:800}
+  .mr-head span{color:var(--muted);font-weight:700;font-size:.85rem;white-space:nowrap}
+  .mr-line{display:flex;justify-content:space-between;align-items:center;gap:.8rem;padding:.45rem 0;border-top:1px solid rgba(255,255,255,.06);font-size:.82rem}
+  .mr-line span{color:var(--muted);font-weight:600}
+  .mr-line b{font-weight:800;white-space:nowrap}
+  .mr-line b.g{color:var(--green)}
+  .mr-line b.c{color:var(--coral)}
+  .mr-line b.v{color:var(--lav)}
+  @media (max-width:560px){.money-rows{grid-template-columns:1fr}}
+  /* Dossier v2: cabeceras, pilares, paneles */
+  .sec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:1.5rem;flex-wrap:wrap}
+  .sec-side{max-width:300px;color:var(--muted);font-size:.82rem;text-align:right;font-weight:500}
+  .sec-side::after{content:"";display:block;width:44px;height:2px;background:var(--coral);margin-top:.6rem;margin-left:auto}
+  .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.8rem;position:relative}
+  .pillar{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:1.4rem}
+  .pillar .top{display:flex;gap:.9rem;align-items:flex-start}
+  .pillar .pic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:rgba(84,38,232,.3);box-shadow:0 0 24px rgba(84,38,232,.35);flex:0 0 auto}
+  .pillar .pic .lucide{width:24px;height:24px;color:#cfc2ff}
+  .pillar .n{color:var(--lav);font-weight:800;font-size:.82rem;letter-spacing:.06em}
+  .pillar h3{font-size:1rem;font-weight:800;margin:.15rem 0 .45rem}
+  .pillar p{color:var(--muted);font-size:.82rem}
+  .plink{position:absolute;top:48px;width:30px;height:2px;background:linear-gradient(90deg,transparent,var(--coral),transparent);transform:translateX(-50%);z-index:2}
+  .plink::after{content:"";position:absolute;left:50%;top:50%;width:9px;height:9px;border-radius:50%;background:var(--coral);box-shadow:0 0 12px var(--coral);transform:translate(-50%,-50%)}
+  .plink.p1{left:33.3%}
+  .plink.p2{left:66.6%}
+  .feat{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;margin-top:1.8rem}
+  .feat-card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:1.5rem;overflow:hidden}
+  .feat-card .shot{border-radius:14px;overflow:hidden;border:1px solid var(--line);margin-bottom:1.2rem}
+  .feat-card .shot img{width:100%;height:190px;object-fit:cover;display:block}
+  .feat-card h3{font-size:1.15rem;font-weight:800}
+  .feat-card h3 em{font-style:normal;color:var(--coral)}
+  .feat-card p{color:var(--muted);font-size:.86rem;margin-top:.5rem}
+  .kw{margin-top:1rem;font-size:.66rem;font-weight:700;letter-spacing:.2em;color:var(--muted)}
+  .kw b{color:var(--coral);font-weight:800}
+  .tagpill{display:inline-block;margin-top:.9rem;font-size:.62rem;font-weight:800;letter-spacing:.22em;color:var(--soft);border:1px solid var(--line);border-radius:100px;padding:.45rem 1rem}
+  .mini{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-top:1rem}
+  .mini-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:1.1rem 1.2rem;display:flex;align-items:center;gap:.9rem}
+  .mini-card .mi{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:rgba(84,38,232,.28);flex:0 0 auto}
+  .mini-card .mi .lucide{width:22px;height:22px;color:#cfc2ff}
+  .mini-card .mi.red{background:rgba(255,98,89,.16)}
+  .mini-card .mi.red .lucide{color:var(--coral)}
+  .mini-card .mn{font-size:1.5rem;font-weight:900;line-height:1}
+  .mini-card .mn.coral{color:var(--coral)}
+  .mini-card .ml{color:var(--muted);font-size:.7rem;font-weight:600;margin-top:.2rem}
+  .mini-card svg{margin-left:auto;flex:0 0 auto}
+  .bigpanel{display:grid;grid-template-columns:1fr auto 1fr;gap:1.5rem;align-items:center;background:rgba(10,13,40,.6);border:1px solid var(--line);border-radius:22px;padding:2rem;margin-top:1.8rem}
+  .bigpanel .bp-n{font-size:clamp(2rem,4.5vw,3rem);font-weight:900;letter-spacing:-.02em;line-height:1}
+  .bigpanel .bp-n.coral{color:var(--coral)}
+  .bigpanel .bp-l{color:var(--muted);font-size:.8rem;font-weight:600;margin-top:.4rem}
+  .donut-cap{text-align:center;color:var(--muted);font-size:.74rem;font-weight:600;margin-top:.4rem;line-height:1.4}
+  .foot-note{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-top:1rem;color:var(--muted);font-size:.76rem;font-weight:500;flex-wrap:wrap}
+  .foot-note .fb{font-weight:800;letter-spacing:.14em;font-size:.7rem;color:var(--soft)}
+  .foot-note .fb b{color:var(--coral)}
+  .net{position:relative;height:190px;border:1px solid var(--line);border-radius:14px;margin-bottom:1.2rem;background:radial-gradient(240px 160px at 50% 55%,rgba(84,38,232,.35),transparent 70%);overflow:hidden}
+  .net .ring{position:absolute;left:50%;top:52%;width:150px;height:150px;border:1px dashed rgba(122,92,255,.5);border-radius:50%;transform:translate(-50%,-50%)}
+  .net .hub{position:absolute;left:50%;top:52%;width:52px;height:52px;border-radius:50%;background:rgba(84,38,232,.5);border:1px solid rgba(160,140,255,.6);box-shadow:0 0 26px rgba(84,38,232,.6);display:grid;place-items:center;transform:translate(-50%,-50%)}
+  .net .hub .lucide{width:24px;height:24px;color:#e6deff}
+  .net .nd{position:absolute;width:40px;height:40px;border-radius:50%;background:rgba(20,24,66,.9);border:1px solid var(--lav);display:grid;place-items:center;box-shadow:0 0 16px rgba(122,92,255,.45)}
+  .net .nd .lucide{width:19px;height:19px;color:#cfc2ff}
+  .net .n1{left:12%;top:12%}
+  .net .n2{right:10%;top:20%}
+  .net .n3{left:16%;bottom:10%}
+  .net .n4{right:14%;bottom:14%}
+  .net .more{position:absolute;right:10px;top:8px;font-style:italic;color:#b9a6ff;font-size:.72rem;font-weight:600;transform:rotate(6deg);line-height:1.3;text-align:right}
+  @media (max-width:900px){
+    .pillars{grid-template-columns:1fr}
+    .plink{display:none}
+    .feat{grid-template-columns:1fr}
+    .mini{grid-template-columns:repeat(2,1fr)}
+    .bigpanel{grid-template-columns:1fr;text-align:center}
+    .sec-side{text-align:left;max-width:none}
+    .sec-side::after{margin-left:0}
+  }
+  @media (max-width:560px){.mini{grid-template-columns:1fr}}
+  /* Dossier v3: escenarios, flujos y paneles con nota */
+  .scen-wrap{position:relative}
+  .scen-curve{position:absolute;top:-34px;left:0;height:70px;width:100%;pointer-events:none;z-index:0}
+  .scen-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;position:relative;z-index:1;margin-top:2.2rem}
+  .scen-card{background:rgba(16,20,52,.85);border:1px solid var(--line);border-radius:16px;padding:1.2rem 1.3rem}
+  .scen-card.hot{border-color:rgba(255,98,89,.65);box-shadow:0 0 34px rgba(255,98,89,.22)}
+  .scen-card .t{display:flex;align-items:center;gap:.5rem;font-size:.8rem;font-weight:700;color:var(--soft)}
+  .scen-card .dot{width:11px;height:11px;border-radius:50%;background:var(--lav);box-shadow:0 0 10px var(--lav);flex:0 0 auto}
+  .scen-card.hot .dot{background:var(--coral);box-shadow:0 0 10px var(--coral)}
+  .scen-card .v{font-size:clamp(1.4rem,2.6vw,1.9rem);font-weight:900;margin-top:.4rem}
+  .scen-card.hot .v{color:var(--coral)}
+  .scen-card .u{color:var(--muted);font-size:.76rem;font-weight:600;margin-top:.25rem}
+  .panel{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,1fr);gap:1rem;margin-top:1rem}
+  .chartcard{background:rgba(10,13,40,.6);border:1px solid var(--line);border-radius:18px;padding:1.3rem}
+  .chartcard .ct{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;font-size:.68rem;font-weight:800;letter-spacing:.14em;color:var(--soft);margin-bottom:.8rem}
+  .chartcard .ct .lg{display:inline-flex;align-items:center;gap:.4rem;font-size:.72rem;font-weight:700;letter-spacing:0;color:var(--muted)}
+  .chartcard .ct .lg i{width:11px;height:11px;border-radius:4px;display:inline-block}
+  .sidecard{background:rgba(16,20,52,.85);border:1px solid var(--line);border-radius:18px;padding:1.4rem;display:flex;flex-direction:column;gap:.6rem;align-items:flex-start}
+  .sidecard h4{font-size:.72rem;font-weight:800;letter-spacing:.16em;color:var(--lav)}
+  .sidecard p{color:var(--soft);font-size:.85rem;font-weight:600}
+  .sidecard .ul{width:34px;height:3px;background:var(--coral);border-radius:2px}
+  .flowcard{border-radius:18px;padding:1.4rem;background:rgba(10,13,40,.6);border:1px solid var(--line)}
+  .flowcard.green{border-color:rgba(55,227,155,.45);box-shadow:0 0 30px rgba(55,227,155,.08)}
+  .flowcard.violet{border-color:rgba(122,92,255,.5);box-shadow:0 0 30px rgba(122,92,255,.12)}
+  .flowcard .fh{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
+  .flowcard .fh h3{font-size:1rem;font-weight:800}
+  .flowcard .ftag{margin-left:auto;font-size:.6rem;font-weight:800;letter-spacing:.14em;border:1px solid;border-radius:100px;padding:.35rem .8rem;text-transform:uppercase}
+  .flowcard.green .ftag{color:var(--green);border-color:rgba(55,227,155,.5)}
+  .flowcard.violet .ftag{color:#b9a6ff;border-color:rgba(122,92,255,.55)}
+  .flowcard .fd{color:var(--muted);font-size:.82rem;margin-top:.6rem}
+  .frow{display:flex;align-items:stretch;gap:.5rem;margin-top:1.1rem}
+  .fbox{flex:1;min-width:0;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;padding:.8rem .5rem;text-align:center}
+  .fbox small{display:block;color:var(--muted);font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+  .fbox b{display:block;font-size:clamp(1rem,2.4vw,1.35rem);font-weight:900;margin-top:.2rem}
+  .fbox .pc{font-size:.68rem;color:var(--green);font-weight:800}
+  .fbox.hot-green{border-color:var(--green);box-shadow:0 0 18px rgba(55,227,155,.25)}
+  .fbox.hot-green b{color:var(--green)}
+  .fbox b.mc{color:var(--coral)}
+  .fbox.hot-violet{border-color:var(--lav);box-shadow:0 0 18px rgba(122,92,255,.3)}
+  .fbox.hot-violet b{color:var(--lav)}
+  .farrow{align-self:center;color:var(--muted);font-weight:800;flex:0 0 auto}
+  .stackrow{display:flex;gap:.8rem;align-items:center;margin-top:1rem}
+  .stackbar{flex:1;display:flex;height:44px;border-radius:12px;overflow:hidden;border:1px solid var(--line);font-size:.62rem;font-weight:800}
+  .stackbar div{display:grid;place-items:center;white-space:nowrap;overflow:hidden;color:#fff}
+  .fcaps{font-size:.58rem;font-weight:800;letter-spacing:.14em;color:var(--muted);line-height:1.7;text-transform:uppercase;flex:0 0 auto}
+  @media (max-width:900px){
+    .panel{grid-template-columns:1fr}
+    .scen-grid{grid-template-columns:1fr}
+    .scen-curve{display:none}
+  }
+  @media (max-width:560px){
+    .frow{flex-direction:column}
+    .farrow{display:none}
+    .stackrow{flex-direction:column;align-items:stretch}
+  }
+  /* Dossier v4: tarjetas de producto */
+  .pgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;margin-top:1.8rem}
+  .pcard{position:relative;border-radius:20px;padding:1.5rem;overflow:hidden;background:rgba(10,13,40,.7);border:1px solid var(--line)}
+  .pcard .ghost{position:absolute;top:.3rem;left:1rem;font-size:4.4rem;font-weight:900;line-height:1;opacity:.25;pointer-events:none}
+  .pcard .brandtag{position:absolute;top:1.1rem;right:1.3rem;text-align:right;font-size:.58rem;font-weight:800;letter-spacing:.22em;opacity:.8;line-height:1.7}
+  .pcard .prow{display:grid;grid-template-columns:148px 1fr;gap:1.2rem;align-items:center;margin-top:2.4rem}
+  .pcard .prow img{width:100%;max-height:230px;object-fit:contain;filter:drop-shadow(0 14px 26px rgba(0,0,0,.5))}
+  .pcard h3{font-size:1.25rem;font-weight:800}
+  .pcard .pflow{display:flex;align-items:center;justify-content:space-between;gap:.4rem;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:12px;padding:.75rem .9rem;margin-top:1rem}
+  .pcard .pflow div{text-align:center}
+  .pcard .pflow b{font-size:1.02rem;font-weight:900;white-space:nowrap}
+  .pcard .pflow b.g{color:var(--green)}
+  .pcard .pflow small{display:block;color:var(--muted);font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-top:.15rem;white-space:nowrap}
+  .pcard .pflow .arr{color:var(--muted);font-weight:800;flex:0 0 auto}
+  .pcard .ptag{margin-top:1rem;padding-top:.6rem;border-top:2px solid;font-size:.6rem;font-weight:800;letter-spacing:.2em;line-height:1.9}
+  .sumstrip{display:grid;grid-template-columns:repeat(4,1fr);background:rgba(10,13,40,.72);border:1px solid var(--line);border-radius:18px;margin-top:1rem;overflow:hidden}
+  .sumstrip .scell{display:flex;gap:.9rem;align-items:center;padding:1.2rem 1.4rem}
+  .sumstrip .scell+.scell{border-left:1px solid var(--line)}
+  .sumstrip small{display:block;color:var(--muted);font-size:.68rem;font-weight:600}
+  .sumstrip b{font-size:1.6rem;font-weight:900;line-height:1.2}
+  .sumstrip b.g{color:var(--green)}
+  .sumstrip b.v{color:var(--lav)}
+  .sumstrip .caps{font-size:.64rem;font-weight:800;letter-spacing:.2em;color:var(--soft);line-height:1.9}
+  @media (max-width:900px){
+    .pgrid{grid-template-columns:1fr}
+    .sumstrip{grid-template-columns:repeat(2,1fr)}
+    .sumstrip .scell:nth-child(3){border-left:0}
+    .sumstrip .scell:nth-child(n+3){border-top:1px solid var(--line)}
+  }
+  @media (max-width:560px){.sumstrip{grid-template-columns:1fr}.sumstrip .scell+.scell{border-left:0;border-top:1px solid var(--line)}.sumstrip .scell:nth-child(n+3){border-top:1px solid var(--line)}.pcard .prow{grid-template-columns:1fr}.pcard .prow img{max-height:200px}.pcard .pflow b{font-size:.92rem}.pcard .pflow small{font-size:.52rem}}
+
+  .pdfbtn{display:inline-flex;align-items:center;gap:.45rem;background:linear-gradient(135deg,var(--coral),var(--coral2));border:0;color:#fff;font-family:inherit;font-weight:800;font-size:.78rem;padding:.55rem 1rem;border-radius:11px;cursor:pointer;box-shadow:0 8px 20px rgba(255,98,89,.3);white-space:nowrap}
+  .pdfbtn:hover{filter:brightness(1.08)}
+  .pdfbtn .lucide{width:15px;height:15px}
+  .fab{position:fixed;right:18px;bottom:18px;z-index:95;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--coral),var(--coral2));border:0;color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 12px 30px rgba(255,98,89,.4)}
+  .fab .lucide{width:22px;height:22px}
+  footer button.pill{border:0;font-family:inherit;cursor:pointer}
+  @media print{
+    .topbar,.progress,.fab,.pdfbtn{display:none!important}
+    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+    @page{size:letter;margin:10mm}
+    body{background:#0B0E2D}
+    section.block{padding:22px 0;page-break-inside:avoid}
+    .g3,.g4{grid-template-columns:repeat(2,1fr)}
+    .product{grid-template-columns:1fr}
+    .product .ph img{max-height:220px}
+    .flow{grid-template-columns:repeat(3,1fr)}
+    .h-tall{height:260px}
+    .h-mid{height:240px}
+    .reveal{opacity:1;transform:none}
+  }
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="fab" onclick="downloadPDF()" aria-label="Descargar PDF"><i data-lucide="file-down"></i></button>
+
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand"><span class="dot">R</span> RYZTOR <span style="opacity:.4">×</span> CÍRCULO 1</div>
+    <nav>
+      <a href="#productos">Productos</a>
+      <a href="#numeros">Números</a>
+      <a href="#comunidad">Comunidad</a>
+      <a href="#reparto">Reparto</a>
+      <a href="#proyeccion">Proyección</a>
+      <a href="#contacto">Contacto</a>
+    </nav>
+    <button class="pdfbtn" onclick="downloadPDF()"><i data-lucide="file-down"></i><span>Ver dossier PDF</span></button>
+  </div>
+</header>
+
+<main>
+  <!-- PORTADA -->
+  <section class="block" id="portada" style="padding-top:48px">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <p class="hero-eyebrow">Estados Unidos · Suplementos funcionales</p>
+          <h1 class="hero-title">Una marca lista<br>para <span>escalar</span><br>en EE. UU.</h1>
+          <p class="lead">Empresa constituida, fabricación certificada GMP, permisos sanitarios, marca registrada, pasarela de pago y TikTok Shop. Operación activa.</p>
+          <div class="trust">
+            <span class="t"><i data-lucide="badge-check"></i> GMP Certificado</span>
+            <span class="t"><i data-lucide="flag"></i> Fabricado en EE.UU.</span>
+            <span class="t"><i data-lucide="shield-check"></i> FDA Registrado</span>
+            <span class="t"><i data-lucide="trademark"></i> Marca registrada</span>
+          </div>
+        </div>
+        <div class="hero-visual">
+          <div class="vert-words"><span>Salud</span><span>Desempeño</span><span>Disciplina</span><span>Libertad</span></div>
+        </div>
+      </div>
+      <div class="kpi-strip">
+        <div class="cell"><i data-lucide="package"></i><div><div class="n">12,000</div><div class="l">Unidades listas para vender</div></div></div>
+        <div class="cell"><i data-lucide="chart-column"></i><div><div class="n coral">54%</div><div class="l">Margen bruto promedio</div><span class="growtag">+ Crecimiento</span></div></div>
+        <div class="cell"><i data-lucide="coins"></i><div><div class="n">$509,880</div><div class="l">Valor de venta del inventario</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PILARES -->
+  <section class="block" id="cumplimiento">
+    <div class="wrap reveal">
+      <div class="sec-head">
+        <div>
+          <p class="eyebrow">Base sólida para crecer</p>
+          <h2>Tres pilares. <span>Un mismo destino.</span></h2>
+        </div>
+        <p class="sec-side">Producto real. Comunidad real. Oportunidades reales.</p>
+      </div>
+      <div class="pillars">
+        <span class="plink p1"></span><span class="plink p2"></span>
+        <div class="pillar"><div class="top"><div class="pic"><i data-lucide="landmark"></i></div><div><div class="n">01</div><h3>Empresa y permisos</h3></div></div><p>Entidad legal en EE.UU., cumplimiento sanitario, etiquetado y proveedores certificados GMP.</p></div>
+        <div class="pillar"><div class="top"><div class="pic"><i data-lucide="shield-check"></i></div><div><div class="n">02</div><h3>Marca registrada</h3></div></div><p>Identidad, empaques y contenido listos para el mercado estadounidense.</p></div>
+        <div class="pillar"><div class="top"><div class="pic"><i data-lucide="shopping-bag"></i></div><div><div class="n">03</div><h3>TikTok Shop + pago</h3></div></div><p>Acceso a la plataforma de mayor crecimiento y pasarela aprobada.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NOSOTROS -->
+  <section class="block" id="nosotros">
+    <div class="wrap reveal">
+      <div class="sec-head">
+        <div>
+          <p class="eyebrow">Quiénes somos</p>
+          <h2>RYZTOR <span>×</span> Círculo 1</h2>
+        </div>
+        <p class="sec-side">Dos fuerzas. Un mismo crecimiento.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-card">
+          <div class="shot"><img src="./img/fondo1.png" alt="Productos RYZTOR" loading="lazy" /></div>
+          <h3><em>RYZTOR</em> · el producto</h3>
+          <p>Suplementos funcionales que se venden en EE.UU. por Shopify, buscadores, IAs y TikTok Shop. 4 productos e inventario propio.</p>
+          <div class="kw">Ciencia <b>×</b> Marca <b>×</b> Resultados</div>
+          <span class="tagpill">Producto real</span>
+        </div>
+        <div class="feat-card">
+          <div class="net">
+            <span class="ring"></span>
+            <span class="hub"><i data-lucide="users"></i></span>
+            <span class="nd n1"><i data-lucide="user"></i></span>
+            <span class="nd n2"><i data-lucide="video"></i></span>
+            <span class="nd n3"><i data-lucide="user"></i></span>
+            <span class="nd n4"><i data-lucide="user"></i></span>
+            <span class="more">Más<br>creadores,<br>más ventas</span>
+          </div>
+          <h3>Círculo 1 <em>· la comunidad</em></h3>
+          <p>La comunidad que une la marca con creadores de contenido: más creadores, más contenido, más ventas.</p>
+          <div class="kw">Creadores <b>×</b> Contenido <b>×</b> Ventas</div>
+          <span class="tagpill">Comunidad que escala</span>
+        </div>
+      </div>
+      <div class="mini">
+        <div class="mini-card"><div class="mi"><i data-lucide="package"></i></div><div><div class="mn">4</div><div class="ml">Productos activos</div></div><svg width="46" height="28" viewBox="0 0 46 28"><rect x="2" y="12" width="6" height="14" rx="2" fill="#7a5cff"/><rect x="12" y="6" width="6" height="20" rx="2" fill="#7a5cff" opacity=".75"/><rect x="22" y="14" width="6" height="12" rx="2" fill="#7a5cff" opacity=".55"/><rect x="32" y="3" width="6" height="23" rx="2" fill="#7a5cff" opacity=".85"/></svg></div>
+        <div class="mini-card"><div class="mi"><i data-lucide="database"></i></div><div><div class="mn">12,000</div><div class="ml">Unidades en stock</div></div><svg width="52" height="28" viewBox="0 0 52 28"><polyline points="2,22 14,18 26,19 38,10 50,6" fill="none" stroke="#7a5cff" stroke-width="2" stroke-linecap="round"/><circle cx="50" cy="6" r="2.5" fill="#7a5cff"/></svg></div>
+        <div class="mini-card"><div class="mi"><i data-lucide="chart-column"></i></div><div><div class="mn">300</div><div class="ml">Unidades vendidas / mes</div></div><svg width="46" height="28" viewBox="0 0 46 28"><rect x="2" y="16" width="6" height="10" rx="2" fill="#7a5cff"/><rect x="12" y="10" width="6" height="16" rx="2" fill="#7a5cff" opacity=".75"/><rect x="22" y="14" width="6" height="12" rx="2" fill="#7a5cff" opacity=".55"/><rect x="32" y="5" width="6" height="21" rx="2" fill="#7a5cff" opacity=".85"/></svg></div>
+        <div class="mini-card"><div class="mi red"><i data-lucide="percent"></i></div><div><div class="mn coral">54%</div><div class="ml">Margen bruto</div></div><svg width="52" height="28" viewBox="0 0 52 28"><polyline points="2,22 14,18 26,19 38,10 50,6" fill="none" stroke="#FF6259" stroke-width="2" stroke-linecap="round"/><circle cx="50" cy="6" r="2.5" fill="#FF6259"/></svg></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NUMEROS -->
+  <section class="block" id="numeros">
+    <div class="wrap reveal">
+      <div class="sec-head">
+        <div>
+          <p class="eyebrow">La empresa en números</p>
+          <h2>Tres números <span>que lo dicen todo.</span></h2>
+        </div>
+        <p class="sec-side">Una marca, un inventario, una comunidad y un gran potencial en EE.UU.</p>
+      </div>
+      <div class="bigpanel">
+        <div>
+          <div class="bp-n coral">$509,880</div>
+          <div class="bp-l">Venta potencial del inventario actual</div>
+          <svg width="120" height="70" viewBox="0 0 120 70" style="margin-top:.8rem"><rect x="4" y="20" width="14" height="46" rx="3" fill="#7a5cff"/><rect x="24" y="32" width="14" height="34" rx="3" fill="#7a5cff" opacity=".7"/><rect x="44" y="12" width="14" height="54" rx="3" fill="#FF6259"/><rect x="64" y="26" width="14" height="40" rx="3" fill="#7a5cff" opacity=".55"/><rect x="84" y="36" width="14" height="30" rx="3" fill="#7a5cff" opacity=".4"/></svg>
+        </div>
+        <div>
+          <svg width="190" height="190" viewBox="0 0 190 190">
+            <circle cx="95" cy="95" r="70" fill="none" stroke="rgba(122,92,255,.25)" stroke-width="16"/>
+            <circle cx="95" cy="95" r="70" fill="none" stroke="#FF6259" stroke-width="16" stroke-linecap="round" stroke-dasharray="237.5 439.8" transform="rotate(-90 95 95)"/>
+            <text x="95" y="94" text-anchor="middle" fill="#fff" font-size="34" font-weight="900" font-family="Montserrat,sans-serif">54%</text>
+            <text x="95" y="114" text-anchor="middle" fill="#A9A7C2" font-size="10" font-family="Montserrat,sans-serif">Margen bruto</text>
+          </svg>
+          <div class="donut-cap">Margen bruto<br>promedio por unidad</div>
+        </div>
+        <div>
+          <div class="bp-n">$2.5M</div>
+          <div class="bp-l">Venta anual proyectada a 5,000 u/mes</div>
+          <svg width="100%" height="90" viewBox="0 0 220 90" preserveAspectRatio="none" style="margin-top:.8rem"><polyline points="4,78 50,70 95,62 140,44 185,22" fill="none" stroke="#FF6259" stroke-width="2" stroke-dasharray="1 6" stroke-linecap="round"/><circle cx="4" cy="78" r="3" fill="#FF6259"/><circle cx="95" cy="62" r="3" fill="#FF6259"/><circle cx="185" cy="22" r="4" fill="#FF6259"/></svg>
+          <span class="growtag">5,000 u/mes</span>
+        </div>
+      </div>
+      <div class="foot-note"><span>Inventario real, producto con marca y operación activa.</span><span class="fb">RYZTOR <b>×</b> CÍRCULO 1</span></div>
+    </div>
+  </section>
+
+  <!-- PRODUCTOS -->
+  <section class="block" id="productos">
+    <div class="wrap">
+      <div class="sec-head">
+        <div>
+          <p class="eyebrow">Nuestros productos</p>
+          <h2>Cuatro productos. <span>Cuatro fuentes de ingreso.</span></h2>
+        </div>
+        <p class="sec-side">Un portafolio compacto, listo para vender.</p>
+      </div>
+      <div class="pgrid">
+        <div class="pcard reveal" style="border-color:rgba(227,93,156,.45);box-shadow:0 0 44px rgba(227,93,156,.10)">
+          <span class="ghost" style="color:#e35d9c">01</span>
+          <div class="brandtag" style="color:#e35d9c">RYZTOR®<br>Nutrition for a<br>better tomorrow.</div>
+          <div class="prow">
+            <img src="./img/berberina.jpeg" alt="Berberine" loading="lazy" />
+            <div>
+              <h3 style="color:#e35d9c">Berberine</h3>
+              <ul class="ben">
+                <li><i data-lucide="circle-check" style="color:#e35d9c"></i> 400 mg por cápsula · extracto 97%</li>
+                <li><i data-lucide="circle-check" style="color:#e35d9c"></i> Apoya un metabolismo saludable del azúcar</li>
+                <li><i data-lucide="circle-check" style="color:#e35d9c"></i> 100% natural · fórmula avanzada</li>
+                <li><i data-lucide="circle-check" style="color:#e35d9c"></i> 60 cápsulas · Made in USA</li>
+              </ul>
+            </div>
+          </div>
+          <div class="pflow">
+            <div><b>$16.31</b><small>Costo</small></div><span class="arr">→</span>
+            <div><b>$39.99</b><small>Precio venta</small></div><span class="arr">→</span>
+            <div><b class="g">$23.68</b><small>Utilidad · 59%</small></div>
+          </div>
+          <div class="ptag" style="color:#e35d9c;border-color:#e35d9c">Salud metabólica.<br>Para una vida más grande.</div>
+        </div>
+        <div class="pcard reveal" style="border-color:rgba(255,107,94,.45);box-shadow:0 0 44px rgba(255,107,94,.10)">
+          <span class="ghost" style="color:#FF6b5e">02</span>
+          <div class="brandtag" style="color:#FF6b5e">RYZTOR®<br>Energy everywhere.</div>
+          <div class="prow">
+            <img src="./img/energy-strips.jpeg" alt="Energy Strips" loading="lazy" />
+            <div>
+              <h3 style="color:#FF6b5e">Energy Strips</h3>
+              <ul class="ben">
+                <li><i data-lucide="circle-check" style="color:#FF6b5e"></i> 30 franjas orales de energía</li>
+                <li><i data-lucide="circle-check" style="color:#FF6b5e"></i> Sabor arándano · absorción rápida</li>
+                <li><i data-lucide="circle-check" style="color:#FF6b5e"></i> Apoya la energía y reduce la fatiga</li>
+                <li><i data-lucide="circle-check" style="color:#FF6b5e"></i> Diseño premium y portátil</li>
+              </ul>
+            </div>
+          </div>
+          <div class="pflow">
+            <div><b>$18.00</b><small>Costo</small></div><span class="arr">→</span>
+            <div><b>$39.99</b><small>Precio venta</small></div><span class="arr">→</span>
+            <div><b class="g">$21.99</b><small>Utilidad · 55%</small></div>
+          </div>
+          <div class="ptag" style="color:#FF6b5e;border-color:#FF6b5e">Energía real.<br>En cualquier momento.</div>
+        </div>
+        <div class="pcard reveal" style="border-color:rgba(110,168,255,.45);box-shadow:0 0 44px rgba(110,168,255,.10)">
+          <span class="ghost" style="color:#6ea8ff">03</span>
+          <div class="brandtag" style="color:#6ea8ff">RYZTOR®<br>Strength builds<br>possibilities.</div>
+          <div class="prow">
+            <img src="./img/creatina.jpeg" alt="Creatine Monohydrate" loading="lazy" />
+            <div>
+              <h3 style="color:#6ea8ff">Creatine Monohydrate</h3>
+              <ul class="ben">
+                <li><i data-lucide="circle-check" style="color:#6ea8ff"></i> 50 porciones · 9.9 oz (281 g)</li>
+                <li><i data-lucide="circle-check" style="color:#6ea8ff"></i> Apoya fuerza muscular y masa magra</li>
+                <li><i data-lucide="circle-check" style="color:#6ea8ff"></i> Pureza farmacéutica</li>
+                <li><i data-lucide="circle-check" style="color:#6ea8ff"></i> Ideal para atletas y fitness</li>
+              </ul>
+            </div>
+          </div>
+          <div class="pflow">
+            <div><b>$23.56</b><small>Costo</small></div><span class="arr">→</span>
+            <div><b>$47.99</b><small>Precio venta</small></div><span class="arr">→</span>
+            <div><b class="g">$24.43</b><small>Utilidad · 51%</small></div>
+          </div>
+          <div class="ptag" style="color:#6ea8ff;border-color:#6ea8ff">Más fuerza hoy.<br>Más posibilidades mañana.</div>
+        </div>
+        <div class="pcard reveal" style="border-color:rgba(45,212,191,.45);box-shadow:0 0 44px rgba(45,212,191,.10)">
+          <span class="ghost" style="color:#2dd4bf">04</span>
+          <div class="brandtag" style="color:#2dd4bf">RYZTOR®<br>Balance today.<br>Brighter tomorrow.</div>
+          <div class="prow">
+            <img src="./img/magnesio.jpeg" alt="Magnesium Glycinate" loading="lazy" />
+            <div>
+              <h3 style="color:#2dd4bf">Magnesium Glycinate</h3>
+              <ul class="ben">
+                <li><i data-lucide="circle-check" style="color:#2dd4bf"></i> 500 mg · 90 cápsulas</li>
+                <li><i data-lucide="circle-check" style="color:#2dd4bf"></i> Alta absorción</li>
+                <li><i data-lucide="circle-check" style="color:#2dd4bf"></i> Apoya sistema nervioso, huesos y sueño</li>
+                <li><i data-lucide="circle-check" style="color:#2dd4bf"></i> Suplemento integral</li>
+              </ul>
+            </div>
+          </div>
+          <div class="pflow">
+            <div><b>$20.63</b><small>Costo</small></div><span class="arr">→</span>
+            <div><b>$41.99</b><small>Precio venta</small></div><span class="arr">→</span>
+            <div><b class="g">$21.36</b><small>Utilidad · 51%</small></div>
+          </div>
+          <div class="ptag" style="color:#2dd4bf;border-color:#2dd4bf">Equilibrio hoy.<br>Un mañana más brillante.</div>
+        </div>
+      </div>
+      <div class="sumstrip">
+        <div class="scell"><div class="ico"><i data-lucide="dollar-sign"></i></div><div><small>Precio promedio</small><b>$42.49</b></div></div>
+        <div class="scell"><div class="ico green"><i data-lucide="chart-column"></i></div><div><small>Utilidad promedio</small><b class="g">$22.87</b></div></div>
+        <div class="scell"><div class="ico"><i data-lucide="chart-pie"></i></div><div><small>Margen promedio</small><b class="v">54%</b></div></div>
+        <div class="scell"><div class="caps">Cuatro<br>productos.<br>Más oportunidades.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ECONOMIA -->
+  <section class="block" id="economia">
+    <div class="wrap reveal">
+      <p class="eyebrow">Economía simple</p>
+      <h2>Cada producto se vende por <span>más del doble</span> de lo que cuesta.</h2>
+      <p class="sub">El costo incluye producto + envío + fulfillment + pago. La diferencia es la utilidad.</p>
+      <div class="chartbox"><div class="h-tall"><canvas id="unitChart"></canvas></div></div>
+      <div class="chips">
+        <span>Berberine · 59%</span><span>Energy Strips · 55%</span>
+        <span>Magnesio · 51%</span><span>Creatina · 51%</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRACCION -->
+  <section class="block" id="traccion">
+    <div class="wrap reveal">
+      <p class="eyebrow">Hoy</p>
+      <h2>Ya vendemos. <span>Y esto recién empieza.</span></h2>
+      <div class="grid g4">
+        <div class="kpi"><div class="num">300</div><div class="lbl">Unidades / mes</div></div>
+        <div class="kpi"><div class="num">$12,747</div><div class="lbl">Ingresos mensuales</div></div>
+        <div class="kpi"><div class="num">12,000</div><div class="lbl">Unidades listas para vender</div></div>
+        <div class="kpi"><div class="num coral">$274,380</div><div class="lbl">Utilidad potencial del stock</div></div>
+      </div>
+      <div class="grid g4">
+        <div class="check"><i data-lucide="check"></i> Shopify</div>
+        <div class="check"><i data-lucide="check"></i> Google</div>
+        <div class="check"><i data-lucide="check"></i> Todas las IAs</div>
+        <div class="check"><i data-lucide="check"></i> TikTok Shop</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMUNIDAD -->
+  <section class="block" id="comunidad">
+    <div class="wrap reveal">
+      <p class="eyebrow">Nuestra comunidad</p>
+      <h2>Un círculo que <span>no se detiene.</span></h2>
+      <div class="flow">
+        <div class="step"><div class="n">1</div><b>Miembros</b><small>Personas que se unen a Círculo 1</small></div>
+        <div class="step"><div class="n">2</div><b>Creadores</b><small>Contenido en TikTok</small></div>
+        <div class="step"><div class="n">3</div><b>Ventas</b><small>Contenido que convierte</small></div>
+        <div class="step"><div class="n">4</div><b>Recompensas</b><small>25% por venta a miembros</small></div>
+        <div class="step"><div class="n">5</div><b>Comunidad</b><small>El círculo crece</small></div>
+      </div>
+      <p class="lead">Más creadores → más posicionamiento → más ventas → más comunidad. Y cada miembro puede tener su <b>propio link de ventas</b> y ganar directo.</p>
+    </div>
+  </section>
+
+  <!-- PROYECCION -->
+  <section class="block" id="proyeccion">
+    <div class="wrap reveal">
+      <div class="sec-head">
+        <div>
+          <p class="eyebrow">Hacia dónde vamos</p>
+          <h2>Si vendemos más, <span>ingresa más.</span></h2>
+        </div>
+        <p class="sec-side">Más personas. Un futuro más saludable.</p>
+      </div>
+      <div class="scen-wrap">
+        <svg class="scen-curve" viewBox="0 0 600 90" preserveAspectRatio="none">
+          <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#7a5cff" stroke-width="1.6"/></marker></defs>
+          <path d="M40,72 C140,72 160,26 250,26 S400,26 470,26 S560,26 592,12" fill="none" stroke="#7a5cff" stroke-width="1.6" opacity=".7" marker-end="url(#arr)"/>
+          <circle cx="120" cy="64" r="3.5" fill="#cfc2ff"/><circle cx="312" cy="26" r="3.5" fill="#cfc2ff"/>
+        </svg>
+        <div class="scen-grid">
+          <div class="scen-card"><div class="t"><span class="dot"></span>500 u/mes</div><div class="v">$21,245</div><div class="u">Utilidad $11,433</div></div>
+          <div class="scen-card"><div class="t"><span class="dot"></span>5,000 u/mes</div><div class="v">$212,450</div><div class="u">Utilidad $114,325</div></div>
+          <div class="scen-card hot"><div class="t"><span class="dot"></span>25,000 u/mes</div><div class="v">$1,062,250</div><div class="u">Utilidad $571,625</div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="chartcard">
+          <div class="ct">Proyección de ingresos y utilidad <span class="lg"><i style="background:#7a5cff"></i>Ingresos</span><span class="lg"><i style="background:#37E39B"></i>Utilidad</span></div>
+          <div class="h-mid"><canvas id="projChart"></canvas></div>
+        </div>
+        <div class="sidecard">
+          <div class="ico"><i data-lucide="chart-column"></i></div>
+          <h4>Un negocio que escala</h4>
+          <p>A 5,000 u/mes, la operación factura <b style="color:#fff">~$2.5M al año</b> con <b style="color:#fff">~$1.37M de utilidad</b> anual.</p>
+          <span class="ul"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REPARTO -->
+  <section class="block" id="reparto">
+    <div class="wrap reveal">
+      <div class="sec-head">
+        <div>
+          <p class="eyebrow">El dinero, explicado fácil</p>
+          <h2>Venta directa <span>vs</span> venta Círculo 1.</h2>
+        </div>
+        <p class="sec-side">Mismos productos. Más personas. Mayor impacto.</p>
+      </div>
+      <p class="sub">Ejemplo con la venta promedio de $42.49. Lo único que cambia es si hay un miembro de por medio o no.</p>
+      <div class="rule">
+        <span><i style="background:var(--green)"></i>Verde = lo que nos queda</span>
+        <span><i style="background:var(--coral)"></i>Coral = lo que se comparte</span>
+        <span><i style="background:#8a90c0"></i>Gris = costos</span>
+      </div>
+      <div class="grid g2" style="margin-top:1.8rem">
+        <div class="flowcard green">
+          <div class="fh"><div class="ico green"><i data-lucide="shopping-cart"></i></div><h3>Venta directa (web / tienda)</h3><span class="ftag">Margen completo</span></div>
+          <p class="fd">El cliente compra en ryztor.com. No hay creador ni miembro de por medio: <b style="color:#fff">todo el margen es nuestro.</b></p>
+          <div class="frow">
+            <div class="fbox"><small>Cliente paga</small><b>$42.49</b></div>
+            <span class="farrow">→</span>
+            <div class="fbox"><small>Costo total</small><b>$19.63</b></div>
+            <span class="farrow">→</span>
+            <div class="fbox hot-green"><small>RYZTOR conserva</small><b>$22.87</b><span class="pc">54%</span></div>
+          </div>
+          <div class="stackrow">
+            <div class="stackbar"><div style="width:46%;background:#3d4370">46% costos</div><div style="width:54%;background:var(--green);color:#06281c">54% RYZTOR</div></div>
+            <div class="fcaps">Todo<br>nuestro<br>margen</div>
+          </div>
+        </div>
+        <div class="flowcard violet">
+          <div class="fh"><div class="ico"><i data-lucide="users"></i></div><h3>Venta Círculo 1 (comunidad)</h3><span class="ftag">Crecemos juntos</span></div>
+          <p class="fd">La venta llega por un miembro o su creador. Se comparte el 25% y <b style="color:#fff">el resto es nuestro.</b></p>
+          <div class="frow">
+            <div class="fbox"><small>Cliente paga</small><b>$42.49</b></div>
+            <span class="farrow">→</span>
+            <div class="fbox"><small>Costo</small><b>$19.63</b></div>
+            <span class="farrow">→</span>
+            <div class="fbox"><small>Miembro</small><b class="mc">$10.62</b><span class="pc" style="color:var(--coral)">25%</span></div>
+            <span class="farrow">→</span>
+            <div class="fbox hot-violet"><small>RYZTOR conserva</small><b>$12.25</b><span class="pc" style="color:var(--lav)">29%</span></div>
+          </div>
+          <div class="stackrow">
+            <div class="stackbar"><div style="width:46%;background:#3d4370">46% costos</div><div style="width:25%;background:var(--coral)">25% miembro</div><div style="width:29%;background:var(--lav)">29% RYZTOR</div></div>
+            <div class="fcaps">Más<br>creadores<br>más ventas</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="chartcard">
+          <div class="ct">Utilidad por producto y canal <span class="lg"><i style="background:#37E39B"></i>Directa: nos queda</span><span class="lg"><i style="background:#7a5cff"></i>Círculo 1: nos queda</span></div>
+          <div class="h-mid"><canvas id="netChart"></canvas></div>
+        </div>
+        <div class="sidecard">
+          <div class="ico"><i data-lucide="package"></i></div>
+          <h4>Mismos productos. Más posibilidades.</h4>
+          <p>Lo que nos queda por producto, según el canal. En directa nos quedamos con todo; en Círculo 1 compartimos el 25%.</p>
+          <span class="ul"></span>
+        </div>
+      </div>
+      <div class="money-rows">
+        <div class="money-row">
+          <div class="mr-head"><b>Berberine</b><span>$39.99</span></div>
+          <div class="mr-line"><span>Directa: nos queda</span><b class="g">$23.68 · 59%</b></div>
+          <div class="mr-line"><span>Círculo 1: el miembro gana</span><b class="c">$10.00</b></div>
+          <div class="mr-line"><span>Círculo 1: nos queda</span><b class="v">$13.68 · 34%</b></div>
+        </div>
+        <div class="money-row">
+          <div class="mr-head"><b>Energy Strips</b><span>$39.99</span></div>
+          <div class="mr-line"><span>Directa: nos queda</span><b class="g">$21.99 · 55%</b></div>
+          <div class="mr-line"><span>Círculo 1: el miembro gana</span><b class="c">$10.00</b></div>
+          <div class="mr-line"><span>Círculo 1: nos queda</span><b class="v">$11.99 · 30%</b></div>
+        </div>
+        <div class="money-row">
+          <div class="mr-head"><b>Magnesium Glycinate</b><span>$41.99</span></div>
+          <div class="mr-line"><span>Directa: nos queda</span><b class="g">$21.36 · 51%</b></div>
+          <div class="mr-line"><span>Círculo 1: el miembro gana</span><b class="c">$10.50</b></div>
+          <div class="mr-line"><span>Círculo 1: nos queda</span><b class="v">$10.86 · 26%</b></div>
+        </div>
+        <div class="money-row">
+          <div class="mr-head"><b>Creatine Monohydrate</b><span>$47.99</span></div>
+          <div class="mr-line"><span>Directa: nos queda</span><b class="g">$24.43 · 51%</b></div>
+          <div class="mr-line"><span>Círculo 1: el miembro gana</span><b class="c">$12.00</b></div>
+          <div class="mr-line"><span>Círculo 1: nos queda</span><b class="v">$12.43 · 26%</b></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1.2rem">
+        <div class="ico coral"><i data-lucide="calculator"></i></div>
+        <h3>Ejemplo real: 5,000 ventas al mes (60% directa · 40% comunidad)</h3>
+        <p>Ingresos $212,450 − costos $98,125 = utilidad $114,325. De ahí: <b style="color:#fff">$21,245 para los miembros</b> y <b style="color:var(--green)">$93,080 para la empresa.</b></p>
+      </div>
+      <div class="chartbox" style="max-width:560px;margin-left:auto;margin-right:auto"><div class="h-mid"><canvas id="splitChart"></canvas></div></div>
+      <div class="chips" style="justify-content:center">
+        <span>Costo total · 46%</span><span>Empresa · 29%</span><span>Miembros + creadores · 25%</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- MERCADO -->
+  <section class="block" id="mercado">
+    <div class="wrap reveal">
+      <p class="eyebrow">El mercado</p>
+      <h2>Dónde estamos y <span>a dónde vamos.</span></h2>
+      <div class="chartbox"><div class="h-mid"><canvas id="marketChart"></canvas></div></div>
+      <p class="sub">Una marca pequeña promedio vende 3–5x lo nuestro <b>sin</b> tener una comunidad como Círculo 1. Nuestra meta es superarla varias veces.</p>
+    </div>
+  </section>
+
+  <!-- OPERACION -->
+  <section class="block" id="operacion">
+    <div class="wrap reveal">
+      <p class="eyebrow">Cómo operamos</p>
+      <h2>Orden, control <span>y responsabilidad.</span></h2>
+      <table class="ops">
+        <tr><th>Área</th><th>Cómo la manejamos</th></tr>
+        <tr><td>Calidad</td><td>Fabricación GMP y proveedores certificados</td></tr>
+        <tr><td>Cumplimiento</td><td>Revisión legal continua y reparto definido</td></tr>
+        <tr><td>Canales</td><td>Shopify, Google, IAs, email y TikTok</td></tr>
+        <tr><td>Clientes</td><td>Contenido de creadores antes que solo publicidad</td></tr>
+        <tr><td>Inventario</td><td>12,000 unidades + plan de reabastecimiento</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- VENTAJA -->
+  <section class="block" id="ventaja">
+    <div class="wrap reveal">
+      <p class="eyebrow">La ventaja</p>
+      <h2>Una operación completa.<br><span>Lista para escalar.</span></h2>
+      <div class="grid g3">
+        <div class="card"><div class="ico green"><i data-lucide="badge-check"></i></div><h3>Cumplimiento completo</h3><p>Empresa, permisos, GMP, marca y pago funcionando en EE.UU.</p></div>
+        <div class="card"><div class="ico coral"><i data-lucide="trending-up"></i></div><h3>Márgenes reales</h3><p>54% de utilidad bruta promedio con datos auditables.</p></div>
+        <div class="card"><div class="ico"><i data-lucide="users"></i></div><h3>Escala por comunidad</h3><p>Los creadores multiplican ventas sin costo fijo.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PREGUNTAS -->
+  <section class="block" id="preguntas">
+    <div class="wrap reveal">
+      <p class="eyebrow">Preguntas frecuentes</p>
+      <h2>Lo que todos <span>preguntan.</span></h2>
+      <div class="grid g2">
+        <div class="card"><div class="ico"><i data-lucide="circle-help"></i></div><h3>¿Cómo gana un miembro de Círculo 1?</h3><p>Recibe el 25% de cada venta de su comunidad. De ese 25% sale el pago a su creador; lo demás es su ganancia.</p></div>
+        <div class="card"><div class="ico"><i data-lucide="circle-help"></i></div><h3>¿Y si vendo con mi propio link?</h3><p>Ganas directo, sin creadores de por medio. Tú vendes, la empresa despacha el producto.</p></div>
+        <div class="card"><div class="ico"><i data-lucide="circle-help"></i></div><h3>¿Quién paga el envío?</h3><p>Pedidos de más de $50: envío gratis. Pedido de 1 unidad: el cliente paga $6.99.</p></div>
+        <div class="card"><div class="ico"><i data-lucide="circle-help"></i></div><h3>¿Dónde veo mis números?</h3><p>Todo queda registrado en la plataforma: ventas, recompensas y reportes del programa.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CIERRE -->
+  <footer id="contacto">
+    <div class="wrap">
+      <div class="brand" style="justify-content:center"><span class="dot">R</span> RYZTOR <span style="opacity:.4">×</span> CÍRCULO 1</div>
+      <h2 style="margin-top:1.2rem">Gracias<span>.</span></h2>
+      <p class="lead" style="margin-left:auto;margin-right:auto;text-align:center">Suplementos funcionales con marca propia, fabricados en EE.UU. y una comunidad que no se detiene.</p>
+      <a class="pill" href="https://ryztor.com" target="_blank" rel="noopener">ryztor.com</a>
+      <button class="pill" onclick="downloadPDF()" style="margin-left:.6rem"><i data-lucide="file-down" style="width:18px;height:18px;vertical-align:-3px"></i> Descargar PDF</button>
+    </div>
+  </footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+  // Iconos
+  document.addEventListener('DOMContentLoaded', function(){
+    try { if (window.lucide) lucide.createIcons(); } catch(e){}
+  });
+
+  // Descargar como PDF (usa el diálogo de impresión)
+  function downloadPDF(){ window.print(); }
+
+  // Barra de progreso de scroll
+  (function(){
+    var bar = document.getElementById('progress');
+    function upd(){
+      var h = document.documentElement;
+      var max = h.scrollHeight - h.clientHeight;
+      bar.style.width = (max > 0 ? (h.scrollTop / max * 100) : 0) + '%';
+    }
+    document.addEventListener('scroll', upd, {passive:true});
+    upd();
+  })();
+
+  // Aparición al hacer scroll
+  (function(){
+    var els = document.querySelectorAll('.reveal');
+    if (!('IntersectionObserver' in window)) {
+      els.forEach(function(el){ el.classList.add('in'); });
+      return;
+    }
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+      });
+    }, {threshold:.12});
+    els.forEach(function(el){ io.observe(el); });
+  })();
+
+  // Gráficas
+  window.addEventListener('load', function(){
+    if (!window.Chart) return;
+    Chart.defaults.font.family = 'Montserrat, sans-serif';
+    Chart.defaults.color = '#CFCDE8';
+    var grid = {color:'rgba(255,255,255,.08)'};
+    var money = function(v){ return '$' + Number(v).toLocaleString('en-US'); };
+
+    // 1. Economía por producto (barras agrupadas)
+    var u = document.getElementById('unitChart');
+    if (u) new Chart(u, {
+      type:'bar',
+      data:{
+        labels:['Berberine','Energy Strips','Magnesio','Creatina'],
+        datasets:[
+          {label:'Costo', data:[16.31,18.00,20.63,23.56], backgroundColor:'#8a90c0', borderRadius:7},
+          {label:'Precio', data:[39.99,39.99,41.99,47.99], backgroundColor:'#7a5cff', borderRadius:7},
+          {label:'Utilidad', data:[23.68,21.99,21.36,24.43], backgroundColor:'#37E39B', borderRadius:7}
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#EDEBFF',font:{weight:'700'},boxWidth:14}},
+          tooltip:{callbacks:{label:function(c){ return ' ' + c.dataset.label + ': ' + money(c.parsed.y); }}}},
+        scales:{x:{grid:{display:false}}, y:{grid:grid, ticks:{callback:function(v){ return '$'+v; }}}}
+      }
+    });
+
+    // 2. Proyección (ingresos vs utilidad)
+    var p = document.getElementById('projChart');
+    if (p) new Chart(p, {
+      type:'bar',
+      data:{
+        labels:['500 u/mes','5,000 u/mes','25,000 u/mes'],
+        datasets:[
+          {label:'Ingresos', data:[21245,212450,1062250], backgroundColor:'#7a5cff', borderRadius:8},
+          {label:'Utilidad', data:[11433,114325,571625], backgroundColor:'#37E39B', borderRadius:8}
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:function(c){ return ' ' + c.dataset.label + ': ' + money(c.parsed.y); }}}},
+        scales:{x:{grid:{display:false}}, y:{grid:grid, ticks:{callback:function(v){ return v>=1e6 ? '$'+(v/1e6).toFixed(1)+'M' : '$'+Math.round(v/1e3)+'k'; }}}}
+      }
+    });
+
+    // 3. Lo que nos queda por producto: directa vs Círculo 1
+    var n = document.getElementById('netChart');
+    if (n) new Chart(n, {
+      type:'bar',
+      data:{
+        labels:['Berberine','Energy Strips','Magnesio','Creatina'],
+        datasets:[
+          {label:'Directa: nos queda', data:[23.68,21.99,21.36,24.43], backgroundColor:'#37E39B', borderRadius:7},
+          {label:'Círculo 1: nos queda', data:[13.68,11.99,10.86,12.43], backgroundColor:'#7a5cff', borderRadius:7}
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:function(c){ return ' ' + c.dataset.label + ': ' + money(c.parsed.y); }}}},
+        scales:{x:{grid:{display:false}}, y:{grid:grid, ticks:{callback:function(v){ return '$'+v; }}}}
+      }
+    });
+
+    // 4. Reparto (dona)
+    var s = document.getElementById('splitChart');
+    if (s) new Chart(s, {
+      type:'doughnut',
+      data:{
+        labels:['Costo total · 46%','Empresa · 29%','Miembros + creadores · 25%'],
+        datasets:[{data:[19.63,12.25,10.62], backgroundColor:['#8a90c0','#37E39B','#FF6259'], borderWidth:0, hoverOffset:8}]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false, cutout:'66%',
+        plugins:{legend:{position:'bottom', labels:{color:'#EDEBFF',font:{weight:'700'},padding:16,boxWidth:14}},
+          tooltip:{callbacks:{label:function(c){ return ' ' + c.label + ': $' + c.parsed; }}}}
+      }
+    });
+
+    // 4. Mercado (barras horizontales)
+    var m = document.getElementById('marketChart');
+    if (m) new Chart(m, {
+      type:'bar',
+      data:{
+        labels:['Marca pequeña EE.UU.','RYZTOR hoy','Meta 12 meses'],
+        datasets:[{data:[50000,12747,212450], backgroundColor:['#8a90c0','#7a5cff','#FF6259'], borderRadius:8, barThickness:30}]
+      },
+      options:{
+        indexAxis:'y', responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}, tooltip:{callbacks:{label:function(c){ return ' ' + money(c.parsed.x) + ' / mes'; }}}},
+        scales:{x:{grid:grid, ticks:{callback:function(v){ return '$'+Number(v/1000)+'k'; }}}, y:{grid:{display:false}}}
+      }
+    });
+  });
+</script>
+</body>
+</html>
