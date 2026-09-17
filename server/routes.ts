@@ -6367,9 +6367,11 @@ NO uses saludos formales. Se directo y amigable.`
       const speed = parsed.speed ? parsed.speed / 100 : 1.0;
       const instructions = parsed.instructions ?? null;
       const fishAudioModel = parsed.fishAudioModel || "s2.1-pro-free";
-      const isFreePreview = provider !== "openai" && Boolean(parsed.previewUrl) && !(provider === "elevenlabs" && speed !== 1.0);
+      const hasCustomText = Boolean(parsed.text && parsed.text.trim() && parsed.text.trim() !== TTS_PREVIEW_DEFAULT_TEXT);
+      const needsFreshAudio = hasCustomText || (provider === "elevenlabs" && speed !== 1.0);
+      const isFreePreview = provider !== "openai" && Boolean(parsed.previewUrl) && !needsFreshAudio;
       const cacheKey = provider === "elevenlabs"
-        ? `elevenlabs|${voiceId}|${speed}|${isFreePreview ? "preview-free-v1" : "preview-paid-v1"}`
+        ? `elevenlabs|${voiceId}|${speed}|${previewText}|${isFreePreview ? "preview-free-v1" : "preview-paid-v1"}`
         : provider === "fishaudio"
           ? `fishaudio|${voiceId}|${speed}|${fishAudioModel}|${previewText}`
           : `openai|${voiceId}|${speed}|${instructions || ""}|${previewText}`;
@@ -6407,9 +6409,11 @@ NO uses saludos formales. Se directo y amigable.`
       const speed = parsed.speed ? parsed.speed / 100 : 1.0;
       const instructions = parsed.instructions ?? null;
       const fishAudioModel = parsed.fishAudioModel || "s2.1-pro-free";
-      const isFreePreview = provider !== "openai" && Boolean(parsed.previewUrl) && !(provider === "elevenlabs" && speed !== 1.0);
+      const hasCustomText = Boolean(parsed.text && parsed.text.trim() && parsed.text.trim() !== TTS_PREVIEW_DEFAULT_TEXT);
+      const needsFreshAudio = hasCustomText || (provider === "elevenlabs" && speed !== 1.0);
+      const isFreePreview = provider !== "openai" && Boolean(parsed.previewUrl) && !needsFreshAudio;
       const cacheKey = provider === "elevenlabs"
-        ? `elevenlabs|${voiceId}|${speed}|${isFreePreview ? "preview-free-v1" : "preview-paid-v1"}`
+        ? `elevenlabs|${voiceId}|${speed}|${previewText}|${isFreePreview ? "preview-free-v1" : "preview-paid-v1"}`
         : provider === "fishaudio"
           ? `fishaudio|${voiceId}|${speed}|${fishAudioModel}|${previewText}`
           : `openai|${voiceId}|${speed}|${instructions || ""}|${previewText}`;
@@ -6435,7 +6439,7 @@ NO uses saludos formales. Se directo y amigable.`
       let audioBuffer: Buffer;
       let contentType: string;
 
-      if (provider !== "openai" && parsed.previewUrl && !(provider === "elevenlabs" && speed !== 1.0)) {
+      if (provider !== "openai" && parsed.previewUrl && !needsFreshAudio) {
         const previewRes = await axios.get(parsed.previewUrl, { responseType: "arraybuffer" });
         audioBuffer = Buffer.from(previewRes.data);
         contentType = previewRes.headers["content-type"] || "audio/mpeg";

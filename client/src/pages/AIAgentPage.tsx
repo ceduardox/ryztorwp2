@@ -272,6 +272,7 @@ export default function AIAgentPage() {
     return () => clearTimeout(t);
   }, [voiceSearchQuery]);
   const [previewPlaying, setPreviewPlaying] = useState(false);
+  const [previewText, setPreviewText] = useState("Hola, esta es una prueba de voz para tu CRM de WhatsApp.");
   const [previewMeta, setPreviewMeta] = useState<{ saved: boolean; free: boolean; cache: "hit" | "miss" | null } | null>(null);
   const [previewStatusLoading, setPreviewStatusLoading] = useState(false);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -660,7 +661,6 @@ export default function AIAgentPage() {
   }, []);
 
   const buildPreviewPayload = () => {
-    const previewText = "Hola, esta es una prueba de voz para tu CRM.";
     if (ttsProvider === "elevenlabs") {
       return {
         provider: "elevenlabs",
@@ -735,7 +735,7 @@ export default function AIAgentPage() {
     return () => {
       cancelled = true;
     };
-  }, [ttsProvider, audioVoice, elevenlabsVoiceId, fishAudioVoiceId, fishAudioModel, ttsSpeed, ttsInstructions, audioResponseEnabled, selectedElevenPreviewUrl, selectedFishPreviewUrl, stopPreviewAudio]);
+  }, [ttsProvider, audioVoice, elevenlabsVoiceId, fishAudioVoiceId, fishAudioModel, ttsSpeed, ttsInstructions, previewText, audioResponseEnabled, selectedElevenPreviewUrl, selectedFishPreviewUrl, stopPreviewAudio]);
 
   const playVoicePreview = async () => {
     try {
@@ -1442,6 +1442,21 @@ export default function AIAgentPage() {
                     <div className="font-semibold text-sm text-white">Fish Audio</div>
                     <div className="text-xs text-slate-400">Voces gratis (S2.1 Pro)</div>
                   </button>
+                </div>
+
+                <div>
+                  <Label htmlFor="ttsPreviewText" className="font-medium text-slate-300">Texto de prueba</Label>
+                  <Input
+                    id="ttsPreviewText"
+                    type="text"
+                    maxLength={300}
+                    placeholder="Escribe una frase para probar la voz y la velocidad..."
+                    value={previewText}
+                    onChange={(e) => setPreviewText(e.target.value)}
+                    className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
+                    data-testid="input-preview-text"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Hasta 300 caracteres. Se usa al presionar "Probar voz seleccionada".</p>
                 </div>
 
                                 {ttsProvider === "openai" && (
