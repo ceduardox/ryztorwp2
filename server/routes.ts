@@ -28,6 +28,7 @@ const uploadProductImage = multer({ storage: multer.memoryStorage(), limits: { f
 const WHATSAPP_VIDEO_MAX_BYTES = 16 * 1024 * 1024;
 
 const AI_DEBOUNCE_MS = 3000;
+const AI_DEBOUNCE_MAX_MS = 6000;
 const INCOMING_PUSH_COOLDOWN_MS = 60000;
 const FIRST_CONTACT_TOP_LEVEL_BUTTONS = "[BOTONES: Azucar y peso, Dolor y estres, Dolor articular]";
 const FIRST_CONTACT_AZUCAR_PESO_BUTTONS = "[BOTONES: Solo diabetes, Diabetes + peso]";
@@ -183,7 +184,7 @@ interface BufferedMessage {
   name: string;
   adProductRoute?: string | null;
 }
-const messageBuffers = new Map<string, { messages: BufferedMessage[]; timer: ReturnType<typeof setTimeout> }>();
+const messageBuffers = new Map<string, { messages: BufferedMessage[]; timer: ReturnType<typeof setTimeout>; startedAt: number }>();
 interface IncomingPushState {
   lastSentAt: number;
   pendingCount: number;
@@ -1732,6 +1733,11 @@ async function processAiResponse(data: BufferedMessage) {
 
     const aiResult = await generateAiResponse(conversationId, messageForAi, recentMessages, imageBase64ForAi, advisorName);
 
+    // Defensa: nunca mostrar un token [IMAGEN: ...] crudo al cliente.
+    if (aiResult && aiResult.response) {
+      aiResult.response = aiResult.response.replace(/\[IMAGEN:[^\]]*\]?/gi, "").trim();
+    }
+
     if (aiResult && aiResult.needsHuman) {
       await storage.updateConversation(conversationId, { needsHumanAttention: true });
       console.log("=== AI NEEDS HUMAN - MARKED FOR ATTENTION ===", conversationId);
@@ -2938,6 +2944,18 @@ async function sendToWhatsApp(to: string, type: 'text' | 'image' | 'interactive'
   const token = process.env.META_ACCESS_TOKEN;
   const phoneId = process.env.WA_PHONE_NUMBER_ID;
 
+  // DEV/TEST ONLY: cuando SIMULATE_WA=1 no se llama a Meta; se registra el saliente
+  // como si se hubiera enviado, para poder probar flujos completos sin enviar WhatsApp real.
+  if (process.env.SIMULATE_WA === "1") {
+    const simId = `wamid.SIM.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
+    console.log("[SIMULATE_WA] outbound", JSON.stringify({ to, type, content }).slice(0, 800));
+    return {
+      messaging_product: "whatsapp",
+      contacts: [{ input: to, wa_id: to }],
+      messages: [{ id: simId }],
+    };
+  }
+
   console.log("=== SENDING MESSAGE ===");
   console.log("To:", to);
   console.log("Type:", type);
@@ -2996,7 +3014,7 @@ async function sendToWhatsApp(to: string, type: 'text' | 'image' | 'interactive'
 
 // Send AI response with interactive elements if detected
 async function sendAiResponseToWhatsApp(to: string, responseText: string) {
-  const sanitizedResponseText = repairMojibakeText(responseText);
+  const sanitizedResponseText = repairMojibakeText(responseText).replace(/\[IMAGEN:[^\]]*\]?/gi, "").trim();
   const parsed = parseInteractiveElements(sanitizedResponseText);
 
   if (parsed.buttons && parsed.buttons.length > 0) {
@@ -3343,13 +3361,21 @@ export async function registerRoutes(
                 const nextAgent = adRouting.agent || await storage.getNextAgentForAssignment({
                   excludeAgentIds: await getExclusiveAdRoutingAgentIds(),
                 });
-                conversation = await storage.createConversation({
-                  waId: from,
-                  contactName: name,
-                  lastMessage: messageText || `[${msg.type}]`,
-                  lastMessageTimestamp: new Date(parseInt(msg.timestamp) * 1000),
-                  assignedAgentId: nextAgent?.id || null,
-                });
+                try {
+                  conversation = await storage.createConversation({
+                    waId: from,
+                    contactName: name,
+                    lastMessage: messageText || `[${msg.type}]`,
+                    lastMessageTimestamp: new Date(parseInt(msg.timestamp) * 1000),
+                    assignedAgentId: nextAgent?.id || null,
+                  });
+                } catch (createError: any) {
+                  // Carrera: otro mensaje del mismo numero creo la conversacion primero.
+                  if (createError?.code === "23505") {
+                    conversation = await storage.getConversationByWaId(from);
+                  }
+                  if (!conversation) throw createError;
+                }
                 if (nextAgent) {
                   if (incomingAdId && adRouting.agent) {
                     console.log(
@@ -3460,16 +3486,18 @@ export async function registerRoutes(
                 if (existing) {
                   clearTimeout(existing.timer);
                   existing.messages.push(bufferedMsg);
-                  if (existing.messages.length >= 10) {
+                  const elapsed = Date.now() - existing.startedAt;
+                  if (existing.messages.length >= 10 || elapsed >= AI_DEBOUNCE_MAX_MS) {
                     flushMessageBuffer(from);
-                    console.log(`=== BUFFER FULL, FLUSHING for ${from} ===`);
+                    console.log(`=== BUFFER FLUSHING (${existing.messages.length} msgs, ${elapsed}ms) for ${from} ===`);
                   } else {
-                    existing.timer = setTimeout(() => flushMessageBuffer(from), AI_DEBOUNCE_MS);
-                    console.log(`=== BUFFERED MESSAGE ${existing.messages.length} for ${from} ===`);
+                    const remaining = Math.min(AI_DEBOUNCE_MS, AI_DEBOUNCE_MAX_MS - elapsed);
+                    existing.timer = setTimeout(() => flushMessageBuffer(from), remaining);
+                    console.log(`=== BUFFERED MESSAGE ${existing.messages.length} for ${from} (flush in ${remaining}ms) ===`);
                   }
                 } else {
                   const timer = setTimeout(() => flushMessageBuffer(from), AI_DEBOUNCE_MS);
-                  messageBuffers.set(from, { messages: [bufferedMsg], timer });
+                  messageBuffers.set(from, { messages: [bufferedMsg], timer, startedAt: Date.now() });
                   console.log(`=== BUFFER STARTED for ${from} (${AI_DEBOUNCE_MS}ms) ===`);
                 }
               }
@@ -3852,6 +3880,7 @@ export async function registerRoutes(
       if (aiResult.needsHuman) {
         return res.status(422).json({ message: "La IA indico que esta conversacion requiere atencion humana" });
       }
+      aiResult.response = aiResult.response.replace(/\[IMAGEN:[^\]]*\]?/gi, "").trim();
 
       // Recheck immediately before sending to avoid a duplicate if a reply arrived
       // while the model was generating the response.
@@ -5977,7 +6006,7 @@ NO uses saludos formales. Se directo y amigable.`
     catalog: z.string().nullable().optional(),
     maxTokens: z.number().min(50).max(500).optional(),
     temperature: z.number().min(0).max(100).optional(),
-    aiProvider: z.enum(["openai", "gemini", "groq"]).optional(),
+    aiProvider: z.enum(["openai", "gemini", "groq", "deepseek"]).optional(),
     model: z.string().optional(),
     maxPromptChars: z.number().min(500).max(40000).optional(),
     conversationHistory: z.number().min(1).max(20).optional(),

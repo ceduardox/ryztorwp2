@@ -9,8 +9,9 @@ const DEFAULT_PUBLIC_BASE_URL = "https://ryzapp.org";
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
 const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
 const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
+const DEFAULT_DEEPSEEK_MODEL = "deepseek-flash";
 
-type AiProvider = "openai" | "gemini" | "groq";
+type AiProvider = "openai" | "gemini" | "groq" | "deepseek";
 
 // Order status type
 export type OrderStatus = 'pending' | 'ready' | 'delivered' | null;
@@ -106,13 +107,14 @@ function resolvePublicImageUrl(imageUrl?: string | null): string {
 }
 
 function normalizeAiProvider(value?: string | null): AiProvider {
-  if (value === "gemini" || value === "groq") return value;
+  if (value === "gemini" || value === "groq" || value === "deepseek") return value;
   return "openai";
 }
 
 function getDefaultModelForProvider(provider: AiProvider): string {
   if (provider === "gemini") return DEFAULT_GEMINI_MODEL;
   if (provider === "groq") return DEFAULT_GROQ_MODEL;
+  if (provider === "deepseek") return process.env.DEEPSEEK_MODEL || DEFAULT_DEEPSEEK_MODEL;
   return DEFAULT_OPENAI_MODEL;
 }
 
@@ -162,6 +164,36 @@ async function requestGroqCompletion(params: {
     responseText: completion.choices[0]?.message?.content || "",
     tokensUsed: completion.usage?.total_tokens || 0,
     providerUsed: "groq" as const,
+  };
+}
+
+async function requestDeepSeekCompletion(params: {
+  model: string;
+  messages: any[];
+  maxTokens: number;
+  temperature: number;
+}) {
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) {
+    throw new Error("DEEPSEEK_API_KEY is not configured");
+  }
+
+  const deepseek = new OpenAI({
+    apiKey,
+    baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1",
+  });
+  const completion = await deepseek.chat.completions.create({
+    model: params.model,
+    messages: params.messages,
+    // DeepSeek necesita mas presupuesto que OpenAI: con muy pocos tokens devuelve contenido vacio.
+    max_tokens: Math.max(params.maxTokens, 1024),
+    temperature: params.temperature,
+  });
+
+  return {
+    responseText: completion.choices[0]?.message?.content || "",
+    tokensUsed: completion.usage?.total_tokens || 0,
+    providerUsed: "deepseek" as const,
   };
 }
 
@@ -380,16 +412,43 @@ ${productContext ? `\n=== PRODUCTOS ===\n${productContext}` : ""}`;
     const temperatureToUse = (settings.temperature || 70) / 100; // Convert 0-100 to 0-1
     const shouldUseGemini = configuredProvider === "gemini" && !imageBase64;
     const shouldUseGroq = configuredProvider === "groq" && !imageBase64;
+    const shouldUseDeepseek = configuredProvider === "deepseek" && !imageBase64;
 
     let responseText = "";
     let tokensUsed = 0;
     let providerUsed: AiProvider = "openai";
 
-    if ((configuredProvider === "gemini" || configuredProvider === "groq") && imageBase64) {
+    if ((configuredProvider === "gemini" || configuredProvider === "groq" || configuredProvider === "deepseek") && imageBase64) {
       console.log(`[AI] ${configuredProvider} selected but image input detected. Falling back to OpenAI for vision.`);
     }
 
-    if (shouldUseGroq) {
+    if (shouldUseDeepseek) {
+      try {
+        const deepseekResult = await requestDeepSeekCompletion({
+          model: modelToUse,
+          messages,
+          maxTokens: maxTokensToUse,
+          temperature: temperatureToUse,
+        });
+        if (!deepseekResult.responseText || !deepseekResult.responseText.trim()) {
+          throw new Error("DeepSeek devolvio una respuesta vacia");
+        }
+        responseText = deepseekResult.responseText;
+        tokensUsed = deepseekResult.tokensUsed;
+        providerUsed = deepseekResult.providerUsed;
+      } catch (deepseekError) {
+        console.error("[AI] DeepSeek failed. Falling back to OpenAI:", deepseekError);
+        const openAiResult = await requestOpenAiCompletion({
+          model: getDefaultModelForProvider("openai"),
+          messages,
+          maxTokens: maxTokensToUse,
+          temperature: temperatureToUse,
+        });
+        responseText = openAiResult.responseText;
+        tokensUsed = openAiResult.tokensUsed;
+        providerUsed = openAiResult.providerUsed;
+      }
+    } else if (shouldUseGroq) {
       try {
         const groqResult = await requestGroqCompletion({
           model: modelToUse,
@@ -450,7 +509,7 @@ ${productContext ? `\n=== PRODUCTOS ===\n${productContext}` : ""}`;
     }
 
     // Extract image URL if present
-    const imageMatch = responseText.match(/\[IMAGEN:\s*([^\]]+)\]/i);
+    const imageMatch = responseText.match(/\[IMAGEN:\s*(https?:\/\/[^\s\]]+)\]?/i);
     let imageUrl: string | undefined;
     let cleanResponse = responseText;
     

@@ -29,7 +29,14 @@ import { AdRoutingModal } from "@/components/AdRoutingModal";import {
   Clock,
   ImagePlus,
   Upload,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Sparkles,
+  Cpu,
+  Zap,
+  Brain,
+  Gauge,
+  Layers,
+  SlidersHorizontal
 } from "lucide-react";
 
 interface AiSettings {
@@ -59,7 +66,7 @@ interface AiSettings {
 }
 
 type AudioResponseMode = "off" | "reply_to_audio" | "from_first_turn" | "from_second_turn";
-type AiProvider = "openai" | "gemini" | "groq";
+type AiProvider = "openai" | "gemini" | "groq" | "deepseek";
 
 interface PromptProfiles {
   primaryPrompt: string;
@@ -298,18 +305,81 @@ export default function AIAgentPage() {
     { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B (recomendado)" },
     { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B (mas rapido)" },
   ];
+  const deepseekModelOptions = [
+    { value: "deepseek-flash", label: "DeepSeek Flash (v4)" },
+    { value: "deepseek-v4-pro", label: "DeepSeek V4 Pro" },
+  ];
   const modelOptions =
     aiProvider === "gemini"
       ? geminiModelOptions
       : aiProvider === "groq"
         ? groqModelOptions
-        : openAiModelOptions;
+        : aiProvider === "deepseek"
+          ? deepseekModelOptions
+          : openAiModelOptions;
 
   const getDefaultModelForProvider = (provider: AiProvider) => {
     if (provider === "gemini") return "gemini-2.0-flash";
     if (provider === "groq") return "llama-3.3-70b-versatile";
+    if (provider === "deepseek") return "deepseek-flash";
     return "gpt-4o-mini";
   };
+
+  const providerCards: Array<{
+    id: AiProvider;
+    name: string;
+    desc: string;
+    icon: typeof Sparkles;
+    iconBg: string;
+    activeCard: string;
+    activeText: string;
+  }> = [
+    {
+      id: "openai",
+      name: "OpenAI",
+      desc: "Estable y probado",
+      icon: Sparkles,
+      iconBg: "from-emerald-500 to-teal-600",
+      activeCard: "border-emerald-500/70 bg-emerald-500/10 ring-1 ring-emerald-500/30 shadow-lg shadow-emerald-500/10",
+      activeText: "text-emerald-300",
+    },
+    {
+      id: "gemini",
+      name: "Gemini",
+      desc: "Pruebas rápidas",
+      icon: Cpu,
+      iconBg: "from-cyan-500 to-blue-600",
+      activeCard: "border-cyan-500/70 bg-cyan-500/10 ring-1 ring-cyan-500/30 shadow-lg shadow-cyan-500/10",
+      activeText: "text-cyan-300",
+    },
+    {
+      id: "groq",
+      name: "Groq",
+      desc: "Ultra rápido",
+      icon: Zap,
+      iconBg: "from-orange-500 to-amber-600",
+      activeCard: "border-orange-500/70 bg-orange-500/10 ring-1 ring-orange-500/30 shadow-lg shadow-orange-500/10",
+      activeText: "text-orange-300",
+    },
+    {
+      id: "deepseek",
+      name: "DeepSeek",
+      desc: "Económico",
+      icon: Brain,
+      iconBg: "from-indigo-500 to-violet-600",
+      activeCard: "border-indigo-500/70 bg-indigo-500/10 ring-1 ring-indigo-500/30 shadow-lg shadow-indigo-500/10",
+      activeText: "text-indigo-300",
+    },
+  ];
+
+  const providerModelHint =
+    aiProvider === "gemini"
+      ? "Modelo de Gemini para testeo"
+      : aiProvider === "groq"
+        ? "Modelo de Groq para respuestas de texto"
+        : aiProvider === "deepseek"
+          ? "Modelo de DeepSeek para respuestas de texto"
+          : "Modelo de OpenAI a usar";
   
   // Product form state
   const [newName, setNewName] = useState("");
@@ -509,7 +579,7 @@ export default function AIAgentPage() {
       setMaxTokens(settings.maxTokens || 120);
       setTemperature(settings.temperature || 70);
       const provider =
-        settings.aiProvider === "gemini" || settings.aiProvider === "groq"
+        settings.aiProvider === "gemini" || settings.aiProvider === "groq" || settings.aiProvider === "deepseek"
           ? settings.aiProvider
           : "openai";
       setAiProvider(provider);
@@ -1204,154 +1274,167 @@ export default function AIAgentPage() {
                 <p className="text-xs text-slate-400">Ajusta tokens, creatividad, modelo y contexto</p>
               </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div>
-                <Label htmlFor="maxTokens" className="text-slate-300">Máx. Tokens (respuesta)</Label>
-                <Input
-                  id="maxTokens"
-                  type="number"
-                  min={50}
-                  max={500}
-                  value={maxTokens}
-                  onChange={(e) => {
-                    setMaxTokens(parseInt(e.target.value) || 120);
-                    setConfigEdited(true);
-                  }}
-                  data-testid="input-max-tokens"
-                  className="bg-slate-800/50 border-slate-600/50 text-white"
-                />
-                <p className="text-xs text-slate-500 mt-1">50-500. Más tokens = respuestas más largas</p>
-              </div>
-              <div>
-                <Label htmlFor="temperature" className="text-slate-300">Temperatura (%)</Label>
-                <Input
-                  id="temperature"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={temperature}
-                  onChange={(e) => {
-                    setTemperature(parseInt(e.target.value) || 70);
-                    setConfigEdited(true);
-                  }}
-                  data-testid="input-temperature"
-                  className="bg-slate-800/50 border-slate-600/50 text-white"
-                />
-                <p className="text-xs text-slate-500 mt-1">0=preciso, 100=creativo</p>
-              </div>
-              <div>
-                <Label className="text-slate-300">Proveedor de respuesta</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAiProvider("openai");
-                      setConfigEdited(true);
-                    }}
-                    className={`rounded-xl border-2 p-3 text-left transition-all ${
-                      aiProvider === "openai"
-                        ? "border-emerald-500 bg-emerald-500/15 shadow-lg shadow-emerald-500/10"
-                        : "border-slate-600/50 bg-slate-800/50 hover:border-emerald-500/40"
-                    }`}
-                    data-testid="provider-response-openai"
-                  >
-                    <div className="font-semibold text-sm text-white">OpenAI</div>
-                    <div className="text-xs text-slate-400">Actual y estable</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAiProvider("gemini");
-                      setConfigEdited(true);
-                    }}
-                    className={`rounded-xl border-2 p-3 text-left transition-all ${
-                      aiProvider === "gemini"
-                        ? "border-cyan-500 bg-cyan-500/15 shadow-lg shadow-cyan-500/10"
-                        : "border-slate-600/50 bg-slate-800/50 hover:border-cyan-500/40"
-                    }`}
-                    data-testid="provider-response-gemini"
-                  >
-                    <div className="font-semibold text-sm text-white">Gemini</div>
-                    <div className="text-xs text-slate-400">Test con rollback rapido</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAiProvider("groq");
-                      setConfigEdited(true);
-                    }}
-                    className={`rounded-xl border-2 p-3 text-left transition-all ${
-                      aiProvider === "groq"
-                        ? "border-orange-500 bg-orange-500/15 shadow-lg shadow-orange-500/10"
-                        : "border-slate-600/50 bg-slate-800/50 hover:border-orange-500/40"
-                    }`}
-                    data-testid="provider-response-groq"
-                  >
-                    <div className="font-semibold text-sm text-white">Groq</div>
-                    <div className="text-xs text-slate-400">Rapido, usa GROQ_API_KEY</div>
-                  </button>
+            <div className="space-y-6">
+              {/* Motor de IA */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="h-4 w-4 text-cyan-400" />
+                  <span className="text-sm font-semibold text-slate-200">Motor de IA</span>
+                  <span className="ml-auto text-[11px] text-slate-500">
+                    Se guarda con el botón Guardar
+                  </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">Solo cambia la IA que redacta. El audio sigue aparte.</p>
-              </div>
-              <div>
-                <Label htmlFor="model" className="text-slate-300">Modelo</Label>
-                <select
-                  id="model"
-                  value={model}
-                  onChange={(e) => {
-                    setModel(e.target.value);
-                    setConfigEdited(true);
-                  }}
-                  className="w-full h-9 rounded-md border border-slate-600/50 bg-slate-800/50 px-3 text-sm text-white"
-                  data-testid="select-model"
-                >
-                  {modelOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500 mt-1">
-                  {aiProvider === "gemini"
-                    ? "Modelo de Gemini para testeo"
-                    : aiProvider === "groq"
-                      ? "Modelo de Groq para respuestas de texto"
-                      : "Modelo de OpenAI a usar"}
+
+                <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+                  {providerCards.map((p) => {
+                    const isActive = aiProvider === p.id;
+                    const Icon = p.icon;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        aria-pressed={isActive}
+                        onClick={() => {
+                          setAiProvider(p.id);
+                          setConfigEdited(true);
+                        }}
+                        className={`group relative flex flex-col gap-3 rounded-xl border p-3 text-left transition-all duration-200 ${
+                          isActive
+                            ? p.activeCard
+                            : "border-slate-700/60 bg-slate-900/40 hover:border-slate-500 hover:bg-slate-800/60"
+                        }`}
+                        data-testid={`provider-response-${p.id}`}
+                      >
+                        <div className="flex w-full items-center justify-between">
+                          <div
+                            className={`flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br ${p.iconBg} shadow-lg`}
+                          >
+                            <Icon className="h-4 w-4 text-white" />
+                          </div>
+                          {isActive ? (
+                            <span
+                              className={`flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide ${p.activeText}`}
+                            >
+                              <Check className="h-3 w-3" /> Activo
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 opacity-0 transition-opacity group-hover:opacity-100">
+                              Elegir
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-white">{p.name}</div>
+                          <div className="truncate text-xs text-slate-400">{p.desc}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-col gap-2 rounded-xl border border-slate-700/60 bg-slate-900/40 p-3 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="flex items-center gap-2 sm:w-28 sm:shrink-0">
+                    <Layers className="h-4 w-4 text-slate-400" />
+                    <Label htmlFor="model" className="text-slate-300">Modelo</Label>
+                  </div>
+                  <select
+                    id="model"
+                    value={model}
+                    onChange={(e) => {
+                      setModel(e.target.value);
+                      setConfigEdited(true);
+                    }}
+                    className="h-10 w-full flex-1 rounded-lg border border-slate-600/60 bg-slate-800/60 px-3 text-sm text-white outline-none transition-colors focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/20"
+                    data-testid="select-model"
+                  >
+                    {modelOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-xs text-slate-500">
+                  {providerModelHint}. Solo cambia la IA que redacta el texto; el audio se configura aparte.
                 </p>
               </div>
-              <div>
-                <Label htmlFor="maxPromptChars" className="text-slate-300">Máx. Caracteres (instrucciones)</Label>
-                <Input
-                  id="maxPromptChars"
-                  type="number"
-                  min={500}
-                  max={40000}
-                  value={maxPromptChars}
-                  onChange={(e) => {
-                    setMaxPromptChars(parseInt(e.target.value) || 2000);
-                    setConfigEdited(true);
-                  }}
-                  data-testid="input-max-prompt-chars"
-                  className="bg-slate-800/50 border-slate-600/50 text-white"
-                />
-                <p className="text-xs text-slate-500 mt-1">500-40000. Límite de texto en instrucciones</p>
-              </div>
-              <div>
-                <Label htmlFor="conversationHistory" className="text-slate-300">Mensajes de contexto</Label>
-                <Input
-                  id="conversationHistory"
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={conversationHistory}
-                  onChange={(e) => {
-                    setConversationHistory(parseInt(e.target.value) || 3);
-                    setConfigEdited(true);
-                  }}
-                  data-testid="input-conversation-history"
-                  className="bg-slate-800/50 border-slate-600/50 text-white"
-                />
-                <p className="text-xs text-slate-500 mt-1">1-20. Cuántos mensajes previos lee la IA</p>
+
+              {/* Ajustes finos */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Gauge className="h-4 w-4 text-cyan-400" />
+                  <span className="text-sm font-semibold text-slate-200">Ajustes finos</span>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <Label htmlFor="maxTokens" className="text-slate-300">Máx. tokens</Label>
+                    <Input
+                      id="maxTokens"
+                      type="number"
+                      min={50}
+                      max={500}
+                      value={maxTokens}
+                      onChange={(e) => {
+                        setMaxTokens(parseInt(e.target.value) || 120);
+                        setConfigEdited(true);
+                      }}
+                      data-testid="input-max-tokens"
+                      className="bg-slate-800/50 border-slate-600/50 text-white"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">50–500 · respuestas más largas</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="temperature" className="text-slate-300">Temperatura (%)</Label>
+                    <Input
+                      id="temperature"
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={temperature}
+                      onChange={(e) => {
+                        setTemperature(parseInt(e.target.value) || 70);
+                        setConfigEdited(true);
+                      }}
+                      data-testid="input-temperature"
+                      className="bg-slate-800/50 border-slate-600/50 text-white"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">0 = preciso · 100 = creativo</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="maxPromptChars" className="text-slate-300">Máx. caracteres</Label>
+                    <Input
+                      id="maxPromptChars"
+                      type="number"
+                      min={500}
+                      max={40000}
+                      value={maxPromptChars}
+                      onChange={(e) => {
+                        setMaxPromptChars(parseInt(e.target.value) || 2000);
+                        setConfigEdited(true);
+                      }}
+                      data-testid="input-max-prompt-chars"
+                      className="bg-slate-800/50 border-slate-600/50 text-white"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">500–40000 · límite del prompt</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="conversationHistory" className="text-slate-300">Mensajes de contexto</Label>
+                    <Input
+                      id="conversationHistory"
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={conversationHistory}
+                      onChange={(e) => {
+                        setConversationHistory(parseInt(e.target.value) || 3);
+                        setConfigEdited(true);
+                      }}
+                      data-testid="input-conversation-history"
+                      className="bg-slate-800/50 border-slate-600/50 text-white"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">1–20 · historial que lee la IA</p>
+                  </div>
+                </div>
               </div>
             </div>
             
