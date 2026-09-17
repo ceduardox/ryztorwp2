@@ -2262,6 +2262,7 @@ function normalizeTextForTts(rawText: string): string {
     .replace(/\*(.*?)\*/g, "$1")
     .replace(/\|/g, ", ")
     .replace(/\bQR\b/gi, "cu erre")
+    .replace(/\bRyztor\b/gi, "Riztor")
     .replace(/(\d[\d.,]*)\s*bs\b/gi, "$1 bolivianos")
     .replace(/\bbs\b/gi, "bolivianos")
     .replace(/[ \t]+\n/g, "\n")
