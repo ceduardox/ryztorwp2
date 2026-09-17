@@ -665,7 +665,7 @@ export default function AIAgentPage() {
       return {
         provider: "elevenlabs",
         elevenlabsVoiceId,
-        previewUrl: selectedElevenPreviewUrl,
+        previewUrl: selectedElevenPreviewUrl || undefined,
         speed: ttsSpeed,
         text: previewText,
       };
@@ -675,7 +675,7 @@ export default function AIAgentPage() {
         provider: "fishaudio",
         fishAudioVoiceId,
         fishAudioModel,
-        previewUrl: selectedFishPreviewUrl,
+        previewUrl: selectedFishPreviewUrl || undefined,
         speed: ttsSpeed,
         text: previewText,
       };

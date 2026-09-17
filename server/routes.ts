@@ -6020,7 +6020,7 @@ NO uses saludos formales. Se directo y amigable.`
     speed: z.number().min(25).max(400).optional(),
     instructions: z.string().nullable().optional(),
     text: z.string().min(1).max(300).optional(),
-    previewUrl: z.string().url().optional(),
+    previewUrl: z.union([z.string().url(), z.literal("")]).optional(),
   });
 
   // Get ElevenLabs available voices (user's own + shared Latin American female voices)
