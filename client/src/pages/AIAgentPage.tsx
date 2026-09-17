@@ -666,6 +666,7 @@ export default function AIAgentPage() {
         provider: "elevenlabs",
         elevenlabsVoiceId,
         previewUrl: selectedElevenPreviewUrl,
+        speed: ttsSpeed,
         text: previewText,
       };
     }
@@ -1659,15 +1660,15 @@ export default function AIAgentPage() {
                 )}
                 
                 <div className="grid gap-4 sm:grid-cols-2 mt-4 pt-4 border-t border-slate-700/50">
-                  {["openai", "fishaudio"].includes(ttsProvider) && (
+                  {["openai", "elevenlabs", "fishaudio"].includes(ttsProvider) && (
                     <div>
                       <Label htmlFor="ttsSpeed" className="text-slate-300">Velocidad de habla</Label>
                       <div className="flex items-center gap-3">
                         <Input
                           id="ttsSpeed"
                           type="range"
-                          min={50}
-                          max={200}
+                          min={ttsProvider === "elevenlabs" ? 70 : 50}
+                          max={ttsProvider === "elevenlabs" ? 120 : 200}
                           step={5}
                           value={ttsSpeed}
                           onChange={(e) => {
@@ -1679,7 +1680,9 @@ export default function AIAgentPage() {
                         />
                         <span className="text-sm font-medium w-14 text-center text-emerald-400">{(ttsSpeed / 100).toFixed(2)}x</span>
                       </div>
-                      <p className="text-xs text-slate-500 mt-1">0.5x (lento) - 2.0x (rápido)</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {ttsProvider === "elevenlabs" ? "0.7x (lento) - 1.2x (rápido)" : "0.5x (lento) - 2.0x (rápido)"}
+                      </p>
                     </div>
                   )}
                   

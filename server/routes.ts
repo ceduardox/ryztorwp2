@@ -2320,10 +2320,18 @@ function getElevenLabsErrorMessage(error: any): string {
 }
 
 // Generate audio buffer using ElevenLabs TTS with model fallback for account compatibility
-async function generateElevenLabsAudio(text: string, voiceId: string): Promise<Buffer> {
+async function generateElevenLabsAudio(text: string, voiceId: string, speed: number = 1.0): Promise<Buffer> {
   const apiKey = await getElevenLabsApiKey();
   const modelsToTry = ["eleven_flash_v2_5", "eleven_turbo_v2_5", "eleven_multilingual_v2"];
   const attemptErrors: string[] = [];
+  const voiceSettings: Record<string, any> = {
+    stability: 0.5,
+    similarity_boost: 0.75,
+    use_speaker_boost: false,
+  };
+  if (speed !== 1.0) {
+    voiceSettings.speed = Math.max(0.7, Math.min(1.2, speed));
+  }
 
   for (const modelId of modelsToTry) {
     try {
@@ -2333,11 +2341,7 @@ async function generateElevenLabsAudio(text: string, voiceId: string): Promise<B
           text,
           model_id: modelId,
           language_code: "es",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            use_speaker_boost: false,
-          },
+          voice_settings: voiceSettings,
         },
         {
           headers: {
@@ -2446,7 +2450,7 @@ async function generateTtsAudioBuffer(
 
   if (isElevenLabs) {
     const elVoiceId = options.elevenlabsVoiceId || "JBFqnCBsd6RMkjVDRZzb";
-    const audioBuffer = await generateElevenLabsAudio(text, elVoiceId);
+    const audioBuffer = await generateElevenLabsAudio(text, elVoiceId, options.speed || 1.0);
     return {
       audioBuffer,
       fileExt: "mp3",
@@ -6362,9 +6366,9 @@ NO uses saludos formales. Se directo y amigable.`
       const speed = parsed.speed ? parsed.speed / 100 : 1.0;
       const instructions = parsed.instructions ?? null;
       const fishAudioModel = parsed.fishAudioModel || "s2.1-pro-free";
-      const isFreePreview = provider !== "openai" && Boolean(parsed.previewUrl);
+      const isFreePreview = provider !== "openai" && Boolean(parsed.previewUrl) && !(provider === "elevenlabs" && speed !== 1.0);
       const cacheKey = provider === "elevenlabs"
-        ? `elevenlabs|${voiceId}|${isFreePreview ? "preview-free-v1" : "preview-paid-v1"}`
+        ? `elevenlabs|${voiceId}|${speed}|${isFreePreview ? "preview-free-v1" : "preview-paid-v1"}`
         : provider === "fishaudio"
           ? `fishaudio|${voiceId}|${speed}|${fishAudioModel}|${previewText}`
           : `openai|${voiceId}|${speed}|${instructions || ""}|${previewText}`;
@@ -6402,9 +6406,9 @@ NO uses saludos formales. Se directo y amigable.`
       const speed = parsed.speed ? parsed.speed / 100 : 1.0;
       const instructions = parsed.instructions ?? null;
       const fishAudioModel = parsed.fishAudioModel || "s2.1-pro-free";
-      const isFreePreview = provider !== "openai" && Boolean(parsed.previewUrl);
+      const isFreePreview = provider !== "openai" && Boolean(parsed.previewUrl) && !(provider === "elevenlabs" && speed !== 1.0);
       const cacheKey = provider === "elevenlabs"
-        ? `elevenlabs|${voiceId}|${isFreePreview ? "preview-free-v1" : "preview-paid-v1"}`
+        ? `elevenlabs|${voiceId}|${speed}|${isFreePreview ? "preview-free-v1" : "preview-paid-v1"}`
         : provider === "fishaudio"
           ? `fishaudio|${voiceId}|${speed}|${fishAudioModel}|${previewText}`
           : `openai|${voiceId}|${speed}|${instructions || ""}|${previewText}`;
@@ -6430,7 +6434,7 @@ NO uses saludos formales. Se directo y amigable.`
       let audioBuffer: Buffer;
       let contentType: string;
 
-      if (provider !== "openai" && parsed.previewUrl) {
+      if (provider !== "openai" && parsed.previewUrl && !(provider === "elevenlabs" && speed !== 1.0)) {
         const previewRes = await axios.get(parsed.previewUrl, { responseType: "arraybuffer" });
         audioBuffer = Buffer.from(previewRes.data);
         contentType = previewRes.headers["content-type"] || "audio/mpeg";
