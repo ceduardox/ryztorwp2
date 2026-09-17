@@ -5979,7 +5979,7 @@ NO uses saludos formales. Se directo y amigable.`
     temperature: z.number().min(0).max(100).optional(),
     aiProvider: z.enum(["openai", "gemini", "groq"]).optional(),
     model: z.string().optional(),
-    maxPromptChars: z.number().min(500).max(20000).optional(),
+    maxPromptChars: z.number().min(500).max(40000).optional(),
     conversationHistory: z.number().min(1).max(20).optional(),
     audioResponseEnabled: z.boolean().optional(),
     audioResponseMode: z.enum(["off", "reply_to_audio", "from_first_turn", "from_second_turn"]).optional(),
@@ -6000,9 +6000,9 @@ NO uses saludos formales. Se directo y amigable.`
   });
 
   const promptProfilesUpdateSchema = z.object({
-    primaryPrompt: z.string().max(20000),
-    secondaryPrompt: z.string().max(20000),
-    tertiaryPrompt: z.string().max(20000),
+    primaryPrompt: z.string().max(40000),
+    secondaryPrompt: z.string().max(40000),
+    tertiaryPrompt: z.string().max(40000),
     activeSlot: z.enum(["primary", "secondary", "tertiary"]),
   });
 
