@@ -66,7 +66,7 @@ interface AiSettings {
 }
 
 type AudioResponseMode = "off" | "reply_to_audio" | "from_first_turn" | "from_second_turn";
-type AiProvider = "openai" | "gemini" | "groq" | "deepseek";
+type AiProvider = "openai" | "gemini" | "groq" | "deepseek" | "muse";
 
 interface PromptProfiles {
   primaryPrompt: string;
@@ -311,6 +311,10 @@ export default function AIAgentPage() {
     { value: "deepseek-flash", label: "DeepSeek Flash (v4)" },
     { value: "deepseek-v4-pro", label: "DeepSeek V4 Pro" },
   ];
+  const museModelOptions = [
+    { value: "muse-spark-1.3-contributor", label: "Muse Spark 1.3 (Contributor)" },
+    { value: "muse-spark-1.3", label: "Muse Spark 1.3 (Standard)" },
+  ];
   const modelOptions =
     aiProvider === "gemini"
       ? geminiModelOptions
@@ -318,12 +322,15 @@ export default function AIAgentPage() {
         ? groqModelOptions
         : aiProvider === "deepseek"
           ? deepseekModelOptions
-          : openAiModelOptions;
+          : aiProvider === "muse"
+            ? museModelOptions
+            : openAiModelOptions;
 
   const getDefaultModelForProvider = (provider: AiProvider) => {
     if (provider === "gemini") return "gemini-2.0-flash";
     if (provider === "groq") return "llama-3.3-70b-versatile";
     if (provider === "deepseek") return "deepseek-flash";
+    if (provider === "muse") return "muse-spark-1.3-contributor";
     return "gpt-4o-mini";
   };
 
@@ -372,6 +379,15 @@ export default function AIAgentPage() {
       activeCard: "border-indigo-500/70 bg-indigo-500/10 ring-1 ring-indigo-500/30 shadow-lg shadow-indigo-500/10",
       activeText: "text-indigo-300",
     },
+    {
+      id: "muse",
+      name: "Muse Spark",
+      desc: "Meta · contribuidor",
+      icon: Bot,
+      iconBg: "from-sky-500 to-blue-600",
+      activeCard: "border-sky-500/70 bg-sky-500/10 ring-1 ring-sky-500/30 shadow-lg shadow-sky-500/10",
+      activeText: "text-sky-300",
+    },
   ];
 
   const providerModelHint =
@@ -381,7 +397,9 @@ export default function AIAgentPage() {
         ? "Modelo de Groq para respuestas de texto"
         : aiProvider === "deepseek"
           ? "Modelo de DeepSeek para respuestas de texto"
-          : "Modelo de OpenAI a usar";
+          : aiProvider === "muse"
+            ? "Modelo de Meta Muse Spark para respuestas de texto"
+            : "Modelo de OpenAI a usar";
   
   // Product form state
   const [newName, setNewName] = useState("");
@@ -585,7 +603,7 @@ export default function AIAgentPage() {
       setMaxTokens(settings.maxTokens || 120);
       setTemperature(settings.temperature || 70);
       const provider =
-        settings.aiProvider === "gemini" || settings.aiProvider === "groq" || settings.aiProvider === "deepseek"
+        settings.aiProvider === "gemini" || settings.aiProvider === "groq" || settings.aiProvider === "deepseek" || settings.aiProvider === "muse"
           ? settings.aiProvider
           : "openai";
       setAiProvider(provider);
@@ -1297,7 +1315,7 @@ export default function AIAgentPage() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-5">
                   {providerCards.map((p) => {
                     const isActive = aiProvider === p.id;
                     const Icon = p.icon;

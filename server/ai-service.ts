@@ -10,8 +10,9 @@ const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
 const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
 const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
 const DEFAULT_DEEPSEEK_MODEL = "deepseek-flash";
+const DEFAULT_MUSE_MODEL = "muse-spark-1.3-contributor";
 
-type AiProvider = "openai" | "gemini" | "groq" | "deepseek";
+type AiProvider = "openai" | "gemini" | "groq" | "deepseek" | "muse";
 
 // Order status type
 export type OrderStatus = 'pending' | 'ready' | 'delivered' | null;
@@ -107,7 +108,7 @@ function resolvePublicImageUrl(imageUrl?: string | null): string {
 }
 
 function normalizeAiProvider(value?: string | null): AiProvider {
-  if (value === "gemini" || value === "groq" || value === "deepseek") return value;
+  if (value === "gemini" || value === "groq" || value === "deepseek" || value === "muse") return value;
   return "openai";
 }
 
@@ -115,6 +116,7 @@ function getDefaultModelForProvider(provider: AiProvider): string {
   if (provider === "gemini") return DEFAULT_GEMINI_MODEL;
   if (provider === "groq") return DEFAULT_GROQ_MODEL;
   if (provider === "deepseek") return process.env.DEEPSEEK_MODEL || DEFAULT_DEEPSEEK_MODEL;
+  if (provider === "muse") return process.env.MUSE_MODEL || DEFAULT_MUSE_MODEL;
   return DEFAULT_OPENAI_MODEL;
 }
 
@@ -194,6 +196,35 @@ async function requestDeepSeekCompletion(params: {
     responseText: completion.choices[0]?.message?.content || "",
     tokensUsed: completion.usage?.total_tokens || 0,
     providerUsed: "deepseek" as const,
+  };
+}
+
+async function requestMuseCompletion(params: {
+  model: string;
+  messages: any[];
+  maxTokens: number;
+  temperature: number;
+}) {
+  const apiKey = process.env.MUSE_API_KEY;
+  if (!apiKey) {
+    throw new Error("MUSE_API_KEY is not configured");
+  }
+
+  const muse = new OpenAI({
+    apiKey,
+    baseURL: process.env.MUSE_BASE_URL || "https://api.meta.ai/v1",
+  });
+  const completion = await muse.chat.completions.create({
+    model: params.model,
+    messages: params.messages,
+    max_tokens: Math.max(params.maxTokens, 1024),
+    temperature: params.temperature,
+  });
+
+  return {
+    responseText: completion.choices[0]?.message?.content || "",
+    tokensUsed: completion.usage?.total_tokens || 0,
+    providerUsed: "muse" as const,
   };
 }
 
@@ -332,6 +363,16 @@ export async function generateAiResponse(
         } else if (catalog) {
           productContext = catalog.substring(0, 1500);
         }
+      } else {
+        // Fallback: producto principal. Asegura que la IA tenga siempre disponibles
+        // las imagenes y testimonios del producto aunque el cliente no lo nombre.
+        const primaryProduct = allProducts.find(p => /berberina/i.test(p.name)) || allProducts[0];
+        if (primaryProduct) {
+          productContext = `${primaryProduct.name} - ${primaryProduct.price || "Consultar precio"}${primaryProduct.comboQty ? `\nCOMBO: ${primaryProduct.comboQty} por ${primaryProduct.comboPrice || "Consultar"}` : ""}\n${primaryProduct.description || ""}\n${getProductImageContext(primaryProduct)}`;
+          productInContext = primaryProduct;
+        } else if (catalog) {
+          productContext = catalog.substring(0, 1500);
+        }
       }
     }
 
@@ -377,9 +418,7 @@ ${instructions}
 - Máximo 2 preguntas por respuesta
 - Tono humano y cálido
 - Para enviar imagen usa: [IMAGEN: url]
-- Para enviar botones interactivos (máximo 3 opciones, 20 caracteres cada una) usa: [BOTONES: opción1, opción2, opción3]. Ejemplo: Te paso nuestros productos [BOTONES: Berberina, Citrato Magnesio, Ver más]
-- Para enviar una lista interactiva (hasta 10 opciones) usa: [LISTA: título del botón | opción1, opción2, opción3]. Ejemplo: Mira nuestro catálogo [LISTA: Ver productos | Berberina, Citrato Magnesio, Bitter Melon]
-- IMPORTANTE: Cuando las instrucciones mencionen "botones" o el cliente deba elegir entre opciones, SIEMPRE usa el formato [BOTONES:] o [LISTA:]. NUNCA escribas las opciones como texto plano con asteriscos o viñetas.
+- No uses botones ni listas interactivas ([BOTONES:] / [LISTA:]). Si el cliente debe elegir entre opciones, escríbelas como una lista simple con viñetas (•) dentro del texto.
 - IMPORTANTE: Cuando el cliente confirme el pedido con TODOS los datos requeridos según la modalidad de envío, escribe [PEDIDO_LISTO] al final de tu respuesta para marcar que hay un pedido listo para entregar.
 - Para ciudades con delivery, un pedido está listo cuando tienes: producto, cantidad, nombre y dirección de entrega o ubicación GPS.
 - Para ciudades, pueblos o departamentos sin delivery que se atienden por encomienda/transportadora, un pedido está listo cuando tienes: producto, cantidad, nombre y ciudad, pueblo o departamento de destino. En estos casos NO exijas dirección ni ubicación GPS.
@@ -417,16 +456,43 @@ ${productContext ? `\n=== PRODUCTOS ===\n${productContext}` : ""}`;
     const shouldUseGemini = configuredProvider === "gemini" && !imageBase64;
     const shouldUseGroq = configuredProvider === "groq" && !imageBase64;
     const shouldUseDeepseek = configuredProvider === "deepseek" && !imageBase64;
+    const shouldUseMuse = configuredProvider === "muse" && !imageBase64;
 
     let responseText = "";
     let tokensUsed = 0;
     let providerUsed: AiProvider = "openai";
 
-    if ((configuredProvider === "gemini" || configuredProvider === "groq" || configuredProvider === "deepseek") && imageBase64) {
+    if ((configuredProvider === "gemini" || configuredProvider === "groq" || configuredProvider === "deepseek" || configuredProvider === "muse") && imageBase64) {
       console.log(`[AI] ${configuredProvider} selected but image input detected. Falling back to OpenAI for vision.`);
     }
 
-    if (shouldUseDeepseek) {
+    if (shouldUseMuse) {
+      try {
+        const museResult = await requestMuseCompletion({
+          model: modelToUse,
+          messages,
+          maxTokens: maxTokensToUse,
+          temperature: temperatureToUse,
+        });
+        if (!museResult.responseText || !museResult.responseText.trim()) {
+          throw new Error("Muse Spark devolvio una respuesta vacia");
+        }
+        responseText = museResult.responseText;
+        tokensUsed = museResult.tokensUsed;
+        providerUsed = museResult.providerUsed;
+      } catch (museError) {
+        console.error("[AI] Muse Spark failed. Falling back to OpenAI:", museError);
+        const openAiResult = await requestOpenAiCompletion({
+          model: getDefaultModelForProvider("openai"),
+          messages,
+          maxTokens: maxTokensToUse,
+          temperature: temperatureToUse,
+        });
+        responseText = openAiResult.responseText;
+        tokensUsed = openAiResult.tokensUsed;
+        providerUsed = openAiResult.providerUsed;
+      }
+    } else if (shouldUseDeepseek) {
       try {
         const deepseekResult = await requestDeepSeekCompletion({
           model: modelToUse,
