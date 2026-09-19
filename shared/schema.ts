@@ -230,6 +230,8 @@ export const products = pgTable("products", {
   imageBottleUrl: text("image_bottle_url"),
   imageDoseUrl: text("image_dose_url"),
   imageIngredientsUrl: text("image_ingredients_url"),
+  imageTestimonialUrl: text("image_testimonial_url"),
+  imageTestimonial2Url: text("image_testimonial_2_url"),
   comboQty: integer("combo_qty"),
   comboPrice: varchar("combo_price", { length: 50 }),
   createdAt: timestamp("created_at").defaultNow(),

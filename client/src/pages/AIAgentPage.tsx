@@ -85,6 +85,8 @@ interface Product {
   imageBottleUrl?: string | null;
   imageDoseUrl?: string | null;
   imageIngredientsUrl?: string | null;
+  imageTestimonialUrl?: string | null;
+  imageTestimonial2Url?: string | null;
   comboQty?: number | null;
   comboPrice?: string | null;
   createdAt: string;
@@ -392,6 +394,8 @@ export default function AIAgentPage() {
   const [newImageBottleUrl, setNewImageBottleUrl] = useState("");
   const [newImageDoseUrl, setNewImageDoseUrl] = useState("");
   const [newImageIngredientsUrl, setNewImageIngredientsUrl] = useState("");
+  const [newImageTestimonialUrl, setNewImageTestimonialUrl] = useState("");
+  const [newImageTestimonial2Url, setNewImageTestimonial2Url] = useState("");
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [uploadingSlots, setUploadingSlots] = useState<Record<string, boolean>>({});
   
@@ -407,6 +411,8 @@ export default function AIAgentPage() {
   const [editImageBottleUrl, setEditImageBottleUrl] = useState("");
   const [editImageDoseUrl, setEditImageDoseUrl] = useState("");
   const [editImageIngredientsUrl, setEditImageIngredientsUrl] = useState("");
+  const [editImageTestimonialUrl, setEditImageTestimonialUrl] = useState("");
+  const [editImageTestimonial2Url, setEditImageTestimonial2Url] = useState("");
 
   const { data: settings, isLoading: settingsLoading } = useQuery<AiSettings>({
     queryKey: ["/api/ai/settings"],
@@ -999,7 +1005,7 @@ export default function AIAgentPage() {
   };
 
   const getProductMainImage = (product: Product) =>
-    product.imageUrl || product.imageBottleUrl || product.imageDoseUrl || product.imageIngredientsUrl || "";
+    product.imageUrl || product.imageBottleUrl || product.imageDoseUrl || product.imageIngredientsUrl || product.imageTestimonialUrl || product.imageTestimonial2Url || "";
 
   const handleAddProduct = () => {
     if (!newName.trim()) {
@@ -1017,6 +1023,8 @@ export default function AIAgentPage() {
       imageBottleUrl: newImageBottleUrl || null,
       imageDoseUrl: newImageDoseUrl || null,
       imageIngredientsUrl: newImageIngredientsUrl || null,
+      imageTestimonialUrl: newImageTestimonialUrl || null,
+      imageTestimonial2Url: newImageTestimonial2Url || null,
     });
   };
 
@@ -1032,6 +1040,8 @@ export default function AIAgentPage() {
     setEditImageBottleUrl(product.imageBottleUrl || "");
     setEditImageDoseUrl(product.imageDoseUrl || "");
     setEditImageIngredientsUrl(product.imageIngredientsUrl || "");
+    setEditImageTestimonialUrl(product.imageTestimonialUrl || "");
+    setEditImageTestimonial2Url(product.imageTestimonial2Url || "");
   };
 
   const saveEdit = () => {
@@ -1049,6 +1059,8 @@ export default function AIAgentPage() {
         imageBottleUrl: editImageBottleUrl || null,
         imageDoseUrl: editImageDoseUrl || null,
         imageIngredientsUrl: editImageIngredientsUrl || null,
+        imageTestimonialUrl: editImageTestimonialUrl || null,
+        imageTestimonial2Url: editImageTestimonial2Url || null,
       },
     });
   };
@@ -1945,7 +1957,7 @@ export default function AIAgentPage() {
                   <Label className="text-slate-300">Imágenes del producto</Label>
                   <span className="text-[11px] text-slate-500">Toca el recuadro para subir o pega una URL</span>
                 </div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                   <ImageSlot
                     label="Principal"
                     value={newImageUrl}
@@ -1992,6 +2004,30 @@ export default function AIAgentPage() {
                     onFile={(f) => handleSelectAndUploadProductImage(f, "ingredientes", setNewImageIngredientsUrl)}
                     uploading={uploadingSlots.ingredientes || false}
                     progress={uploadProgress.ingredientes || 0}
+                    resolveUrl={resolveProductImageUrl}
+                  />
+                  <ImageSlot
+                    label="Testimonio 1"
+                    value={newImageTestimonialUrl}
+                    onChange={setNewImageTestimonialUrl}
+                    testId="preview-product-image-testimonial-1"
+                    urlTestId="input-product-image-testimonial-1"
+                    fileTestId="input-product-image-testimonial-1-file"
+                    onFile={(f) => handleSelectAndUploadProductImage(f, "testimonio1", setNewImageTestimonialUrl)}
+                    uploading={uploadingSlots.testimonio1 || false}
+                    progress={uploadProgress.testimonio1 || 0}
+                    resolveUrl={resolveProductImageUrl}
+                  />
+                  <ImageSlot
+                    label="Testimonio 2"
+                    value={newImageTestimonial2Url}
+                    onChange={setNewImageTestimonial2Url}
+                    testId="preview-product-image-testimonial-2"
+                    urlTestId="input-product-image-testimonial-2"
+                    fileTestId="input-product-image-testimonial-2-file"
+                    onFile={(f) => handleSelectAndUploadProductImage(f, "testimonio2", setNewImageTestimonial2Url)}
+                    uploading={uploadingSlots.testimonio2 || false}
+                    progress={uploadProgress.testimonio2 || 0}
                     resolveUrl={resolveProductImageUrl}
                   />
                 </div>
@@ -2070,7 +2106,7 @@ export default function AIAgentPage() {
                             data-testid={`textarea-edit-description-${product.id}`}
                             className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
                           />
-                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                             <ImageSlot
                               label="Principal"
                               value={editImageUrl}
@@ -2117,6 +2153,30 @@ export default function AIAgentPage() {
                               onFile={(f) => handleSelectAndUploadProductImage(f, `edit-ingredientes-${product.id}`, setEditImageIngredientsUrl)}
                               uploading={uploadingSlots[`edit-ingredientes-${product.id}`] || false}
                               progress={uploadProgress[`edit-ingredientes-${product.id}`] || 0}
+                              resolveUrl={resolveProductImageUrl}
+                            />
+                            <ImageSlot
+                              label="Testimonio 1"
+                              value={editImageTestimonialUrl}
+                              onChange={setEditImageTestimonialUrl}
+                              testId={`preview-edit-image-testimonial-1-${product.id}`}
+                              urlTestId={`input-edit-image-testimonial-1-${product.id}`}
+                              fileTestId={`input-edit-image-testimonial-1-file-${product.id}`}
+                              onFile={(f) => handleSelectAndUploadProductImage(f, `edit-testimonio1-${product.id}`, setEditImageTestimonialUrl)}
+                              uploading={uploadingSlots[`edit-testimonio1-${product.id}`] || false}
+                              progress={uploadProgress[`edit-testimonio1-${product.id}`] || 0}
+                              resolveUrl={resolveProductImageUrl}
+                            />
+                            <ImageSlot
+                              label="Testimonio 2"
+                              value={editImageTestimonial2Url}
+                              onChange={setEditImageTestimonial2Url}
+                              testId={`preview-edit-image-testimonial-2-${product.id}`}
+                              urlTestId={`input-edit-image-testimonial-2-${product.id}`}
+                              fileTestId={`input-edit-image-testimonial-2-file-${product.id}`}
+                              onFile={(f) => handleSelectAndUploadProductImage(f, `edit-testimonio2-${product.id}`, setEditImageTestimonial2Url)}
+                              uploading={uploadingSlots[`edit-testimonio2-${product.id}`] || false}
+                              progress={uploadProgress[`edit-testimonio2-${product.id}`] || 0}
                               resolveUrl={resolveProductImageUrl}
                             />
                           </div>

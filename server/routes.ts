@@ -295,6 +295,14 @@ async function ensureProductImageColumnsExist() {
   `);
   await db.execute(sql`
     ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS image_testimonial_url TEXT
+  `);
+  await db.execute(sql`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS image_testimonial_2_url TEXT
+  `);
+  await db.execute(sql`
+    ALTER TABLE products
     ADD COLUMN IF NOT EXISTS combo_qty INTEGER
   `);
   await db.execute(sql`

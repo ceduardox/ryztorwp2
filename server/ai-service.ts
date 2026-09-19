@@ -267,10 +267,14 @@ function getProductImageContext(product: Product) {
   const bottleImage = resolvePublicImageUrl(product.imageBottleUrl);
   const doseImage = resolvePublicImageUrl(product.imageDoseUrl);
   const ingredientsImage = resolvePublicImageUrl(product.imageIngredientsUrl);
+  const testimonialImage1 = resolvePublicImageUrl(product.imageTestimonialUrl);
+  const testimonialImage2 = resolvePublicImageUrl(product.imageTestimonial2Url);
   if (mainImage) imageLines.push(`Imagen principal: ${mainImage}`);
   if (bottleImage) imageLines.push(`Imagen frasco: ${bottleImage}`);
   if (doseImage) imageLines.push(`Imagen dosis: ${doseImage}`);
   if (ingredientsImage) imageLines.push(`Imagen ingredientes: ${ingredientsImage}`);
+  if (testimonialImage1) imageLines.push(`Testimonio 1 (cliente real): ${testimonialImage1}`);
+  if (testimonialImage2) imageLines.push(`Testimonio 2 (cliente real): ${testimonialImage2}`);
   return imageLines.join("\n");
 }
 
