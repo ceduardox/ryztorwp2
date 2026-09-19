@@ -3630,7 +3630,7 @@ export async function registerRoutes(
 
   app.get("/api/admin/export-conversations", requireAdmin, async (req, res) => {
     try {
-      const allowedLimits = new Set([10, 30, 50, 100, 150, 200, 300]);
+      const allowedLimits = new Set([10, 30, 50, 100, 150, 200, 300, 500, 1000, 2000]);
       const requestedLimit = Number(req.query.limit ?? 300);
       const exportLimit = allowedLimits.has(requestedLimit) ? requestedLimit : 300;
 

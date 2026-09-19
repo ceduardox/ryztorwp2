@@ -553,7 +553,7 @@ export default function AnalyticsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[10, 30, 50, 100, 150, 200, 300].map((limit) => (
+                    {[10, 30, 50, 100, 150, 200, 300, 500, 1000, 2000].map((limit) => (
                       <SelectItem key={limit} value={String(limit)}>
                         {limit} chats
                       </SelectItem>
