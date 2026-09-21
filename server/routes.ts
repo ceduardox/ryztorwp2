@@ -3672,6 +3672,82 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/ad-sources", requireAdmin, async (req, res) => {
+    try {
+      const allowedStatus = new Set(["ready", "delivered"]);
+      const requestedStatuses = String(req.query.status ?? "ready,delivered")
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter((s) => allowedStatus.has(s));
+      const statuses = requestedStatuses.length ? requestedStatuses : ["ready", "delivered"];
+
+      const requestedLimit = Number(req.query.limit ?? 500);
+      const limit = Number.isFinite(requestedLimit)
+        ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 2000)
+        : 500;
+
+      const adIdFilter =
+        typeof req.query.ad_id === "string" && req.query.ad_id.trim()
+          ? req.query.ad_id.trim()
+          : null;
+
+      const result = await pool.query(
+        `
+        WITH first_in AS (
+          SELECT DISTINCT ON (conversation_id) conversation_id, raw_json
+          FROM messages
+          WHERE direction = 'in'
+          ORDER BY conversation_id, id ASC
+        ),
+        rows AS (
+          SELECT
+            c.id AS conversation_id,
+            c.contact_name,
+            c.wa_id,
+            c.order_status,
+            COALESCE(
+              fi.raw_json->'referral'->>'source_id',
+              fi.raw_json->'referral'->>'ad_id',
+              fi.raw_json->'context'->'referral'->>'source_id',
+              fi.raw_json->'context'->'referral'->>'ad_id',
+              'sin_anuncio'
+            ) AS ad_id,
+            COALESCE(
+              fi.raw_json->'referral'->>'headline',
+              fi.raw_json->'context'->'referral'->>'headline'
+            ) AS ad_headline,
+            COALESCE(
+              fi.raw_json->'referral'->>'source_url',
+              fi.raw_json->'context'->'referral'->>'source_url'
+            ) AS ad_source_url
+          FROM conversations c
+          JOIN first_in fi ON fi.conversation_id = c.id
+          WHERE c.order_status = ANY($1::text[])
+        )
+        SELECT * FROM rows
+        WHERE ($2::text IS NULL OR ad_id = $2)
+        ORDER BY order_status, conversation_id
+        LIMIT $3
+        `,
+        [statuses, adIdFilter, limit],
+      );
+
+      const chats = result.rows;
+      const byAd: Record<string, number> = {};
+      for (const r of chats) byAd[r.ad_id] = (byAd[r.ad_id] || 0) + 1;
+      res.json({
+        total: chats.length,
+        limite: limit,
+        estados: statuses,
+        filtroAdId: adIdFilter,
+        porAnuncio: byAd,
+        chats,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const requirePrimaryAdmin = (req: any, res: any, next: any) => {
     if (
       req.session &&
