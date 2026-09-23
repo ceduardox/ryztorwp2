@@ -3691,6 +3691,17 @@ export async function registerRoutes(
           ? req.query.ad_id.trim()
           : null;
 
+      const dateOnly = /^\d{4}-\d{2}-\d{2}$/;
+      const dayParam = typeof req.query.date === "string" && dateOnly.test(req.query.date.trim())
+        ? req.query.date.trim()
+        : null;
+      const fromParam = typeof req.query.from === "string" && dateOnly.test(req.query.from.trim())
+        ? req.query.from.trim()
+        : (dayParam ?? null);
+      const toParam = typeof req.query.to === "string" && dateOnly.test(req.query.to.trim())
+        ? req.query.to.trim()
+        : (dayParam ?? null);
+
       const result = await pool.query(
         `
         WITH first_in AS (
@@ -3705,6 +3716,7 @@ export async function registerRoutes(
             c.contact_name,
             c.wa_id,
             c.order_status,
+            c.updated_at,
             COALESCE(
               fi.raw_json->'referral'->>'source_id',
               fi.raw_json->'referral'->>'ad_id',
@@ -3719,17 +3731,20 @@ export async function registerRoutes(
             COALESCE(
               fi.raw_json->'referral'->>'source_url',
               fi.raw_json->'context'->'referral'->>'source_url'
-            ) AS ad_source_url
+            ) AS ad_source_url,
+            ((c.updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/La_Paz') AS fecha_bo
           FROM conversations c
           JOIN first_in fi ON fi.conversation_id = c.id
           WHERE c.order_status = ANY($1::text[])
+            AND ($4::date IS NULL OR ((c.updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/La_Paz')::date >= $4::date)
+            AND ($5::date IS NULL OR ((c.updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/La_Paz')::date <= $5::date)
         )
         SELECT * FROM rows
         WHERE ($2::text IS NULL OR ad_id = $2)
         ORDER BY order_status, conversation_id
         LIMIT $3
         `,
-        [statuses, adIdFilter, limit],
+        [statuses, adIdFilter, limit, fromParam, toParam],
       );
 
       const chats = result.rows;
@@ -3740,6 +3755,8 @@ export async function registerRoutes(
         limite: limit,
         estados: statuses,
         filtroAdId: adIdFilter,
+        desde: fromParam,
+        hasta: toParam,
         porAnuncio: byAd,
         chats,
       });
