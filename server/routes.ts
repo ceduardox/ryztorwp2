@@ -3864,6 +3864,10 @@ export async function registerRoutes(
     a.download = 'ad-sources.json';
     a.click();
   });
+  ['date', 'from', 'to'].forEach(function(id){
+    var el = q(id);
+    el.addEventListener('click', function(){ try { if (el.showPicker) { el.showPicker(); } } catch (err) {} });
+  });
 </script>
 </body>
 </html>`);
