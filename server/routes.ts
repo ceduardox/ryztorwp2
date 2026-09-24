@@ -3765,6 +3765,110 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/ad-sources", (_req, res) => {
+    res.type("html").send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Anuncios por chat (Enviado / Entregado)</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;background:#0f172a;color:#e2e8f0}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px}
+  h1{font-size:20px;margin:0 0 4px}
+  p.sub{color:#94a3b8;margin:0 0 16px;font-size:13px}
+  .panel{display:flex;flex-wrap:wrap;gap:12px;align-items:end;background:#1e293b;padding:14px;border-radius:12px}
+  label{display:block;font-size:12px;color:#94a3b8;margin-bottom:4px}
+  input,select{background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:8px}
+  button{background:#06b6d4;color:#04202a;border:0;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer}
+  button.ghost{background:#334155;color:#e2e8f0}
+  .row{margin-top:16px}
+  .chips span{display:inline-block;background:#1e293b;border:1px solid #334155;border-radius:999px;padding:4px 10px;margin:0 6px 6px 0;font-size:13px}
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+  th,td{border-bottom:1px solid #334155;padding:8px;text-align:left;vertical-align:top}
+  th{color:#94a3b8}
+  .err{background:#7f1d1d;padding:10px;border-radius:8px;margin-top:12px}
+  a{color:#22d3ee}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>De que anuncio vinieron (Enviado / Entregado)</h1>
+  <p class="sub">Filtra por fecha (hora Bolivia), estado y anuncio. Luego copia o descarga el JSON.</p>
+  <div class="panel">
+    <div><label>Dia (opcional)</label><input type="date" id="date" /></div>
+    <div><label>Desde</label><input type="date" id="from" /></div>
+    <div><label>Hasta</label><input type="date" id="to" /></div>
+    <div><label>Estado</label><select id="status"><option value="ready,delivered">Enviado + Entregado</option><option value="ready">Solo Enviado</option><option value="delivered">Solo Entregado</option></select></div>
+    <div><label>Cantidad (limit)</label><input type="number" id="limit" value="500" min="1" max="2000" style="width:110px" /></div>
+    <div><label>ad_id (opcional)</label><input type="text" id="ad_id" placeholder="ej. 1203..." style="width:160px" /></div>
+    <button id="go">Buscar</button>
+    <button class="ghost" id="today">Hoy</button>
+    <button class="ghost" id="copy">Copiar JSON</button>
+    <button class="ghost" id="dl">Descargar JSON</button>
+  </div>
+  <div id="out" class="row"></div>
+</div>
+<script>
+  var lastJson = null;
+  function q(id){ return document.getElementById(id); }
+  function buildUrl(){
+    var p = [];
+    if (q('status').value) p.push('status=' + encodeURIComponent(q('status').value));
+    if (q('limit').value) p.push('limit=' + encodeURIComponent(q('limit').value));
+    if (q('date').value) p.push('date=' + encodeURIComponent(q('date').value));
+    if (q('from').value) p.push('from=' + encodeURIComponent(q('from').value));
+    if (q('to').value) p.push('to=' + encodeURIComponent(q('to').value));
+    if (q('ad_id').value.trim()) p.push('ad_id=' + encodeURIComponent(q('ad_id').value.trim()));
+    return '/api/admin/ad-sources' + (p.length ? '?' + p.join('&') : '');
+  }
+  function render(data){
+    var h = '';
+    h += '<p><b>Total:</b> ' + data.total + ' &nbsp; <b>Desde:</b> ' + (data.desde || 'todo') + ' &nbsp; <b>Hasta:</b> ' + (data.hasta || 'todo') + ' &nbsp; <b>Limite:</b> ' + data.limite + '</p>';
+    h += '<div class="chips">';
+    var keys = Object.keys(data.porAnuncio || {});
+    if (!keys.length) h += '<span>Sin resultados</span>';
+    for (var i = 0; i < keys.length; i++) { h += '<span>' + keys[i] + ': ' + data.porAnuncio[keys[i]] + '</span>'; }
+    h += '</div>';
+    h += '<table><thead><tr><th>#</th><th>Chat</th><th>Nombre</th><th>Estado</th><th>ad_id</th><th>Titular</th></tr></thead><tbody>';
+    for (var j = 0; j < data.chats.length; j++) {
+      var c = data.chats[j];
+      h += '<tr><td>' + c.conversation_id + '</td><td><a href="/?conversationId=' + c.conversation_id + '" target="_blank">' + c.wa_id + '</a></td><td>' + (c.contact_name || '') + '</td><td>' + (c.order_status || '') + '</td><td>' + c.ad_id + '</td><td>' + (c.ad_headline || '') + '</td></tr>';
+    }
+    h += '</tbody></table>';
+    q('out').innerHTML = h;
+  }
+  function run(){
+    q('out').innerHTML = 'Cargando...';
+    fetch(buildUrl(), { credentials: 'include' })
+      .then(function(r){ if (r.status === 403) throw new Error('No autorizado: inicia sesion como admin.'); return r.json(); })
+      .then(function(data){ lastJson = data; render(data); })
+      .catch(function(e){ lastJson = null; q('out').innerHTML = '<div class="err">' + e.message + '</div>'; });
+  }
+  q('go').addEventListener('click', run);
+  q('today').addEventListener('click', function(){
+    var bo = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
+    q('date').value = bo; q('from').value = ''; q('to').value = ''; run();
+  });
+  q('copy').addEventListener('click', function(){
+    if (!lastJson) return;
+    navigator.clipboard.writeText(JSON.stringify(lastJson, null, 2));
+    q('copy').textContent = 'Copiado!';
+    setTimeout(function(){ q('copy').textContent = 'Copiar JSON'; }, 1200);
+  });
+  q('dl').addEventListener('click', function(){
+    if (!lastJson) return;
+    var blob = new Blob([JSON.stringify(lastJson, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'ad-sources.json';
+    a.click();
+  });
+</script>
+</body>
+</html>`);
+  });
+
   const requirePrimaryAdmin = (req: any, res: any, next: any) => {
     if (
       req.session &&
