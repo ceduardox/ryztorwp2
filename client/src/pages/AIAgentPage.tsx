@@ -252,7 +252,24 @@ function ImageSlot({
   );
 }
 
+const agentSections = [
+  { id: "instructions", label: "Instrucciones" },
+  { id: "model", label: "Modelo" },
+  { id: "audio", label: "Audio y voz" },
+  { id: "products", label: "Productos" },
+  { id: "followup", label: "Seguimiento" },
+  { id: "rules", label: "Reglas" },
+  { id: "activity", label: "Actividad" },
+] as const;
+type AgentSection = typeof agentSections[number]["id"];
+
 export default function AIAgentPage() {
+  const [activeSection, setActiveSection] = useState<AgentSection>("instructions");
+  const configSection = ["model", "audio", "followup"].includes(activeSection);
+  const selectSection = (section: AgentSection) => {
+    setActiveSection(section);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
   const { toast } = useToast();
   const [primaryPrompt, setPrimaryPrompt] = useState("");
   const [secondaryPrompt, setSecondaryPrompt] = useState("");
@@ -1094,7 +1111,7 @@ export default function AIAgentPage() {
   return (
     <div className="min-h-screen bg-slate-900 text-white">
       {/* Futuristic Header */}
-      <header className="sticky top-0 z-10 bg-gradient-to-r from-slate-800/90 via-slate-800/80 to-slate-800/90 backdrop-blur-xl border-b border-emerald-500/20">
+      <header className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur-xl border-b border-slate-700/60">
         <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-cyan-500/5 to-emerald-500/5" />
         <div className="container mx-auto px-4 py-4 flex items-center gap-4 relative">
           <Link href="/">
@@ -1123,13 +1140,51 @@ export default function AIAgentPage() {
             />
           </div>
         </div>
+        <nav aria-label="Secciones del agente" className="relative mx-auto flex max-w-4xl items-center gap-2 px-4" data-testid="agent-section-nav">
+          <div className="w-full pb-3 md:hidden">
+            <label htmlFor="agent-mobile-section" className="mb-1.5 block text-xs font-medium text-slate-400">Sección del agente</label>
+            <select id="agent-mobile-section" value={activeSection}
+              onChange={(event) => selectSection(event.target.value as AgentSection)}
+              data-testid="select-agent-mobile-section"
+              className="min-h-12 w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-3 text-base font-medium text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
+              {agentSections.map(section => (
+                <option key={section.id} value={section.id}>
+                  {section.label}{(section.id === "instructions" && promptEdited) || (["model", "audio", "followup"].includes(section.id) && configEdited) ? " - cambios sin guardar" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="hidden min-w-0 flex-1 md:flex">
+            {agentSections.slice(0, 4).map((section) => (
+              <button key={section.id} type="button" aria-pressed={activeSection === section.id}
+                onClick={(event) => { selectSection(section.id); event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" }); }}
+                data-testid={`section-button-${section.id}`}
+                className={`shrink-0 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400 ${activeSection === section.id ? "border-emerald-400 text-emerald-300" : "border-transparent text-slate-400 hover:text-white"}`}>
+                {section.label}{section.id === "instructions" && promptEdited && <span className="ml-1 text-amber-400" aria-label="Cambios sin guardar">•</span>}
+              </button>
+            ))}
+          </div>
+          <select aria-label="Más secciones" value={agentSections.slice(4).some(s => s.id === activeSection) ? activeSection : ""}
+            onChange={(event) => selectSection(event.target.value as AgentSection)}
+            className={`hidden md:block max-w-[140px] rounded-lg border bg-slate-900 px-2 py-2 text-sm ${agentSections.slice(4).some(s => s.id === activeSection) ? "border-emerald-400 text-emerald-300" : "border-slate-700 text-slate-300"}`}>
+            <option value="" disabled>Más</option>
+            {agentSections.slice(4).map(section => <option key={section.id} value={section.id}>{section.label}</option>)}
+          </select>
+        </nav>
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-6 max-w-4xl pb-20">
+        {configEdited && (
+          <div className="flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between" role="status">
+            <p className="text-sm text-amber-200">Cambios sin guardar en configuración. Se guardan juntos Modelo, Audio y Seguimiento.</p>
+            <Button type="button" onClick={handleSaveConfig} disabled={updateSettingsMutation.isPending} className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white">
+              {updateSettingsMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar configuración
+            </Button>
+          </div>
+        )}
+        <section hidden={activeSection !== "instructions"} aria-label="Instrucciones" className="space-y-6" data-testid="section-instructions">
         {/* Instructions Card - 3D Style */}
-        <div className="group bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/50 shadow-xl shadow-black/20 hover:shadow-2xl transition-all duration-300 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/5 to-transparent rounded-2xl" />
-          <div className="absolute -top-10 -right-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl" />
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-5 relative overflow-hidden">
           <div className="relative space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg">
@@ -1255,9 +1310,10 @@ export default function AIAgentPage() {
           <AdRoutingModal />
         </div>
 
+        <details className="rounded-xl border border-slate-700 p-4">
+          <summary className="cursor-pointer text-sm text-slate-300">Ayuda: botones y listas interactivas</summary>
         {/* Interactive Messages Guide */}
-        <div className="group bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/50 shadow-xl shadow-black/20 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-t from-violet-500/5 to-transparent rounded-2xl" />
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-5 relative overflow-hidden">
           <div className="relative space-y-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
@@ -1290,20 +1346,23 @@ export default function AIAgentPage() {
           </div>
         </div>
 
+        </details>
+        </section>
+
+        <section hidden={!configSection} aria-label="Configuración" className="space-y-6" data-testid="section-config">
         {/* Model Config Card - 3D Style */}
-        <div className="group bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/50 shadow-xl shadow-black/20 hover:shadow-2xl transition-all duration-300 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-t from-cyan-500/5 to-transparent rounded-2xl" />
-          <div className="absolute -top-10 -left-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl" />
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-5 relative overflow-hidden">
           <div className="relative space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg">
                 <RefreshCw className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-white">Configuración del Modelo</h3>
-                <p className="text-xs text-slate-400">Ajusta tokens, creatividad, modelo y contexto</p>
+                <h3 className="font-semibold text-white">{activeSection === "audio" ? "Audio y voz" : activeSection === "followup" ? "Seguimiento y flujo comercial" : "Configuración del modelo"}</h3>
+                <p className="text-xs text-slate-400">Modelo, audio y seguimiento comparten el botón Guardar configuración.</p>
               </div>
             </div>
+            <div hidden={activeSection !== "model"} className="space-y-6">
             <div className="space-y-6">
               {/* Motor de IA */}
               <div className="space-y-3">
@@ -1468,25 +1527,9 @@ export default function AIAgentPage() {
               </div>
             </div>
             
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border border-slate-700/50 rounded-xl bg-slate-800/30">
-              <div className="space-y-1">
-                <Label htmlFor="fixedCommerceFlow" className="text-slate-300">Usar Flujo Comercial Fijo</Label>
-                <p className="text-xs text-slate-500">
-                  Mantiene activos los menus y respuestas fijas de productos. Si lo apaga, la IA usa solo prompt y contexto.
-                </p>
-              </div>
-              <Switch
-                id="fixedCommerceFlow"
-                checked={fixedCommerceFlowEnabled}
-                onCheckedChange={(checked) => {
-                  setFixedCommerceFlowEnabled(checked);
-                  setConfigEdited(true);
-                }}
-                data-testid="switch-fixed-commerce-flow"
-              />
             </div>
-
-            <div className="flex items-center justify-between p-4 border border-slate-700/50 rounded-xl bg-slate-800/30">
+            <div hidden={activeSection !== "audio"} className="space-y-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 border border-slate-700/50 rounded-xl bg-slate-800/30">
               <div className="space-y-1">
                 <Label htmlFor="audioResponse" className="text-slate-300">Modo de respuestas con audio</Label>
                 <p className="text-xs text-slate-500">
@@ -1836,6 +1879,26 @@ export default function AIAgentPage() {
               </div>
             )}
             
+            </div>
+            <div hidden={activeSection !== "followup"} className="space-y-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border border-slate-700/50 rounded-xl bg-slate-800/30">
+              <div className="space-y-1">
+                <Label htmlFor="fixedCommerceFlow" className="text-slate-300">Usar Flujo Comercial Fijo</Label>
+                <p className="text-xs text-slate-500">
+                  Mantiene activos los menus y respuestas fijas de productos. Si lo apaga, la IA usa solo prompt y contexto.
+                </p>
+              </div>
+              <Switch
+                id="fixedCommerceFlow"
+                checked={fixedCommerceFlowEnabled}
+                onCheckedChange={(checked) => {
+                  setFixedCommerceFlowEnabled(checked);
+                  setConfigEdited(true);
+                }}
+                data-testid="switch-fixed-commerce-flow"
+              />
+            </div>
+
             <div className="flex items-center justify-between p-4 border border-slate-700/50 rounded-xl bg-slate-800/30">
               <div className="space-y-1">
                 <Label htmlFor="followUp" className="text-slate-300 flex items-center gap-2">
@@ -1879,6 +1942,7 @@ export default function AIAgentPage() {
               </div>
             )}
 
+            </div>
             {configEdited && (
               <Button onClick={handleSaveConfig} disabled={updateSettingsMutation.isPending} data-testid="button-save-config" className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white shadow-lg shadow-cyan-500/30">
                 {updateSettingsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
@@ -1888,10 +1952,11 @@ export default function AIAgentPage() {
           </div>
         </div>
 
+        </section>
+
+        <section hidden={activeSection !== "products"} aria-label="Productos" className="space-y-6" data-testid="section-products">
         {/* Products Card - 3D Style */}
-        <div className="group bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/50 shadow-xl shadow-black/20 hover:shadow-2xl transition-all duration-300 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-t from-violet-500/5 to-transparent rounded-2xl" />
-          <div className="absolute -top-10 -right-10 w-40 h-40 bg-violet-500/10 rounded-full blur-3xl" />
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-5 relative overflow-hidden">
           <div className="relative space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
@@ -2299,10 +2364,11 @@ export default function AIAgentPage() {
           </div>
         </div>
 
+        </section>
+
+        <section hidden={activeSection !== "rules"} aria-label="Reglas" className="space-y-6" data-testid="section-rules">
         {/* Learned Rules Card - 3D Style */}
-        <div className="group bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/50 shadow-xl shadow-black/20 hover:shadow-2xl transition-all duration-300 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-t from-amber-500/5 to-transparent rounded-2xl" />
-          <div className="absolute -top-10 -left-10 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl" />
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-5 relative overflow-hidden">
           <div className="relative space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg">
@@ -2403,10 +2469,11 @@ export default function AIAgentPage() {
           </div>
         </div>
 
+        </section>
+
+        <section hidden={activeSection !== "activity"} aria-label="Actividad" className="space-y-6" data-testid="section-activity">
         {/* Logs Card - 3D Style */}
-        <div className="group bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/50 shadow-xl shadow-black/20 hover:shadow-2xl transition-all duration-300 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-500/5 to-transparent rounded-2xl" />
-          <div className="absolute -top-10 -right-10 w-40 h-40 bg-slate-500/10 rounded-full blur-3xl" />
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-5 relative overflow-hidden">
           <div className="relative space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -2564,6 +2631,8 @@ export default function AIAgentPage() {
             )}
           </div>
         </div>
+        </section>
+
       </main>
     </div>
   );

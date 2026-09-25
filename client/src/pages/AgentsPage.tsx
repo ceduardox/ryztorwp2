@@ -144,6 +144,18 @@ function formatUsd(value: number): string {
 export default function AgentsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const sections = [
+    { id: "agents", label: "Agentes" },
+    { id: "performance", label: "Rendimiento" },
+    { id: "costs", label: "Costos" },
+    { id: "routing", label: "Anuncios" },
+    { id: "permissions", label: "Permisos" },
+  ] as const;
+  const [activeSection, setActiveSection] = useState("agents");
+  const changeSection = (section: string) => {
+    setActiveSection(section);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState("");
@@ -576,7 +588,7 @@ export default function AgentsPage() {
   const pieColors = ["#10b981", "#06b6d4", "#0ea5e9", "#22d3ee", "#14b8a6", "#0891b2"];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white relative overflow-hidden">
+    <div className="min-h-screen bg-slate-950 text-white relative">
       <style dangerouslySetInnerHTML={{ __html: glowAnimation }} />
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-20 w-96 h-96 bg-emerald-500/8 rounded-full blur-3xl" />
@@ -600,6 +612,26 @@ export default function AgentsPage() {
           </div>
         </div>
 
+        <nav aria-label="Secciones de agentes" className="sticky top-0 z-20 mb-5 rounded-xl border border-slate-700/60 bg-slate-950/95 p-2 backdrop-blur-xl">
+          <div className="md:hidden">
+            <label htmlFor="agents-section-select" className="mb-1 block px-1 text-xs text-slate-400">Sección</label>
+            <select id="agents-section-select" value={activeSection} onChange={event => changeSection(event.target.value)}
+              className="min-h-12 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 text-base text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              data-testid="select-agents-section">
+              {sections.map(section => <option key={section.id} value={section.id}>{section.label}</option>)}
+            </select>
+          </div>
+          <div className="hidden md:flex md:gap-1">
+            {sections.map(section => (
+              <button key={section.id} type="button" aria-pressed={activeSection === section.id}
+                onClick={() => changeSection(section.id)} data-testid={`agents-nav-${section.id}`}
+                className={`flex-1 rounded-lg px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${activeSection === section.id ? "bg-emerald-500/15 text-emerald-300" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}>
+                {section.label}
+              </button>
+            ))}
+          </div>
+        </nav>
+
         {agentAiColumnStatus && (
           <div
             className={cn(
@@ -616,6 +648,7 @@ export default function AgentsPage() {
           </div>
         )}
 
+        <div hidden={!["agents", "performance", "costs"].includes(activeSection)}>
         <div className="mb-5 rounded-2xl border border-slate-700/30 bg-slate-800/30 backdrop-blur-xl p-4">
           <div className="flex flex-wrap items-end gap-3">
             <div>
@@ -685,6 +718,9 @@ export default function AgentsPage() {
           </p>
         </div>
 
+        </div>
+
+        <section hidden={activeSection !== "costs"} aria-label="Costos" data-testid="agents-section-costs">
         <div className="mb-5 rounded-2xl border border-slate-700/30 bg-slate-800/30 backdrop-blur-xl p-4">
           <div className="mb-3">
             <h3 className="text-sm font-semibold text-white">Costo por agente (base: Chats con inbound)</h3>
@@ -769,6 +805,9 @@ export default function AgentsPage() {
           </div>
         </div>
 
+        </section>
+
+        <section hidden={activeSection !== "routing"} aria-label="Anuncios" data-testid="agents-section-routing">
         <div className="mb-5 rounded-2xl border border-slate-700/30 bg-slate-800/30 backdrop-blur-xl p-4">
           <div className="mb-3">
             <h3 className="text-sm font-semibold text-white">Asignacion por anuncio (ad_id)</h3>
@@ -969,6 +1008,9 @@ export default function AgentsPage() {
           </div>
         </div>
 
+        </section>
+
+        <section hidden={activeSection !== "permissions"} aria-label="Permisos" data-testid="agents-section-permissions">
         <div className="mb-5 rounded-2xl border border-slate-700/30 bg-slate-800/30 backdrop-blur-xl p-4">
           <div className="mb-3">
             <h3 className="text-sm font-semibold text-white">Permisos de Analytics entre agentes</h3>
@@ -1099,6 +1141,9 @@ export default function AgentsPage() {
           )}
         </div>
 
+        </section>
+
+        <section hidden={activeSection !== "performance"} aria-label="Rendimiento" data-testid="agents-section-performance">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
           <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3">
             <p className="text-[11px] uppercase tracking-wide text-emerald-300">Agentes activos</p>
@@ -1114,6 +1159,78 @@ export default function AgentsPage() {
           </div>
         </div>
 
+        {activeSection === "performance" && (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="bg-slate-800/30 backdrop-blur-xl rounded-2xl border border-slate-700/30 shadow-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp className="h-4 w-4 text-emerald-400" />
+                  <h3 className="text-sm font-semibold text-white">Mensajes por agente</h3>
+                </div>
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={performanceData} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
+                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        cursor={{ fill: "rgba(16,185,129,0.08)" }}
+                        contentStyle={{
+                          background: "rgba(15,23,42,0.95)",
+                          border: "1px solid rgba(148,163,184,0.25)",
+                          borderRadius: "12px",
+                          color: "#e2e8f0",
+                        }}
+                      />
+                      <Bar dataKey="mensajes" radius={[8, 8, 0, 0]} fill="#10b981" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-slate-800/30 backdrop-blur-xl rounded-2xl border border-slate-700/30 shadow-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="h-4 w-4 text-cyan-400" />
+                  <h3 className="text-sm font-semibold text-white">Distribucion de chats (activos)</h3>
+                </div>
+                <div className="h-56">
+                  {distributionData.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-sm text-slate-500">
+                      Sin chats asignados aun
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={distributionData}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={58}
+                          outerRadius={82}
+                          paddingAngle={2}
+                        >
+                          {distributionData.map((entry, index) => (
+                            <Cell key={`${entry.name}-${index}`} fill={pieColors[index % pieColors.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            background: "rgba(15,23,42,0.95)",
+                            border: "1px solid rgba(148,163,184,0.25)",
+                            borderRadius: "12px",
+                            color: "#e2e8f0",
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+            </div>
+
+        )}
+        </section>
+
+        <section hidden={activeSection !== "agents"} aria-label="Agentes" data-testid="agents-section-agents">
         {!showForm ? (
           <Button
             onClick={() => setShowForm(true)}
@@ -1215,73 +1332,6 @@ export default function AgentsPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-              <div className="bg-slate-800/30 backdrop-blur-xl rounded-2xl border border-slate-700/30 shadow-xl p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <TrendingUp className="h-4 w-4 text-emerald-400" />
-                  <h3 className="text-sm font-semibold text-white">Mensajes por agente</h3>
-                </div>
-                <div className="h-56">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={performanceData} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
-                      <Tooltip
-                        cursor={{ fill: "rgba(16,185,129,0.08)" }}
-                        contentStyle={{
-                          background: "rgba(15,23,42,0.95)",
-                          border: "1px solid rgba(148,163,184,0.25)",
-                          borderRadius: "12px",
-                          color: "#e2e8f0",
-                        }}
-                      />
-                      <Bar dataKey="mensajes" radius={[8, 8, 0, 0]} fill="#10b981" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              <div className="bg-slate-800/30 backdrop-blur-xl rounded-2xl border border-slate-700/30 shadow-xl p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Users className="h-4 w-4 text-cyan-400" />
-                  <h3 className="text-sm font-semibold text-white">Distribucion de chats (activos)</h3>
-                </div>
-                <div className="h-56">
-                  {distributionData.length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-sm text-slate-500">
-                      Sin chats asignados aun
-                    </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={distributionData}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={58}
-                          outerRadius={82}
-                          paddingAngle={2}
-                        >
-                          {distributionData.map((entry, index) => (
-                            <Cell key={`${entry.name}-${index}`} fill={pieColors[index % pieColors.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          contentStyle={{
-                            background: "rgba(15,23,42,0.95)",
-                            border: "1px solid rgba(148,163,184,0.25)",
-                            borderRadius: "12px",
-                            color: "#e2e8f0",
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              </div>
-            </div>
-
             {activeAgents.length > 0 && (
               <div className="bg-slate-800/30 backdrop-blur-xl rounded-2xl border border-slate-700/30 shadow-xl shadow-emerald-500/10 overflow-hidden">
                 <div className="bg-gradient-to-r from-emerald-600/80 to-teal-600/80 px-4 py-3 relative overflow-hidden">
@@ -1369,6 +1419,8 @@ export default function AgentsPage() {
             )}
           </div>
         )}
+        </section>
+
       </div>
     </div>
   );
