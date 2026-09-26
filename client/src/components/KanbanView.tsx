@@ -8,6 +8,7 @@ import { Phone, PhoneOff, Clock, AlertCircle, Truck, CheckCircle, Check, Zap, Ar
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -761,6 +762,9 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
   const queryClient = useQueryClient();
   const [activeId, setActiveId] = useState<number | null>(null);
   const [activeColumn, setActiveColumn] = useState<TabType | null>(null);
+  const [rangeDialogOpen, setRangeDialogOpen] = useState(false);
+  const [rangeFromDraft, setRangeFromDraft] = useState("");
+  const [rangeToDraft, setRangeToDraft] = useState("");
   const [readStateByConversation, setReadStateByConversation] = useState<Record<number, number>>({});
   const [assignmentSeenStateByConversation, setAssignmentSeenStateByConversation] = useState<Record<number, number>>(() => readAssignmentSeenState());
   const [mobileTab, setMobileTab] = useState<TabType>("nuevo");
@@ -1380,9 +1384,9 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
             <DropdownMenuItem
               onClick={() => {
                 const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
-                const from = dateFilter.mode === "range" ? dateFilter.from : today;
-                const to = dateFilter.mode === "range" ? dateFilter.to : today;
-                onDateFilterChange({ mode: "range", from, to });
+                setRangeFromDraft(dateFilter.mode === "range" ? dateFilter.from : today);
+                setRangeToDraft(dateFilter.mode === "range" ? dateFilter.to : today);
+                setRangeDialogOpen(true);
               }}
               data-testid="filter-dates-range"
               className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"
@@ -1394,25 +1398,55 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        {dateFilter.mode === "range" && (
-          <div className="hidden md:flex items-center gap-1" data-testid="date-range-inputs">
-            <input
-              type="date"
-              value={dateFilter.from}
-              onChange={(e) => onDateFilterChange({ mode: "range", from: e.target.value, to: dateFilter.to })}
-              className="h-9 rounded-md border border-slate-600/70 bg-slate-800/70 px-2 text-xs text-slate-200"
-              data-testid="input-date-from"
-            />
-            <span className="text-slate-400 text-xs">a</span>
-            <input
-              type="date"
-              value={dateFilter.to}
-              onChange={(e) => onDateFilterChange({ mode: "range", from: dateFilter.from, to: e.target.value })}
-              className="h-9 rounded-md border border-slate-600/70 bg-slate-800/70 px-2 text-xs text-slate-200"
-              data-testid="input-date-to"
-            />
-          </div>
-        )}
+        <Dialog open={rangeDialogOpen} onOpenChange={setRangeDialogOpen}>
+          <DialogContent className="sm:max-w-md border-slate-700 bg-slate-900 text-slate-100">
+            <DialogHeader>
+              <DialogTitle>Rango de fechas</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-1 gap-3 py-2">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Desde</label>
+                <Input
+                  type="date"
+                  value={rangeFromDraft}
+                  onChange={(e) => setRangeFromDraft(e.target.value)}
+                  className="h-9 bg-slate-800/70 border-slate-700/60 text-white"
+                  data-testid="input-range-from"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Hasta</label>
+                <Input
+                  type="date"
+                  value={rangeToDraft}
+                  onChange={(e) => setRangeToDraft(e.target.value)}
+                  className="h-9 bg-slate-800/70 border-slate-700/60 text-white"
+                  data-testid="input-range-to"
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                className="border-slate-600 text-slate-200"
+                onClick={() => setRangeDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="bg-gradient-to-r from-emerald-600 to-cyan-600 border-0"
+                onClick={() => {
+                  if (!rangeFromDraft && !rangeToDraft) return;
+                  onDateFilterChange({ mode: "range", from: rangeFromDraft, to: rangeToDraft });
+                  setRangeDialogOpen(false);
+                }}
+                data-testid="button-apply-range"
+              >
+                Aplicar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         {isAdmin ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1647,21 +1681,14 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
             })}
             <DropdownMenuItem onClick={() => {
               const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
-              const from = dateFilter.mode === "range" ? dateFilter.from : today;
-              const to = dateFilter.mode === "range" ? dateFilter.to : today;
-              onDateFilterChange({ mode: "range", from, to });
+              setRangeFromDraft(dateFilter.mode === "range" ? dateFilter.from : today);
+              setRangeToDraft(dateFilter.mode === "range" ? dateFilter.to : today);
+              setRangeDialogOpen(true);
             }} data-testid="filter-dates-range-mobile" className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100">
               <span className={cn("mr-2 inline-flex", dateFilter.mode === "range" ? "text-cyan-400" : "text-transparent")}><Check className="h-3.5 w-3.5" /></span>Rango personalizado...
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        {dateFilter.mode === "range" && (
-          <div className="flex md:hidden items-center gap-1" data-testid="date-range-inputs-mobile">
-            <input type="date" value={dateFilter.from} onChange={(e) => onDateFilterChange({ mode: "range", from: e.target.value, to: dateFilter.to })} className="h-9 rounded-md border border-slate-600/70 bg-slate-800/70 px-2 text-xs text-slate-200" />
-            <span className="text-slate-400 text-xs">a</span>
-            <input type="date" value={dateFilter.to} onChange={(e) => onDateFilterChange({ mode: "range", from: dateFilter.from, to: e.target.value })} className="h-9 rounded-md border border-slate-600/70 bg-slate-800/70 px-2 text-xs text-slate-200" />
-          </div>
-        )}
         {isAdmin ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
