@@ -19,17 +19,28 @@ interface AgentStat {
   inbound_new_chats?: number;
   assigned_in_chats?: number;
   inbound_chats: number;
+  total_tokens?: number;
   openai_tokens?: number;
+  deepseek_tokens?: number;
+  muse_tokens?: number;
+  groq_tokens?: number;
+  gemini_tokens?: number;
   unit_cost_bs?: number | null;
   official_rate_bs?: number | null;
   parallel_rate_bs?: number | null;
   openai_usd_per_1k_tokens?: number | null;
+  deepseek_usd_per_1k_tokens?: number | null;
+  muse_usd_per_1k_tokens?: number | null;
   elevenlabs_bs_per_audio?: number | null;
   base_cost_bs?: number | null;
   usd_cost?: number | null;
   parallel_cost_bs?: number | null;
   openai_cost_usd?: number | null;
   openai_parallel_cost_bs?: number | null;
+  deepseek_cost_usd?: number | null;
+  muse_cost_usd?: number | null;
+  ai_cost_usd?: number | null;
+  ai_parallel_cost_bs?: number | null;
   elevenlabs_cost_bs?: number | null;
   total_estimated_parallel_cost_bs?: number | null;
 }
@@ -40,6 +51,8 @@ interface DailyCostSetting {
   officialRateBs: number;
   parallelRateBs: number;
   openaiUsdPer1kTokens?: number | null;
+  deepseekUsdPer1kTokens?: number | null;
+  museUsdPer1kTokens?: number | null;
   elevenlabsBsPerAudio?: number | null;
   updatedAt?: string | null;
 }
@@ -105,6 +118,8 @@ export default function AnalyticsPage() {
   const [officialRateInput, setOfficialRateInput] = useState("");
   const [parallelRateInput, setParallelRateInput] = useState("");
   const [openaiUsdPer1kInput, setOpenaiUsdPer1kInput] = useState("");
+  const [deepseekUsdPer1kInput, setDeepseekUsdPer1kInput] = useState("");
+  const [museUsdPer1kInput, setMuseUsdPer1kInput] = useState("");
   const [elevenlabsBsPerAudioInput, setElevenlabsBsPerAudioInput] = useState("");
   const [exportChatLimit, setExportChatLimit] = useState("300");
   const [selectedAgentIds, setSelectedAgentIds] = useState<number[]>([]);
@@ -188,6 +203,8 @@ export default function AnalyticsPage() {
       setOfficialRateInput("");
       setParallelRateInput("");
       setOpenaiUsdPer1kInput("");
+      setDeepseekUsdPer1kInput("");
+      setMuseUsdPer1kInput("");
       setElevenlabsBsPerAudioInput("");
       return;
     }
@@ -195,6 +212,8 @@ export default function AnalyticsPage() {
     setOfficialRateInput(String(row.officialRateBs));
     setParallelRateInput(String(row.parallelRateBs));
     setOpenaiUsdPer1kInput(row.openaiUsdPer1kTokens == null ? "" : String(row.openaiUsdPer1kTokens));
+    setDeepseekUsdPer1kInput(row.deepseekUsdPer1kTokens == null ? "" : String(row.deepseekUsdPer1kTokens));
+    setMuseUsdPer1kInput(row.museUsdPer1kTokens == null ? "" : String(row.museUsdPer1kTokens));
     setElevenlabsBsPerAudioInput(row.elevenlabsBsPerAudio == null ? "" : String(row.elevenlabsBsPerAudio));
   }, [costSettingsForDate, isAdmin]);
 
@@ -204,6 +223,8 @@ export default function AnalyticsPage() {
       const officialRateBs = Number(normalizeDecimalInput(officialRateInput));
       const parallelRateBs = Number(normalizeDecimalInput(parallelRateInput));
       const openaiUsdPer1kTokens = parseOptionalDecimalInput(openaiUsdPer1kInput);
+      const deepseekUsdPer1kTokens = parseOptionalDecimalInput(deepseekUsdPer1kInput);
+      const museUsdPer1kTokens = parseOptionalDecimalInput(museUsdPer1kInput);
       const elevenlabsBsPerAudio = parseOptionalDecimalInput(elevenlabsBsPerAudioInput);
 
       if (!Number.isFinite(unitCostBs) || unitCostBs <= 0) {
@@ -225,6 +246,8 @@ export default function AnalyticsPage() {
           officialRateBs,
           parallelRateBs,
           openaiUsdPer1kTokens,
+          deepseekUsdPer1kTokens,
+          museUsdPer1kTokens,
           elevenlabsBsPerAudio,
         }),
       });
@@ -706,6 +729,24 @@ export default function AnalyticsPage() {
                   value={openaiUsdPer1kInput}
                   onChange={(e) => setOpenaiUsdPer1kInput(e.target.value)}
                   placeholder="Opcional. Ej. 0.15"
+                  className="h-9 bg-slate-900/80 border-slate-700/60 text-white"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">DeepSeek USD por 1k tokens</label>
+                <Input
+                  value={deepseekUsdPer1kInput}
+                  onChange={(e) => setDeepseekUsdPer1kInput(e.target.value)}
+                  placeholder="Opcional. Ej. 0.0003"
+                  className="h-9 bg-slate-900/80 border-slate-700/60 text-white"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Muse (Meta) USD por 1k tokens</label>
+                <Input
+                  value={museUsdPer1kInput}
+                  onChange={(e) => setMuseUsdPer1kInput(e.target.value)}
+                  placeholder="Opcional. Ej. 0.0001"
                   className="h-9 bg-slate-900/80 border-slate-700/60 text-white"
                 />
               </div>

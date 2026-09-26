@@ -106,6 +106,12 @@ interface AgentDailyStat {
   outgoing: number;
   inbound_new_chats: number;
   assigned_in_chats: number;
+  total_tokens?: number;
+  openai_tokens?: number;
+  deepseek_tokens?: number;
+  muse_tokens?: number;
+  ai_cost_usd?: number | null;
+  ai_parallel_cost_bs?: number | null;
 }
 
 const glowAnimation = `
@@ -612,7 +618,7 @@ export default function AgentsPage() {
     .filter((item) => item.value > 0);
 
   const dailyRows = [...agentDailyStats]
-    .filter((row) => Number(row.incoming || 0) > 0 || Number(row.outgoing || 0) > 0 || Number(row.inbound_new_chats || 0) > 0 || Number(row.assigned_in_chats || 0) > 0)
+    .filter((row) => Number(row.incoming || 0) > 0 || Number(row.outgoing || 0) > 0 || Number(row.inbound_new_chats || 0) > 0 || Number(row.assigned_in_chats || 0) > 0 || Number(row.total_tokens || 0) > 0)
     .sort((a, b) => (a.date === b.date ? a.agent_name.localeCompare(b.agent_name) : a.date < b.date ? 1 : -1));
 
   const dailyTotals = dailyRows.reduce(
@@ -621,8 +627,10 @@ export default function AgentsPage() {
       outgoing: acc.outgoing + Number(row.outgoing || 0),
       inboundNewChats: acc.inboundNewChats + Number(row.inbound_new_chats || 0),
       assignedInChats: acc.assignedInChats + Number(row.assigned_in_chats || 0),
+      tokens: acc.tokens + Number(row.total_tokens || 0),
+      aiCostBs: acc.aiCostBs + Number(row.ai_parallel_cost_bs || 0),
     }),
-    { incoming: 0, outgoing: 0, inboundNewChats: 0, assignedInChats: 0 },
+    { incoming: 0, outgoing: 0, inboundNewChats: 0, assignedInChats: 0, tokens: 0, aiCostBs: 0 },
   );
 
   const pieColors = ["#10b981", "#06b6d4", "#0ea5e9", "#22d3ee", "#14b8a6", "#0891b2"];
@@ -1276,7 +1284,7 @@ export default function AgentsPage() {
                 </div>
                 {dailyRows.length > 0 && (
                   <span className="text-[11px] text-slate-400">
-                    Recibidos {dailyTotals.incoming} · Enviados {dailyTotals.outgoing} · Nuevos {dailyTotals.inboundNewChats} · Asignados {dailyTotals.assignedInChats}
+                    Recibidos {dailyTotals.incoming} · Enviados {dailyTotals.outgoing} · Nuevos {dailyTotals.inboundNewChats} · Asignados {dailyTotals.assignedInChats} · Tokens {dailyTotals.tokens.toLocaleString("es-BO")} · Costo IA {dailyTotals.aiCostBs.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs
                   </span>
                 )}
               </div>
@@ -1293,6 +1301,8 @@ export default function AgentsPage() {
                         <th className="text-center py-2 px-2">Enviados</th>
                         <th className="text-center py-2 px-2">Chats nuevos</th>
                         <th className="text-center py-2 px-2">Asignados</th>
+                        <th className="text-center py-2 px-2">Tokens</th>
+                        <th className="text-center py-2 px-2">Costo IA (Bs)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1304,6 +1314,8 @@ export default function AgentsPage() {
                           <td className="py-2 px-2 text-center text-cyan-300">{Number(row.outgoing || 0)}</td>
                           <td className="py-2 px-2 text-center text-sky-300">{Number(row.inbound_new_chats || 0)}</td>
                           <td className="py-2 px-2 text-center text-blue-300">{Number(row.assigned_in_chats || 0)}</td>
+                          <td className="py-2 px-2 text-center text-fuchsia-300">{Number(row.total_tokens || 0).toLocaleString("es-BO")}</td>
+                          <td className="py-2 px-2 text-center text-amber-300">{row.ai_parallel_cost_bs == null ? "—" : Number(row.ai_parallel_cost_bs).toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         </tr>
                       ))}
                     </tbody>

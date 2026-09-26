@@ -214,6 +214,8 @@ interface DailyCostSetting {
   officialRateBs: number;
   parallelRateBs: number;
   openaiUsdPer1kTokens?: number | null;
+  deepseekUsdPer1kTokens?: number | null;
+  museUsdPer1kTokens?: number | null;
   elevenlabsBsPerAudio?: number | null;
   updatedAt?: string | Date | null;
 }
@@ -414,6 +416,14 @@ async function ensureDailyCostSettingsTableExists() {
     ALTER TABLE daily_cost_settings
     ADD COLUMN IF NOT EXISTS elevenlabs_bs_per_audio NUMERIC(12, 4)
   `);
+  await db.execute(sql`
+    ALTER TABLE daily_cost_settings
+    ADD COLUMN IF NOT EXISTS deepseek_usd_per_1k_tokens NUMERIC(12, 6)
+  `);
+  await db.execute(sql`
+    ALTER TABLE daily_cost_settings
+    ADD COLUMN IF NOT EXISTS muse_usd_per_1k_tokens NUMERIC(12, 6)
+  `);
   dailyCostSettingsTableEnsured = true;
 }
 
@@ -531,6 +541,8 @@ function mapDailyCostSettingRow(row: any): DailyCostSetting {
     officialRateBs: Number(row.official_rate_bs),
     parallelRateBs: Number(row.parallel_rate_bs),
     openaiUsdPer1kTokens: row.openai_usd_per_1k_tokens == null ? null : Number(row.openai_usd_per_1k_tokens),
+    deepseekUsdPer1kTokens: row.deepseek_usd_per_1k_tokens == null ? null : Number(row.deepseek_usd_per_1k_tokens),
+    museUsdPer1kTokens: row.muse_usd_per_1k_tokens == null ? null : Number(row.muse_usd_per_1k_tokens),
     elevenlabsBsPerAudio: row.elevenlabs_bs_per_audio == null ? null : Number(row.elevenlabs_bs_per_audio),
     updatedAt: row.updated_at ?? null,
   };
@@ -4723,6 +4735,8 @@ export async function registerRoutes(
     officialRateBs: z.coerce.number().positive(),
     parallelRateBs: z.coerce.number().positive(),
     openaiUsdPer1kTokens: z.union([z.coerce.number().nonnegative(), z.null()]).optional(),
+    deepseekUsdPer1kTokens: z.union([z.coerce.number().nonnegative(), z.null()]).optional(),
+    museUsdPer1kTokens: z.union([z.coerce.number().nonnegative(), z.null()]).optional(),
     elevenlabsBsPerAudio: z.union([z.coerce.number().nonnegative(), z.null()]).optional(),
   });
 
@@ -4743,7 +4757,7 @@ export async function registerRoutes(
       }
 
       const rows: any = await db.execute(sql`
-        SELECT date::text AS date, unit_cost_bs, official_rate_bs, parallel_rate_bs, openai_usd_per_1k_tokens, elevenlabs_bs_per_audio, updated_at
+        SELECT date::text AS date, unit_cost_bs, official_rate_bs, parallel_rate_bs, openai_usd_per_1k_tokens, deepseek_usd_per_1k_tokens, muse_usd_per_1k_tokens, elevenlabs_bs_per_audio, updated_at
         FROM daily_cost_settings
         WHERE 1 = 1
           ${!dateFrom && !dateTo ? sql`AND date >= ((NOW() AT TIME ZONE 'America/La_Paz')::date - INTERVAL '29 days')::date` : sql``}
@@ -4778,13 +4792,15 @@ export async function registerRoutes(
 
       const parsed = dailyCostSettingsUpdateSchema.parse(req.body);
       const updated: any = await db.execute(sql`
-        INSERT INTO daily_cost_settings (date, unit_cost_bs, official_rate_bs, parallel_rate_bs, openai_usd_per_1k_tokens, elevenlabs_bs_per_audio)
+        INSERT INTO daily_cost_settings (date, unit_cost_bs, official_rate_bs, parallel_rate_bs, openai_usd_per_1k_tokens, deepseek_usd_per_1k_tokens, muse_usd_per_1k_tokens, elevenlabs_bs_per_audio)
         VALUES (
           ${date}::date,
           ${parsed.unitCostBs},
           ${parsed.officialRateBs},
           ${parsed.parallelRateBs},
           ${parsed.openaiUsdPer1kTokens ?? null},
+          ${parsed.deepseekUsdPer1kTokens ?? null},
+          ${parsed.museUsdPer1kTokens ?? null},
           ${parsed.elevenlabsBsPerAudio ?? null}
         )
         ON CONFLICT (date)
@@ -4793,9 +4809,11 @@ export async function registerRoutes(
           official_rate_bs = EXCLUDED.official_rate_bs,
           parallel_rate_bs = EXCLUDED.parallel_rate_bs,
           openai_usd_per_1k_tokens = EXCLUDED.openai_usd_per_1k_tokens,
+          deepseek_usd_per_1k_tokens = EXCLUDED.deepseek_usd_per_1k_tokens,
+          muse_usd_per_1k_tokens = EXCLUDED.muse_usd_per_1k_tokens,
           elevenlabs_bs_per_audio = EXCLUDED.elevenlabs_bs_per_audio,
           updated_at = NOW()
-        RETURNING date::text AS date, unit_cost_bs, official_rate_bs, parallel_rate_bs, openai_usd_per_1k_tokens, elevenlabs_bs_per_audio, updated_at
+        RETURNING date::text AS date, unit_cost_bs, official_rate_bs, parallel_rate_bs, openai_usd_per_1k_tokens, deepseek_usd_per_1k_tokens, muse_usd_per_1k_tokens, elevenlabs_bs_per_audio, updated_at
       `);
       res.json(mapDailyCostSettingRow(updated.rows[0]));
     } catch (error: any) {
@@ -4984,12 +5002,37 @@ export async function registerRoutes(
             a.id AS agent_id,
             a.name AS agent_name,
             ${aiDayExpression} AS date,
+            COALESCE(SUM(al.tokens_used), 0) AS total_tokens,
             SUM(
               CASE
                 WHEN LOWER(COALESCE(al.ai_response, '')) LIKE '[openai]%' THEN COALESCE(al.tokens_used, 0)
                 ELSE 0
               END
-            ) AS openai_tokens
+            ) AS openai_tokens,
+            SUM(
+              CASE
+                WHEN LOWER(COALESCE(al.ai_response, '')) LIKE '[deepseek]%' THEN COALESCE(al.tokens_used, 0)
+                ELSE 0
+              END
+            ) AS deepseek_tokens,
+            SUM(
+              CASE
+                WHEN LOWER(COALESCE(al.ai_response, '')) LIKE '[muse]%' THEN COALESCE(al.tokens_used, 0)
+                ELSE 0
+              END
+            ) AS muse_tokens,
+            SUM(
+              CASE
+                WHEN LOWER(COALESCE(al.ai_response, '')) LIKE '[groq]%' THEN COALESCE(al.tokens_used, 0)
+                ELSE 0
+              END
+            ) AS groq_tokens,
+            SUM(
+              CASE
+                WHEN LOWER(COALESCE(al.ai_response, '')) LIKE '[gemini]%' THEN COALESCE(al.tokens_used, 0)
+                ELSE 0
+              END
+            ) AS gemini_tokens
           FROM ai_logs al
           JOIN conversations c ON al.conversation_id = c.id
           JOIN agents a ON c.assigned_agent_id = a.id
@@ -5032,7 +5075,12 @@ export async function registerRoutes(
             COALESCE(s.inbound_new_chats, 0) AS inbound_new_chats,
             COALESCE(ass.assigned_in_chats, 0) AS assigned_in_chats,
             COALESCE(s.inbound_new_chats, 0) + COALESCE(ass.assigned_in_chats, 0) AS inbound_chats,
-            COALESCE(ai.openai_tokens, 0) AS openai_tokens
+            COALESCE(ai.total_tokens, 0) AS total_tokens,
+            COALESCE(ai.openai_tokens, 0) AS openai_tokens,
+            COALESCE(ai.deepseek_tokens, 0) AS deepseek_tokens,
+            COALESCE(ai.muse_tokens, 0) AS muse_tokens,
+            COALESCE(ai.groq_tokens, 0) AS groq_tokens,
+            COALESCE(ai.gemini_tokens, 0) AS gemini_tokens
           FROM combined_keys k
           LEFT JOIN stats s
             ON s.agent_id = k.agent_id
@@ -5055,11 +5103,18 @@ export async function registerRoutes(
             c.inbound_new_chats,
             c.assigned_in_chats,
             c.inbound_chats,
+            c.total_tokens,
             c.openai_tokens,
+            c.deepseek_tokens,
+            c.muse_tokens,
+            c.groq_tokens,
+            c.gemini_tokens,
             dcs.unit_cost_bs,
             dcs.official_rate_bs,
             dcs.parallel_rate_bs,
             dcs.openai_usd_per_1k_tokens,
+            dcs.deepseek_usd_per_1k_tokens,
+            dcs.muse_usd_per_1k_tokens,
             dcs.elevenlabs_bs_per_audio,
             CASE
               WHEN dcs.unit_cost_bs IS NULL THEN NULL
@@ -5082,6 +5137,30 @@ export async function registerRoutes(
               ELSE ((c.openai_tokens::numeric / 1000.0) * dcs.openai_usd_per_1k_tokens) * dcs.parallel_rate_bs
             END AS openai_parallel_cost_bs,
             CASE
+              WHEN dcs.deepseek_usd_per_1k_tokens IS NULL THEN NULL
+              ELSE (c.deepseek_tokens::numeric / 1000.0) * dcs.deepseek_usd_per_1k_tokens
+            END AS deepseek_cost_usd,
+            CASE
+              WHEN dcs.muse_usd_per_1k_tokens IS NULL THEN NULL
+              ELSE (c.muse_tokens::numeric / 1000.0) * dcs.muse_usd_per_1k_tokens
+            END AS muse_cost_usd,
+            CASE
+              WHEN dcs.openai_usd_per_1k_tokens IS NULL AND dcs.deepseek_usd_per_1k_tokens IS NULL AND dcs.muse_usd_per_1k_tokens IS NULL THEN NULL
+              ELSE
+                COALESCE((c.openai_tokens::numeric / 1000.0) * dcs.openai_usd_per_1k_tokens, 0)
+                + COALESCE((c.deepseek_tokens::numeric / 1000.0) * dcs.deepseek_usd_per_1k_tokens, 0)
+                + COALESCE((c.muse_tokens::numeric / 1000.0) * dcs.muse_usd_per_1k_tokens, 0)
+            END AS ai_cost_usd,
+            CASE
+              WHEN dcs.parallel_rate_bs <= 0 THEN NULL
+              WHEN dcs.openai_usd_per_1k_tokens IS NULL AND dcs.deepseek_usd_per_1k_tokens IS NULL AND dcs.muse_usd_per_1k_tokens IS NULL THEN NULL
+              ELSE (
+                COALESCE((c.openai_tokens::numeric / 1000.0) * dcs.openai_usd_per_1k_tokens, 0)
+                + COALESCE((c.deepseek_tokens::numeric / 1000.0) * dcs.deepseek_usd_per_1k_tokens, 0)
+                + COALESCE((c.muse_tokens::numeric / 1000.0) * dcs.muse_usd_per_1k_tokens, 0)
+              ) * dcs.parallel_rate_bs
+            END AS ai_parallel_cost_bs,
+            CASE
               WHEN dcs.elevenlabs_bs_per_audio IS NULL THEN NULL
               ELSE c.outgoing_audios * dcs.elevenlabs_bs_per_audio
             END AS elevenlabs_cost_bs
@@ -5098,21 +5177,32 @@ export async function registerRoutes(
           s.inbound_new_chats,
           s.assigned_in_chats,
           s.inbound_chats,
+          s.total_tokens,
           s.openai_tokens,
+          s.deepseek_tokens,
+          s.muse_tokens,
+          s.groq_tokens,
+          s.gemini_tokens,
           s.unit_cost_bs,
           s.official_rate_bs,
           s.parallel_rate_bs,
           s.openai_usd_per_1k_tokens,
+          s.deepseek_usd_per_1k_tokens,
+          s.muse_usd_per_1k_tokens,
           s.elevenlabs_bs_per_audio,
           s.base_cost_bs,
           s.usd_cost,
           s.parallel_cost_bs,
           s.openai_cost_usd,
           s.openai_parallel_cost_bs,
+          s.deepseek_cost_usd,
+          s.muse_cost_usd,
+          s.ai_cost_usd,
+          s.ai_parallel_cost_bs,
           s.elevenlabs_cost_bs,
           CASE
-            WHEN s.parallel_cost_bs IS NULL AND s.openai_parallel_cost_bs IS NULL AND s.elevenlabs_cost_bs IS NULL THEN NULL
-            ELSE COALESCE(s.parallel_cost_bs, 0) + COALESCE(s.openai_parallel_cost_bs, 0) + COALESCE(s.elevenlabs_cost_bs, 0)
+            WHEN s.parallel_cost_bs IS NULL AND s.ai_parallel_cost_bs IS NULL AND s.elevenlabs_cost_bs IS NULL THEN NULL
+            ELSE COALESCE(s.parallel_cost_bs, 0) + COALESCE(s.ai_parallel_cost_bs, 0) + COALESCE(s.elevenlabs_cost_bs, 0)
           END AS total_estimated_parallel_cost_bs
         FROM scored s
         ORDER BY s.date DESC, s.agent_name
@@ -5128,17 +5218,28 @@ export async function registerRoutes(
         inbound_new_chats: Number(row.inbound_new_chats || 0),
         assigned_in_chats: Number(row.assigned_in_chats || 0),
         inbound_chats: Number(row.inbound_chats || 0),
+        total_tokens: Number(row.total_tokens || 0),
         openai_tokens: Number(row.openai_tokens || 0),
+        deepseek_tokens: Number(row.deepseek_tokens || 0),
+        muse_tokens: Number(row.muse_tokens || 0),
+        groq_tokens: Number(row.groq_tokens || 0),
+        gemini_tokens: Number(row.gemini_tokens || 0),
         unit_cost_bs: row.unit_cost_bs == null ? null : Number(row.unit_cost_bs),
         official_rate_bs: row.official_rate_bs == null ? null : Number(row.official_rate_bs),
         parallel_rate_bs: row.parallel_rate_bs == null ? null : Number(row.parallel_rate_bs),
         openai_usd_per_1k_tokens: row.openai_usd_per_1k_tokens == null ? null : Number(row.openai_usd_per_1k_tokens),
+        deepseek_usd_per_1k_tokens: row.deepseek_usd_per_1k_tokens == null ? null : Number(row.deepseek_usd_per_1k_tokens),
+        muse_usd_per_1k_tokens: row.muse_usd_per_1k_tokens == null ? null : Number(row.muse_usd_per_1k_tokens),
         elevenlabs_bs_per_audio: row.elevenlabs_bs_per_audio == null ? null : Number(row.elevenlabs_bs_per_audio),
         base_cost_bs: row.base_cost_bs == null ? null : Number(row.base_cost_bs),
         usd_cost: row.usd_cost == null ? null : Number(row.usd_cost),
         parallel_cost_bs: row.parallel_cost_bs == null ? null : Number(row.parallel_cost_bs),
         openai_cost_usd: row.openai_cost_usd == null ? null : Number(row.openai_cost_usd),
         openai_parallel_cost_bs: row.openai_parallel_cost_bs == null ? null : Number(row.openai_parallel_cost_bs),
+        deepseek_cost_usd: row.deepseek_cost_usd == null ? null : Number(row.deepseek_cost_usd),
+        muse_cost_usd: row.muse_cost_usd == null ? null : Number(row.muse_cost_usd),
+        ai_cost_usd: row.ai_cost_usd == null ? null : Number(row.ai_cost_usd),
+        ai_parallel_cost_bs: row.ai_parallel_cost_bs == null ? null : Number(row.ai_parallel_cost_bs),
         elevenlabs_cost_bs: row.elevenlabs_cost_bs == null ? null : Number(row.elevenlabs_cost_bs),
         total_estimated_parallel_cost_bs: row.total_estimated_parallel_cost_bs == null ? null : Number(row.total_estimated_parallel_cost_bs),
       }));
