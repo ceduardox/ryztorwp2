@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useConversation, useConversations } from "@/hooks/use-inbox";
 import { NotificationBell } from "@/components/NotificationBell";
-import { KanbanView } from "@/components/KanbanView";
+import { KanbanView, type KanbanDateFilter } from "@/components/KanbanView";
 import { SentHistoryModal } from "@/components/SentHistoryModal";
 import { Button } from "@/components/ui/button";
 import { LogOut, Bot, BotOff, ClipboardList, LayoutGrid, Sparkles, MessageSquare, Zap, Activity, BarChart3, Search, X, Users, Bell, Clock, EllipsisVertical, KeyRound, FileText, History } from "lucide-react";
@@ -29,7 +29,7 @@ export default function InboxPage() {
   const LOAD_MORE_STEP = 20;
   const MAX_SERVER_LIMIT = 5000;
   const { logout, user, isAdmin, isPrimaryAdmin } = useAuth();
-  const [daysToShow, setDaysToShow] = useState(0);
+  const [dateFilter, setDateFilter] = useState<KanbanDateFilter>({ mode: "today" });
   const [location, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleConversations, setVisibleConversations] = useState(INITIAL_VISIBLE_CONVERSATIONS);
@@ -67,14 +67,38 @@ export default function InboxPage() {
   );
 
   const filteredByRangeAndSearch = useMemo(() => {
-    const now = new Date();
-    const cutoff = daysToShow > 0
-      ? new Date(now.getTime() - daysToShow * 24 * 60 * 60 * 1000)
-      : null;
     const query = searchQuery.toLowerCase().trim();
     const merged = forcedConversation && !conversations.some((c) => c.id === forcedConversation.id)
       ? [forcedConversation, ...conversations]
       : conversations;
+
+    const laPazDateKey = (value: string | Date | null | undefined) => {
+      if (!value) return null;
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return null;
+      return d.toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
+    };
+    const now = new Date();
+    const todayKey = laPazDateKey(now);
+    const yesterdayKey = laPazDateKey(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+
+    const matchesDateFilter = (ts: string | Date | null | undefined) => {
+      if (dateFilter.mode === "all") return true;
+      const key = laPazDateKey(ts);
+      if (!key) return true;
+      if (dateFilter.mode === "today") return key === todayKey;
+      if (dateFilter.mode === "yesterday") return key === yesterdayKey;
+      if (dateFilter.mode === "range") {
+        if (dateFilter.from && key < dateFilter.from) return false;
+        if (dateFilter.to && key > dateFilter.to) return false;
+        return true;
+      }
+      if (dateFilter.mode === "days") {
+        const cutoffKey = laPazDateKey(new Date(now.getTime() - dateFilter.days * 24 * 60 * 60 * 1000));
+        return cutoffKey ? key >= cutoffKey : true;
+      }
+      return true;
+    };
 
     const filtered = merged.filter((c) => {
       if (query) {
@@ -84,12 +108,12 @@ export default function InboxPage() {
         return nameMatch || messageMatch || phoneMatch;
       }
 
-      if (c.orderStatus === "pending" || c.orderStatus === "ready" || c.orderStatus === "delivered") {
+      // Listo y Entregado siempre visibles (no los afecta el filtro de fecha).
+      if (c.orderStatus === "ready" || c.orderStatus === "delivered") {
         return true;
       }
 
-      if (!cutoff || !c.lastMessageTimestamp) return true;
-      return new Date(c.lastMessageTimestamp) >= cutoff;
+      return matchesDateFilter(c.lastMessageTimestamp);
     });
 
     if (forcedConversation && !filtered.some((c) => c.id === forcedConversation.id)) {
@@ -97,7 +121,7 @@ export default function InboxPage() {
     }
 
     return filtered;
-  }, [conversations, daysToShow, searchQuery, forcedConversation]);
+  }, [conversations, dateFilter, searchQuery, forcedConversation]);
 
   const serverHasMoreConversations = conversations.length >= serverLimit;
   const hasHiddenColumnsByLimit = useMemo(() => {
@@ -142,7 +166,7 @@ export default function InboxPage() {
 
   useEffect(() => {
     setVisibleConversations(INITIAL_VISIBLE_CONVERSATIONS);
-  }, [daysToShow, searchQuery]);
+  }, [dateFilter, searchQuery]);
 
   const handleLoadMore = () => {
     setVisibleConversations((count) => count + LOAD_MORE_STEP);
@@ -262,8 +286,8 @@ export default function InboxPage() {
         <KanbanView
           conversations={filteredByRangeAndSearch}
           isLoading={loadingList}
-          daysToShow={daysToShow}
-          onDaysChange={setDaysToShow}
+          dateFilter={dateFilter}
+          onDateFilterChange={setDateFilter}
           onLoadMore={handleLoadMore}
           hasMoreConversations={hasMoreConversations}
           maxDays={maxDays}

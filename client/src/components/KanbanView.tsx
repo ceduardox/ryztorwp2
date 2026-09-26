@@ -47,11 +47,18 @@ const pulseAnimation = `
 .animate-scan-line { animation: scan-line 4s ease-in-out infinite; }
 `;
 
+export type KanbanDateFilter =
+  | { mode: "today" }
+  | { mode: "yesterday" }
+  | { mode: "days"; days: number }
+  | { mode: "range"; from: string; to: string }
+  | { mode: "all" };
+
 interface KanbanViewProps {
   conversations: Conversation[];
   isLoading: boolean;
-  daysToShow: number;
-  onDaysChange: (days: number) => void;
+  dateFilter: KanbanDateFilter;
+  onDateFilterChange: (filter: KanbanDateFilter) => void;
   onLoadMore: () => void;
   hasMoreConversations: boolean;
   maxDays: number;
@@ -747,7 +754,7 @@ const tabConfig: { key: TabType; label: string; shortLabel: string; icon: typeof
   { key: "entregado", label: "Enviados y Entregados", shortLabel: "Enviado", icon: Truck },
 ];
 
-export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange, onLoadMore, hasMoreConversations, maxDays, columnVisibleLimit, searchQuery, onSearchChange, onClearSearch }: KanbanViewProps) {
+export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterChange, onLoadMore, hasMoreConversations, maxDays, columnVisibleLimit, searchQuery, onSearchChange, onClearSearch }: KanbanViewProps) {
   const { isAdmin, isAgent, user } = useAuth();
   const canDragKanban = isAdmin || isAgent;
   const { toast } = useToast();
@@ -1337,27 +1344,75 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
               <Clock className="h-4 w-4 text-slate-300" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
+          <DropdownMenuContent align="start" className="w-56 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
             {[
-              { days: 0, label: "Todo el historial" },
-              { days: 7, label: "Ultimos 7 dias" },
-              { days: 14, label: "Ultimos 14 dias" },
-              { days: 30, label: "Ultimos 30 dias" },
-            ].map(({ days, label }) => (
-              <DropdownMenuItem
-                key={days}
-                onClick={() => onDaysChange(days)}
-                data-testid={`filter-days-${days}`}
-                className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"
-              >
-                <span className={cn("mr-2 inline-flex", daysToShow === days ? "text-cyan-400" : "text-transparent")}>
-                  <Check className="h-3.5 w-3.5" />
-                </span>
-                {label}
-              </DropdownMenuItem>
-            ))}
+              { key: "today", label: "Hoy" },
+              { key: "yesterday", label: "Ayer" },
+              { key: "7", label: "Ultimos 7 dias" },
+              { key: "14", label: "Ultimos 14 dias" },
+              { key: "30", label: "Ultimos 30 dias" },
+              { key: "all", label: "Todo el historial" },
+            ].map(({ key, label }) => {
+              const active =
+                (key === "today" && dateFilter.mode === "today") ||
+                (key === "yesterday" && dateFilter.mode === "yesterday") ||
+                (key === "all" && dateFilter.mode === "all") ||
+                (key !== "today" && key !== "yesterday" && key !== "all" && dateFilter.mode === "days" && dateFilter.days === Number(key));
+              return (
+                <DropdownMenuItem
+                  key={key}
+                  onClick={() => {
+                    if (key === "today") onDateFilterChange({ mode: "today" });
+                    else if (key === "yesterday") onDateFilterChange({ mode: "yesterday" });
+                    else if (key === "all") onDateFilterChange({ mode: "all" });
+                    else onDateFilterChange({ mode: "days", days: Number(key) });
+                  }}
+                  data-testid={`filter-dates-${key}`}
+                  className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"
+                >
+                  <span className={cn("mr-2 inline-flex", active ? "text-cyan-400" : "text-transparent")}>
+                    <Check className="h-3.5 w-3.5" />
+                  </span>
+                  {label}
+                </DropdownMenuItem>
+              );
+            })}
+            <DropdownMenuItem
+              onClick={() => {
+                const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
+                const from = dateFilter.mode === "range" ? dateFilter.from : today;
+                const to = dateFilter.mode === "range" ? dateFilter.to : today;
+                onDateFilterChange({ mode: "range", from, to });
+              }}
+              data-testid="filter-dates-range"
+              className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100"
+            >
+              <span className={cn("mr-2 inline-flex", dateFilter.mode === "range" ? "text-cyan-400" : "text-transparent")}>
+                <Check className="h-3.5 w-3.5" />
+              </span>
+              Rango personalizado...
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        {dateFilter.mode === "range" && (
+          <div className="hidden md:flex items-center gap-1" data-testid="date-range-inputs">
+            <input
+              type="date"
+              value={dateFilter.from}
+              onChange={(e) => onDateFilterChange({ mode: "range", from: e.target.value, to: dateFilter.to })}
+              className="h-9 rounded-md border border-slate-600/70 bg-slate-800/70 px-2 text-xs text-slate-200"
+              data-testid="input-date-from"
+            />
+            <span className="text-slate-400 text-xs">a</span>
+            <input
+              type="date"
+              value={dateFilter.to}
+              onChange={(e) => onDateFilterChange({ mode: "range", from: dateFilter.from, to: e.target.value })}
+              className="h-9 rounded-md border border-slate-600/70 bg-slate-800/70 px-2 text-xs text-slate-200"
+              data-testid="input-date-to"
+            />
+          </div>
+        )}
         {isAdmin ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1565,14 +1620,48 @@ export function KanbanView({ conversations, isLoading, daysToShow, onDaysChange,
               <Clock className="h-4 w-4 text-slate-300" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
-            {[{ days: 0, label: "Todo el historial" },{ days: 7, label: "Ultimos 7 dias" },{ days: 14, label: "Ultimos 14 dias" },{ days: 30, label: "Ultimos 30 dias" }].map(({ days, label }) => (
-              <DropdownMenuItem key={days} onClick={() => onDaysChange(days)} data-testid={`filter-days-${days}-mobile`} className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100">
-                <span className={cn("mr-2 inline-flex", daysToShow === days ? "text-cyan-400" : "text-transparent")}><Check className="h-3.5 w-3.5" /></span>{label}
-              </DropdownMenuItem>
-            ))}
+          <DropdownMenuContent align="start" className="w-56 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
+            {[
+              { key: "today", label: "Hoy" },
+              { key: "yesterday", label: "Ayer" },
+              { key: "7", label: "Ultimos 7 dias" },
+              { key: "14", label: "Ultimos 14 dias" },
+              { key: "30", label: "Ultimos 30 dias" },
+              { key: "all", label: "Todo el historial" },
+            ].map(({ key, label }) => {
+              const active =
+                (key === "today" && dateFilter.mode === "today") ||
+                (key === "yesterday" && dateFilter.mode === "yesterday") ||
+                (key === "all" && dateFilter.mode === "all") ||
+                (key !== "today" && key !== "yesterday" && key !== "all" && dateFilter.mode === "days" && dateFilter.days === Number(key));
+              return (
+                <DropdownMenuItem key={key} onClick={() => {
+                  if (key === "today") onDateFilterChange({ mode: "today" });
+                  else if (key === "yesterday") onDateFilterChange({ mode: "yesterday" });
+                  else if (key === "all") onDateFilterChange({ mode: "all" });
+                  else onDateFilterChange({ mode: "days", days: Number(key) });
+                }} data-testid={`filter-dates-${key}-mobile`} className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100">
+                  <span className={cn("mr-2 inline-flex", active ? "text-cyan-400" : "text-transparent")}><Check className="h-3.5 w-3.5" /></span>{label}
+                </DropdownMenuItem>
+              );
+            })}
+            <DropdownMenuItem onClick={() => {
+              const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
+              const from = dateFilter.mode === "range" ? dateFilter.from : today;
+              const to = dateFilter.mode === "range" ? dateFilter.to : today;
+              onDateFilterChange({ mode: "range", from, to });
+            }} data-testid="filter-dates-range-mobile" className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100">
+              <span className={cn("mr-2 inline-flex", dateFilter.mode === "range" ? "text-cyan-400" : "text-transparent")}><Check className="h-3.5 w-3.5" /></span>Rango personalizado...
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        {dateFilter.mode === "range" && (
+          <div className="flex md:hidden items-center gap-1" data-testid="date-range-inputs-mobile">
+            <input type="date" value={dateFilter.from} onChange={(e) => onDateFilterChange({ mode: "range", from: e.target.value, to: dateFilter.to })} className="h-9 rounded-md border border-slate-600/70 bg-slate-800/70 px-2 text-xs text-slate-200" />
+            <span className="text-slate-400 text-xs">a</span>
+            <input type="date" value={dateFilter.to} onChange={(e) => onDateFilterChange({ mode: "range", from: dateFilter.from, to: e.target.value })} className="h-9 rounded-md border border-slate-600/70 bg-slate-800/70 px-2 text-xs text-slate-200" />
+          </div>
+        )}
         {isAdmin ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
