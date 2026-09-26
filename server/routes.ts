@@ -849,6 +849,16 @@ async function getAllowedAnalyticsAgentIdsForViewer(viewerAgentId: number): Prom
   return allowed;
 }
 
+// Un agente "supervisor" es el que tiene agentes visibles asignados (permiso de analytics).
+// Devuelve null para admin (ve todo) o la lista de agentes visibles para un agente.
+async function getAgentVisibleAgentIds(session: any): Promise<number[] | null> {
+  if (session?.role !== "agent") return null;
+  const own = Number(session.agentId);
+  if (!Number.isInteger(own) || own <= 0) return [];
+  const allowed = await getAllowedAnalyticsAgentIdsForViewer(own);
+  return Array.from(allowed);
+}
+
 function resolveAnalyticsDepositViewerAgentId(session: any, requestedViewerAgentId?: unknown): number | null {
   if (session?.role === "agent") {
     const ownAgentId = Number(session.agentId);
@@ -3964,14 +3974,21 @@ export async function registerRoutes(
     const searchRaw = typeof req.query.q === "string" ? req.query.q : undefined;
     const search = searchRaw?.trim() ? searchRaw.trim() : undefined;
 
-    const assignedAgentId = session.role === "agent"
-      ? Number(session.agentId)
-      : undefined;
+    const visibleAgentIds = await getAgentVisibleAgentIds(session);
+    const assignedAgentId =
+      Array.isArray(visibleAgentIds) && visibleAgentIds.length === 1
+        ? visibleAgentIds[0]
+        : undefined;
+    const assignedAgentIds =
+      Array.isArray(visibleAgentIds) && visibleAgentIds.length > 1
+        ? visibleAgentIds
+        : undefined;
 
     const page = await storage.getConversationsPage({
       limit,
       before,
       assignedAgentId,
+      assignedAgentIds,
       search,
     });
 
@@ -4030,7 +4047,8 @@ export async function registerRoutes(
     const id = parseInt(req.params.id as string);
     const conversation = await storage.getConversation(id);
     if (!conversation) return res.status(404).json({ message: "Conversation not found" });
-    if ((req.session as any).role === "agent" && conversation.assignedAgentId !== (req.session as any).agentId) {
+    const visibleAgentIds = await getAgentVisibleAgentIds(req.session as any);
+    if (Array.isArray(visibleAgentIds) && !visibleAgentIds.includes(Number(conversation.assignedAgentId))) {
       return res.status(403).json({ message: "Access denied" });
     }
     const messages = await storage.getMessages(id);
@@ -4231,7 +4249,8 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Conversation not found" });
       }
 
-      if ((req.session as any).role === "agent" && conversation.assignedAgentId !== (req.session as any).agentId) {
+      const visibleAgentIds = await getAgentVisibleAgentIds(req.session as any);
+      if (Array.isArray(visibleAgentIds) && !visibleAgentIds.includes(Number(conversation.assignedAgentId))) {
         return res.status(403).json({ message: "Access denied" });
       }
 
@@ -4573,9 +4592,11 @@ export async function registerRoutes(
   app.get("/api/labels", requireAuth, async (req, res) => {
     const allLabels = await storage.getLabels();
     const session = req.session as any;
-    if (session.role === "agent" && session.agentId) {
-      // Return own + shared/admin labels so existing conversation labels always render.
-      return res.json(allLabels.filter((l) => l.agentId === session.agentId || !l.agentId));
+    const visibleAgentIds = await getAgentVisibleAgentIds(session);
+    if (Array.isArray(visibleAgentIds)) {
+      const visibleSet = new Set(visibleAgentIds.map((n) => Number(n)));
+      // Propias + de agentes supervisados + compartidas/admin.
+      return res.json(allLabels.filter((l) => (l.agentId ? visibleSet.has(Number(l.agentId)) : true)));
     }
     // Admin receives all labels so assigned labels from agents render in kanban/chat.
     return res.json(allLabels);
@@ -5427,13 +5448,17 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Solo se permiten 2 etiquetas por conversacion" });
     }
 
+    const visibleAgentIds = await getAgentVisibleAgentIds(session);
+    const visibleLabelSet = Array.isArray(visibleAgentIds)
+      ? new Set(visibleAgentIds.map((n) => Number(n)))
+      : null;
     for (const labelId of parsedLabelIds) {
       const label = await storage.getLabel(labelId);
       if (!label) {
         return res.status(404).json({ message: "Label not found" });
       }
       const isOwner = session.role === "agent"
-        ? label.agentId === session.agentId
+        ? (label.agentId ? Boolean(visibleLabelSet?.has(Number(label.agentId))) : false)
         : !label.agentId;
       if (!isOwner) {
         return res.status(403).json({ message: "Forbidden label access" });

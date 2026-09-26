@@ -1013,9 +1013,9 @@ export default function AgentsPage() {
         <section hidden={activeSection !== "permissions"} aria-label="Permisos" data-testid="agents-section-permissions">
         <div className="mb-5 rounded-2xl border border-slate-700/30 bg-slate-800/30 backdrop-blur-xl p-4">
           <div className="mb-3">
-            <h3 className="text-sm font-semibold text-white">Permisos de Analytics entre agentes</h3>
+            <h3 className="text-sm font-semibold text-white">Supervisor de equipo (ver chats + analytics)</h3>
             <p className="text-xs text-slate-400">
-              Defina que agentes puede ver cada agente en la pagina de Analytics. Cada agente siempre mantiene acceso a sus propios datos.
+              Defina que agentes puede ver cada agente. El agente seleccionado se convierte en supervisor: vera los chats de esos agentes, podra responderlos y vera sus analytics. Cada agente siempre mantiene acceso a sus propios datos.
             </p>
           </div>
           {agents.length === 0 || !selectedAnalyticsViewer ? (

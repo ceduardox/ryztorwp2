@@ -53,6 +53,7 @@ export interface IStorage {
     limit?: number;
     before?: Date;
     assignedAgentId?: number;
+    assignedAgentIds?: number[];
     search?: string;
   }): Promise<Conversation[]>;
   getConversation(id: number): Promise<Conversation | undefined>;
@@ -349,19 +350,30 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     before?: Date;
     assignedAgentId?: number;
+    assignedAgentIds?: number[];
     search?: string;
   } = {}): Promise<Conversation[]> {
     await this.ensureConversationReminderColumns();
-    const { limit, before, assignedAgentId, search } = options;
+    const { limit, before, assignedAgentId, assignedAgentIds, search } = options;
     const safeLimit =
       typeof limit === "number"
         ? Math.max(1, Math.min(limit, 5000))
         : undefined;
 
+    const agentScopeIds = Array.isArray(assignedAgentIds)
+      ? assignedAgentIds.map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0)
+      : [];
+
+    const applyAgentFilter = (target: any[]) => {
+      if (agentScopeIds.length > 1) {
+        target.push(inArray(conversations.assignedAgentId, agentScopeIds));
+      } else if (typeof assignedAgentId === "number") {
+        target.push(eq(conversations.assignedAgentId, assignedAgentId));
+      }
+    };
+
     const filters: any[] = [];
-    if (typeof assignedAgentId === "number") {
-      filters.push(eq(conversations.assignedAgentId, assignedAgentId));
-    }
+    applyAgentFilter(filters);
     if (before) {
       filters.push(lt(conversations.updatedAt, before));
     }
@@ -370,9 +382,7 @@ export class DatabaseStorage implements IStorage {
 
       // 1. Get the IDs of the active conversations for the current page scope (limit & before)
       const baseFilters: any[] = [];
-      if (typeof assignedAgentId === "number") {
-        baseFilters.push(eq(conversations.assignedAgentId, assignedAgentId));
-      }
+      applyAgentFilter(baseFilters);
       if (before) {
         baseFilters.push(lt(conversations.updatedAt, before));
       }
