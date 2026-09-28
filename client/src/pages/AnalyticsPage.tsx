@@ -591,6 +591,33 @@ export default function AnalyticsPage() {
                 >
                   <Download className="h-4 w-4" /> Exportar chats
                 </Button>
+                <Button
+                  onClick={() => {
+                    const agentes = (isAllAgentsSelected
+                      ? availableAgents
+                      : availableAgents.filter((a) => selectedAgentIds.includes(a.id))
+                    ).map((a) => a.name);
+                    const payload = {
+                      generadoEn: new Date().toISOString(),
+                      rango: { dateFrom: appliedRange.dateFrom, dateTo: appliedRange.dateTo },
+                      agentes,
+                      filas: agentStatsFiltered,
+                    };
+                    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `analytics_${appliedRange.dateFrom}_${appliedRange.dateTo}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-500 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide shadow transition-all duration-200 hover:shadow-md cursor-pointer border-0"
+                  data-testid="button-download-analytics-json"
+                >
+                  <Download className="h-4 w-4" /> Descargar JSON
+                </Button>
               </div>
             )}
             <Link href="/analytics/calendar">
