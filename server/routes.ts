@@ -206,6 +206,15 @@ interface AdLeadRoutingRule {
   isActive: boolean;
   isExclusive: boolean;
   productRoute?: string | null;
+  promptId?: number | null;
+  updatedAt?: string | Date | null;
+}
+interface AdPrompt {
+  id: number;
+  name: string;
+  systemPrompt: string;
+  productId?: number | null;
+  isActive: boolean;
   updatedAt?: string | Date | null;
 }
 interface DailyCostSetting {
@@ -243,6 +252,8 @@ let productImageColumnsEnsured = false;
 let productImageStorageTableEnsured = false;
 let conversationLabelColumnsEnsured = false;
 let adLeadRoutingTableEnsured = false;
+let adPromptsTableEnsured = false;
+let conversationAdColumnsEnsured = false;
 let dailyCostSettingsTableEnsured = false;
 let analyticsViewPermissionsTableEnsured = false;
 let analyticsDepositsTableEnsured = false;
@@ -370,7 +381,34 @@ async function ensureAdLeadRoutingTableExists() {
     ALTER TABLE ad_lead_routing_rules
     ADD COLUMN IF NOT EXISTS product_route TEXT
   `);
+  await db.execute(sql`
+    ALTER TABLE ad_lead_routing_rules
+    ADD COLUMN IF NOT EXISTS prompt_id INTEGER
+  `);
   adLeadRoutingTableEnsured = true;
+}
+
+async function ensureAdPromptsTableExists() {
+  if (adPromptsTableEnsured) return;
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS ad_prompts (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      system_prompt TEXT NOT NULL DEFAULT '',
+      product_id INTEGER,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  adPromptsTableEnsured = true;
+}
+
+async function ensureConversationAdColumnsExist() {
+  if (conversationAdColumnsEnsured) return;
+  await db.execute(sql`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS ad_id TEXT`);
+  await db.execute(sql`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS system_prompt_snapshot TEXT`);
+  conversationAdColumnsEnsured = true;
 }
 
 let dailyReportsTableEnsured = false;
@@ -675,8 +713,25 @@ function mapAdLeadRoutingRow(row: any): AdLeadRoutingRule {
     isActive: Boolean(row.is_active),
     isExclusive: Boolean(row.is_exclusive),
     productRoute: normalizeAdProductRoute(row.product_route),
+    promptId: row.prompt_id == null ? null : Number(row.prompt_id),
     updatedAt: row.updated_at ?? null,
   };
+}
+
+function mapAdPromptRow(row: any): AdPrompt {
+  return {
+    id: Number(row.id),
+    name: String(row.name || ""),
+    systemPrompt: String(row.system_prompt || ""),
+    productId: row.product_id == null ? null : Number(row.product_id),
+    isActive: Boolean(row.is_active),
+    updatedAt: row.updated_at ?? null,
+  };
+}
+
+function normalizePromptId(raw: unknown): number | null {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
 }
 
 type DailyReport = {
@@ -731,7 +786,7 @@ function mapDailyReportRow(row: any): DailyReport {
 async function getAdLeadRoutingRules(): Promise<AdLeadRoutingRule[]> {
   await ensureAdLeadRoutingTableExists();
   const result: any = await db.execute(sql`
-    SELECT id, ad_id, agent_ids, is_active, is_exclusive, product_route, updated_at
+    SELECT id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, updated_at
     FROM ad_lead_routing_rules
     ORDER BY updated_at DESC, id DESC
   `);
@@ -755,7 +810,7 @@ async function getAdLeadRoutingRuleByAdId(adIdRaw: string): Promise<AdLeadRoutin
   const adId = normalizeAdId(adIdRaw);
   if (!adId) return null;
   const result: any = await db.execute(sql`
-    SELECT id, ad_id, agent_ids, is_active, is_exclusive, product_route, updated_at
+    SELECT id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, updated_at
     FROM ad_lead_routing_rules
     WHERE ad_id = ${adId}
     LIMIT 1
@@ -764,35 +819,38 @@ async function getAdLeadRoutingRuleByAdId(adIdRaw: string): Promise<AdLeadRoutin
   return row ? mapAdLeadRoutingRow(row) : null;
 }
 
-async function upsertAdLeadRoutingRule(input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null }): Promise<AdLeadRoutingRule> {
+async function upsertAdLeadRoutingRule(input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null; promptId?: number | null }): Promise<AdLeadRoutingRule> {
   await ensureAdLeadRoutingTableExists();
   const adId = normalizeAdId(input.adId);
   const agentIds = parseAgentIds(input.agentIds);
   const isActive = typeof input.isActive === "boolean" ? input.isActive : true;
   const isExclusive = typeof input.isExclusive === "boolean" ? input.isExclusive : true;
   const productRoute = normalizeAdProductRoute(input.productRoute);
+  const promptId = normalizePromptId(input.promptId);
   const result: any = await db.execute(sql`
-    INSERT INTO ad_lead_routing_rules (ad_id, agent_ids, is_active, is_exclusive, product_route)
-    VALUES (${adId}, ${agentIds.join(",")}, ${isActive}, ${isExclusive}, ${productRoute})
+    INSERT INTO ad_lead_routing_rules (ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id)
+    VALUES (${adId}, ${agentIds.join(",")}, ${isActive}, ${isExclusive}, ${productRoute}, ${promptId})
     ON CONFLICT (ad_id)
     DO UPDATE SET
       agent_ids = EXCLUDED.agent_ids,
       is_active = EXCLUDED.is_active,
       is_exclusive = EXCLUDED.is_exclusive,
       product_route = EXCLUDED.product_route,
+      prompt_id = EXCLUDED.prompt_id,
       updated_at = NOW()
-    RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, updated_at
+    RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, updated_at
   `);
   return mapAdLeadRoutingRow(result.rows[0]);
 }
 
-async function updateAdLeadRoutingRule(id: number, input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null }): Promise<AdLeadRoutingRule | null> {
+async function updateAdLeadRoutingRule(id: number, input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null; promptId?: number | null }): Promise<AdLeadRoutingRule | null> {
   await ensureAdLeadRoutingTableExists();
   const adId = normalizeAdId(input.adId);
   const agentIds = parseAgentIds(input.agentIds);
   const isActive = typeof input.isActive === "boolean" ? input.isActive : true;
   const isExclusive = typeof input.isExclusive === "boolean" ? input.isExclusive : true;
   const productRoute = normalizeAdProductRoute(input.productRoute);
+  const promptId = normalizePromptId(input.promptId);
   const result: any = await db.execute(sql`
     UPDATE ad_lead_routing_rules
     SET
@@ -801,9 +859,10 @@ async function updateAdLeadRoutingRule(id: number, input: { adId: string; agentI
       is_active = ${isActive},
       is_exclusive = ${isExclusive},
       product_route = ${productRoute},
+      prompt_id = ${promptId},
       updated_at = NOW()
     WHERE id = ${id}
-    RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, updated_at
+    RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, updated_at
   `);
   const row = result.rows?.[0];
   return row ? mapAdLeadRoutingRow(row) : null;
@@ -812,6 +871,85 @@ async function updateAdLeadRoutingRule(id: number, input: { adId: string; agentI
 async function deleteAdLeadRoutingRule(id: number): Promise<void> {
   await ensureAdLeadRoutingTableExists();
   await db.execute(sql`DELETE FROM ad_lead_routing_rules WHERE id = ${id}`);
+}
+
+async function getAdPrompts(): Promise<AdPrompt[]> {
+  await ensureAdPromptsTableExists();
+  const result: any = await db.execute(sql`
+    SELECT id, name, system_prompt, product_id, is_active, updated_at
+    FROM ad_prompts
+    ORDER BY updated_at DESC, id DESC
+  `);
+  return (result?.rows ?? []).map((row: any) => mapAdPromptRow(row));
+}
+
+async function getAdPromptById(idRaw: unknown): Promise<AdPrompt | null> {
+  await ensureAdPromptsTableExists();
+  const id = normalizePromptId(idRaw);
+  if (!id) return null;
+  const result: any = await db.execute(sql`
+    SELECT id, name, system_prompt, product_id, is_active, updated_at
+    FROM ad_prompts WHERE id = ${id} LIMIT 1
+  `);
+  const row = result?.rows?.[0];
+  return row ? mapAdPromptRow(row) : null;
+}
+
+async function createAdPrompt(input: { name: string; systemPrompt: string; productId?: number | null; isActive?: boolean }): Promise<AdPrompt> {
+  await ensureAdPromptsTableExists();
+  const result: any = await db.execute(sql`
+    INSERT INTO ad_prompts (name, system_prompt, product_id, is_active)
+    VALUES (${input.name}, ${input.systemPrompt}, ${normalizePromptId(input.productId)}, ${input.isActive !== false})
+    RETURNING id, name, system_prompt, product_id, is_active, updated_at
+  `);
+  return mapAdPromptRow(result.rows[0]);
+}
+
+async function updateAdPrompt(idRaw: unknown, input: { name?: string; systemPrompt?: string; productId?: number | null; isActive?: boolean }): Promise<AdPrompt | null> {
+  await ensureAdPromptsTableExists();
+  const id = normalizePromptId(idRaw);
+  if (!id) return null;
+  const current = await getAdPromptById(id);
+  if (!current) return null;
+  const name = typeof input.name === "string" ? input.name : current.name;
+  const systemPrompt = typeof input.systemPrompt === "string" ? input.systemPrompt : current.systemPrompt;
+  const productId = input.productId === undefined ? current.productId : normalizePromptId(input.productId);
+  const isActive = typeof input.isActive === "boolean" ? input.isActive : current.isActive;
+  const result: any = await db.execute(sql`
+    UPDATE ad_prompts
+    SET name = ${name}, system_prompt = ${systemPrompt}, product_id = ${productId}, is_active = ${isActive}, updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING id, name, system_prompt, product_id, is_active, updated_at
+  `);
+  const row = result.rows?.[0];
+  return row ? mapAdPromptRow(row) : null;
+}
+
+async function deleteAdPrompt(idRaw: unknown): Promise<void> {
+  await ensureAdPromptsTableExists();
+  const id = normalizePromptId(idRaw);
+  if (!id) return;
+  await db.execute(sql`UPDATE ad_lead_routing_rules SET prompt_id = NULL WHERE prompt_id = ${id}`);
+  await db.execute(sql`DELETE FROM ad_prompts WHERE id = ${id}`);
+}
+
+async function getConversationAdContext(conversationId: number): Promise<{ adId: string | null; promptSnapshot: string | null }> {
+  await ensureConversationAdColumnsExist();
+  const result: any = await db.execute(sql`
+    SELECT ad_id, system_prompt_snapshot FROM conversations WHERE id = ${conversationId} LIMIT 1
+  `);
+  const row = result?.rows?.[0];
+  return {
+    adId: row?.ad_id ? String(row.ad_id) : null,
+    promptSnapshot: row?.system_prompt_snapshot ? String(row.system_prompt_snapshot) : null,
+  };
+}
+
+async function setConversationAdSnapshot(conversationId: number, adId: string | null, promptSnapshot: string | null): Promise<void> {
+  await ensureConversationAdColumnsExist();
+  await db.execute(sql`
+    UPDATE conversations SET ad_id = ${adId}, system_prompt_snapshot = ${promptSnapshot} WHERE id = ${conversationId}
+  `);
 }
 
 async function getAnalyticsViewPermissions(): Promise<AnalyticsViewPermission[]> {
@@ -1598,7 +1736,11 @@ async function processAiResponse(data: BufferedMessage) {
     const fixedCommerceFlowEnabled = aiSettings?.learningMode !== true;
     const recentMessages = await storage.getMessages(conversationId);
 
-    const adRouteResponse = fixedCommerceFlowEnabled && !imageBase64ForAi && !wasAudioMessage
+    // Prompt por anuncio (snapshot): si existe, reemplaza al global y omite el menu fijo.
+    const adContext = await getConversationAdContext(conversationId);
+    const promptOverride = adContext.promptSnapshot || null;
+
+    const adRouteResponse = fixedCommerceFlowEnabled && !promptOverride && !imageBase64ForAi && !wasAudioMessage
       ? getAdProductRouteResponse(adProductRoute)
       : null;
     const hasOutboundHistory = recentMessages.slice(-10).some(message => message.direction === "out");
@@ -1761,7 +1903,7 @@ async function processAiResponse(data: BufferedMessage) {
       }
     }
 
-    const aiResult = await generateAiResponse(conversationId, messageForAi, recentMessages, imageBase64ForAi, advisorName);
+    const aiResult = await generateAiResponse(conversationId, messageForAi, recentMessages, imageBase64ForAi, advisorName, promptOverride);
 
     // Defensa: nunca mostrar un token [IMAGEN: ...] crudo al cliente.
     if (aiResult && aiResult.response) {
@@ -3415,9 +3557,20 @@ export async function registerRoutes(
                     console.log(
                       `[Auto-Assign][AdRule-Fallback] ad_id=${incomingAdId} no active mapped agents, fallback -> ${nextAgent.name} (id: ${nextAgent.id})`,
                     );
-                  } else {
-                    console.log(`[Auto-Assign] New conversation assigned to agent: ${nextAgent.name} (id: ${nextAgent.id})`);
+                } else {
+                  console.log(`[Auto-Assign] New conversation assigned to agent: ${nextAgent.name} (id: ${nextAgent.id})`);
+                }
+              }
+                if (conversation && incomingAdId) {
+                  let snapshot: string | null = null;
+                  const adPromptId = adRouting.rule?.promptId ?? null;
+                  if (adPromptId) {
+                    const adPrompt = await getAdPromptById(adPromptId);
+                    if (adPrompt && adPrompt.isActive !== false) {
+                      snapshot = adPrompt.systemPrompt || null;
+                    }
                   }
+                  await setConversationAdSnapshot(conversation.id, incomingAdId, snapshot);
                 }
               } else {
                 await storage.updateConversation(conversation.id, {
@@ -7212,6 +7365,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         isActive: z.boolean().optional(),
         isExclusive: z.boolean().optional(),
         productRoute: z.enum(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular"]).nullable().optional(),
+        promptId: z.number().int().positive().nullable().optional(),
       }).parse(req.body);
 
       const activeAgents = await storage.getActiveAgents();
@@ -7227,6 +7381,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         isActive: parsed.isActive,
         isExclusive: parsed.isExclusive,
         productRoute: parsed.productRoute,
+        promptId: parsed.promptId,
       });
       res.json(saved);
     } catch (error: any) {
@@ -7251,6 +7406,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         isActive: z.boolean().optional(),
         isExclusive: z.boolean().optional(),
         productRoute: z.enum(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular"]).nullable().optional(),
+        promptId: z.number().int().positive().nullable().optional(),
       }).parse(req.body);
 
       const activeAgents = await storage.getActiveAgents();
@@ -7266,6 +7422,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         isActive: parsed.isActive,
         isExclusive: parsed.isExclusive,
         productRoute: parsed.productRoute,
+        promptId: parsed.promptId,
       });
 
       if (!saved) {
@@ -7295,6 +7452,70 @@ Maximo 2 lineas. Se especifico y practico.`;
     } catch (error) {
       console.error("Error deleting ad routing rule:", error);
       res.status(500).json({ message: "Error deleting ad routing rule" });
+    }
+  });
+
+  app.get("/api/ad-prompts", requireAdmin, async (_req, res) => {
+    try {
+      const prompts = await getAdPrompts();
+      res.json(prompts);
+    } catch (error) {
+      console.error("Error fetching ad prompts:", error);
+      res.status(500).json({ message: "Error fetching ad prompts" });
+    }
+  });
+
+  app.post("/api/ad-prompts", requireAdmin, async (req, res) => {
+    try {
+      const parsed = z.object({
+        name: z.string().trim().min(1).max(120),
+        systemPrompt: z.string().max(40000),
+        productId: z.number().int().positive().nullable().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+      const created = await createAdPrompt({
+        name: parsed.name,
+        systemPrompt: parsed.systemPrompt,
+        productId: parsed.productId,
+        isActive: parsed.isActive,
+      });
+      res.json(created);
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: "Datos invalidos", errors: error.errors });
+      console.error("Error creating ad prompt:", error);
+      res.status(500).json({ message: "Error creating ad prompt" });
+    }
+  });
+
+  app.patch("/api/ad-prompts/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: "Invalid prompt id" });
+      const parsed = z.object({
+        name: z.string().trim().min(1).max(120).optional(),
+        systemPrompt: z.string().max(40000).optional(),
+        productId: z.number().int().positive().nullable().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+      const updated = await updateAdPrompt(id, parsed);
+      if (!updated) return res.status(404).json({ message: "Prompt not found" });
+      res.json(updated);
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: "Datos invalidos", errors: error.errors });
+      console.error("Error updating ad prompt:", error);
+      res.status(500).json({ message: "Error updating ad prompt" });
+    }
+  });
+
+  app.delete("/api/ad-prompts/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: "Invalid prompt id" });
+      await deleteAdPrompt(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting ad prompt:", error);
+      res.status(500).json({ message: "Error deleting ad prompt" });
     }
   });
 

@@ -315,6 +315,7 @@ export async function generateAiResponse(
   recentMessages: Message[],
   imageBase64?: string, // Optional: base64 encoded image for vision analysis
   advisorName?: string,
+  systemPromptOverride?: string | null,
 ): Promise<{ response: string; imageUrl?: string; tokensUsed: number; orderReady?: boolean; needsHuman?: boolean; shouldCall?: boolean } | null> {
   try {
     const [settings, allProducts, learnedRules] = await Promise.all([
@@ -387,7 +388,9 @@ export async function generateAiResponse(
 
     const resolvedAdvisorName = (advisorName || "").trim() || "Isabella";
     const promptTemplate = settings.systemPrompt || "Eres un asistente de ventas amigable.";
-    let instructions = promptTemplate
+    const overridePrompt = typeof systemPromptOverride === "string" ? systemPromptOverride.trim() : "";
+    const effectivePromptTemplate = overridePrompt || promptTemplate;
+    let instructions = effectivePromptTemplate
       .replace(/\{\{\s*AGENT_NAME\s*\}\}/gi, resolvedAdvisorName)
       .replace(/\{\{\s*NOMBRE_AGENTE\s*\}\}/gi, resolvedAdvisorName);
     // Backward-compatible safety: if old prompt hardcodes "Isabella", map it to the active advisor.

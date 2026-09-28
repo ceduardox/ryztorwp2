@@ -38,8 +38,17 @@ interface AdRoutingRule {
   isActive: boolean;
   isExclusive: boolean;
   productRoute: string | null;
+  promptId?: number | null;
   updatedAt?: string | null;
 }
+
+interface AdPromptItem {
+  id: number;
+  name: string;
+  isActive: boolean;
+}
+
+const NO_PROMPT = "__none__";
 
 interface AgentItem {
   id: number;
@@ -66,6 +75,7 @@ export function AdRoutingModal() {
   const [open, setOpen] = useState(false);
   const [adId, setAdId] = useState("");
   const [productRoute, setProductRoute] = useState("");
+  const [promptId, setPromptId] = useState<string>(NO_PROMPT);
   const [isActive, setIsActive] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -77,12 +87,17 @@ export function AdRoutingModal() {
     queryKey: ["/api/agents"],
     enabled: isAdmin && open,
   });
+  const { data: adPrompts = [] } = useQuery<AdPromptItem[]>({
+    queryKey: ["/api/ad-prompts"],
+    enabled: isAdmin && open,
+  });
 
   const activeAgentIds = agents.filter((a) => a.isActive !== false).map((a) => a.id);
 
   const resetForm = () => {
     setAdId("");
     setProductRoute("");
+    setPromptId(NO_PROMPT);
     setIsActive(true);
     setEditingId(null);
   };
@@ -97,6 +112,7 @@ export function AdRoutingModal() {
         agentIds: activeAgentIds,
         isActive,
         productRoute: productRoute || null,
+        promptId: promptId === NO_PROMPT ? null : Number(promptId),
       };
       return apiRequest(
         editingId ? "PATCH" : "PUT",
@@ -137,6 +153,7 @@ export function AdRoutingModal() {
     setEditingId(rule.id);
     setAdId(rule.adId);
     setProductRoute(rule.productRoute || "");
+    setPromptId(rule.promptId == null ? NO_PROMPT : String(rule.promptId));
     setIsActive(rule.isActive);
   };
 
@@ -168,6 +185,20 @@ export function AdRoutingModal() {
               </SelectContent>
             </Select>
           </div>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-slate-300">Prompt del anuncio (opcional)</Label>
+          <Select value={promptId} onValueChange={setPromptId}>
+            <SelectTrigger className="bg-slate-800/50 border-slate-600/50 text-white text-xs" data-testid="select-ad-prompt">
+              <SelectValue placeholder="Sin prompt (usa el global)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_PROMPT}>Sin prompt (usa el global)</SelectItem>
+              {adPrompts.filter((p) => p.isActive !== false).map((p) => (
+                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -223,7 +254,9 @@ export function AdRoutingModal() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-white">{rule.adId}</p>
                 <p className="text-xs text-slate-400">
-                  {getAdProductRouteLabel(rule.productRoute)} {rule.isActive ? "· Activo" : "· Inactivo"}
+                  {getAdProductRouteLabel(rule.productRoute)}
+                  {rule.promptId ? ` · ${adPrompts.find((p) => p.id === rule.promptId)?.name || "Prompt"}` : ""}
+                  {" "}{rule.isActive ? "· Activo" : "· Inactivo"}
                 </p>
               </div>
               <button

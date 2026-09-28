@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { Progress } from "@/components/ui/progress";
-import { AdRoutingModal } from "@/components/AdRoutingModal";import { 
+import { AdRoutingModal } from "@/components/AdRoutingModal";
+import { AdPromptsModal } from "@/components/AdPromptsModal";import { 
   ArrowLeft, 
   Bot, 
   Loader2,
@@ -1306,7 +1307,8 @@ export default function AIAgentPage() {
           </div>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          <AdPromptsModal />
           <AdRoutingModal />
         </div>
 
