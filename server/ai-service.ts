@@ -316,6 +316,7 @@ export async function generateAiResponse(
   imageBase64?: string, // Optional: base64 encoded image for vision analysis
   advisorName?: string,
   systemPromptOverride?: string | null,
+  forcedProductId?: number | null,
 ): Promise<{ response: string; imageUrl?: string; tokensUsed: number; orderReady?: boolean; needsHuman?: boolean; shouldCall?: boolean } | null> {
   try {
     const [settings, allProducts, learnedRules] = await Promise.all([
@@ -342,8 +343,18 @@ export async function generateAiResponse(
     
     let productContext = "";
     let productInContext: Product | null = null;
-    
-    if (matchingProducts.length > 0) {
+
+    if (forcedProductId != null) {
+      const forcedProduct = allProducts.find((p) => p.id === Number(forcedProductId));
+      if (forcedProduct) {
+        productContext = `${forcedProduct.name} - ${forcedProduct.price || "Consultar precio"}${forcedProduct.comboQty ? `\nCOMBO: ${forcedProduct.comboQty} por ${forcedProduct.comboPrice || "Consultar"}` : ""}\n${forcedProduct.description || ""}\n${getProductImageContext(forcedProduct)}`;
+        productInContext = forcedProduct;
+      }
+    }
+
+    if (productInContext) {
+      // Producto fijado por el prompt del anuncio: no sobreescribir con la heuristica.
+    } else if (matchingProducts.length > 0) {
       // User mentioned specific product(s) - include only those
       productContext = matchingProducts.map(p => 
         `${p.name} - ${p.price || "Consultar precio"}${p.comboQty ? `\nCOMBO: ${p.comboQty} por ${p.comboPrice || "Consultar"}` : ""}\n${p.description || ""}\n${getProductImageContext(p)}`

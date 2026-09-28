@@ -408,6 +408,7 @@ async function ensureConversationAdColumnsExist() {
   if (conversationAdColumnsEnsured) return;
   await db.execute(sql`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS ad_id TEXT`);
   await db.execute(sql`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS system_prompt_snapshot TEXT`);
+  await db.execute(sql`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS ad_prompt_product_id INTEGER`);
   conversationAdColumnsEnsured = true;
 }
 
@@ -933,22 +934,23 @@ async function deleteAdPrompt(idRaw: unknown): Promise<void> {
   await db.execute(sql`DELETE FROM ad_prompts WHERE id = ${id}`);
 }
 
-async function getConversationAdContext(conversationId: number): Promise<{ adId: string | null; promptSnapshot: string | null }> {
+async function getConversationAdContext(conversationId: number): Promise<{ adId: string | null; promptSnapshot: string | null; promptProductId: number | null }> {
   await ensureConversationAdColumnsExist();
   const result: any = await db.execute(sql`
-    SELECT ad_id, system_prompt_snapshot FROM conversations WHERE id = ${conversationId} LIMIT 1
+    SELECT ad_id, system_prompt_snapshot, ad_prompt_product_id FROM conversations WHERE id = ${conversationId} LIMIT 1
   `);
   const row = result?.rows?.[0];
   return {
     adId: row?.ad_id ? String(row.ad_id) : null,
     promptSnapshot: row?.system_prompt_snapshot ? String(row.system_prompt_snapshot) : null,
+    promptProductId: row?.ad_prompt_product_id == null ? null : Number(row.ad_prompt_product_id),
   };
 }
 
-async function setConversationAdSnapshot(conversationId: number, adId: string | null, promptSnapshot: string | null): Promise<void> {
+async function setConversationAdSnapshot(conversationId: number, adId: string | null, promptSnapshot: string | null, promptProductId: number | null): Promise<void> {
   await ensureConversationAdColumnsExist();
   await db.execute(sql`
-    UPDATE conversations SET ad_id = ${adId}, system_prompt_snapshot = ${promptSnapshot} WHERE id = ${conversationId}
+    UPDATE conversations SET ad_id = ${adId}, system_prompt_snapshot = ${promptSnapshot}, ad_prompt_product_id = ${promptProductId} WHERE id = ${conversationId}
   `);
 }
 
@@ -1739,6 +1741,7 @@ async function processAiResponse(data: BufferedMessage) {
     // Prompt por anuncio (snapshot): si existe, reemplaza al global y omite el menu fijo.
     const adContext = await getConversationAdContext(conversationId);
     const promptOverride = adContext.promptSnapshot || null;
+    const promptProductId = adContext.promptProductId ?? null;
 
     const adRouteResponse = fixedCommerceFlowEnabled && !promptOverride && !imageBase64ForAi && !wasAudioMessage
       ? getAdProductRouteResponse(adProductRoute)
@@ -1903,7 +1906,7 @@ async function processAiResponse(data: BufferedMessage) {
       }
     }
 
-    const aiResult = await generateAiResponse(conversationId, messageForAi, recentMessages, imageBase64ForAi, advisorName, promptOverride);
+    const aiResult = await generateAiResponse(conversationId, messageForAi, recentMessages, imageBase64ForAi, advisorName, promptOverride, promptProductId);
 
     // Defensa: nunca mostrar un token [IMAGEN: ...] crudo al cliente.
     if (aiResult && aiResult.response) {
@@ -3563,14 +3566,16 @@ export async function registerRoutes(
               }
                 if (conversation && incomingAdId) {
                   let snapshot: string | null = null;
+                  let snapshotProductId: number | null = null;
                   const adPromptId = adRouting.rule?.promptId ?? null;
                   if (adPromptId) {
                     const adPrompt = await getAdPromptById(adPromptId);
                     if (adPrompt && adPrompt.isActive !== false) {
                       snapshot = adPrompt.systemPrompt || null;
+                      snapshotProductId = adPrompt.productId ?? null;
                     }
                   }
-                  await setConversationAdSnapshot(conversation.id, incomingAdId, snapshot);
+                  await setConversationAdSnapshot(conversation.id, incomingAdId, snapshot, snapshotProductId);
                 }
               } else {
                 await storage.updateConversation(conversation.id, {
