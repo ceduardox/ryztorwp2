@@ -134,7 +134,7 @@ export function AdPromptsModal() {
             <SelectTrigger className="bg-slate-800/50 border-slate-600/50 text-white text-xs">
               <SelectValue placeholder="Sin producto" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-slate-900 border-slate-700 text-slate-100">
               <SelectItem value={NO_PRODUCT}>Sin producto</SelectItem>
               {products.map((p) => (
                 <SelectItem key={p.id} value={String(p.id)}>

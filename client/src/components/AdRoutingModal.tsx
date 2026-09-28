@@ -186,7 +186,7 @@ export function AdRoutingModal() {
               <SelectTrigger className="bg-slate-800/50 border-slate-600/50 text-white text-xs">
                 <SelectValue placeholder="Elegir..." />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-slate-900 border-slate-700 text-slate-100">
                 {AD_PRODUCT_ROUTE_OPTIONS.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     {o.label}
@@ -202,7 +202,7 @@ export function AdRoutingModal() {
             <SelectTrigger className="bg-slate-800/50 border-slate-600/50 text-white text-xs" data-testid="select-ad-prompt">
               <SelectValue placeholder="Sin prompt (usa el global)" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-slate-900 border-slate-700 text-slate-100">
               <SelectItem value={NO_PROMPT}>Sin prompt (usa el global)</SelectItem>
               <SelectItem value="profile:primary">Prompt principal</SelectItem>
               <SelectItem value="profile:secondary">Prompt alternativo</SelectItem>
