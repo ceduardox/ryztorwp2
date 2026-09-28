@@ -143,7 +143,7 @@ export default function RemindersPage() {
   const [editReminderNoteInput, setEditReminderNoteInput] = useState("");
   const [editReminderColorInput, setEditReminderColorInput] = useState(DEFAULT_REMINDER_COLOR);
 
-  const { data: conversations = [], isLoading, refetch } = useQuery<Conversation[]>({
+  const { data: conversations = [], isLoading, isFetching, refetch } = useQuery<Conversation[]>({
     queryKey: ["/api/conversations", "reminders-page"],
     queryFn: async () => {
       const res = await fetch("/api/conversations");
@@ -581,139 +581,218 @@ export default function RemindersPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 p-4">
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-center gap-3 mb-6 flex-wrap">
-          <Link href="/">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-slate-300 hover:text-white hover:bg-slate-800/70"
-              data-testid="button-back-reminders"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-bold tracking-tight">Recordatorios</h1>
-          <Link href="/follow-up">
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-slate-600/70 bg-slate-900/40 text-slate-100 hover:bg-slate-800/70"
-              data-testid="button-go-followup"
-            >
-              <ClipboardList className="h-4 w-4 mr-2" />
-              Seguimiento
-            </Button>
-          </Link>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-slate-300 hover:text-white hover:bg-slate-800/70"
-            onClick={() => refetch()}
-            data-testid="button-refresh-reminders-page"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          <div className="ml-auto flex items-center gap-2 flex-wrap">
-            <Button
-              variant={view === "list" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setView("list")}
-              className={cn(
-                view === "list"
-                  ? "bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-400"
-                  : "border-slate-600/70 bg-slate-900/40 text-slate-100 hover:bg-slate-800/70",
-              )}
-              data-testid="button-reminders-view-list"
-            >
-              <List className="h-4 w-4 mr-2" /> Lista
-            </Button>
-            <Button
-              variant={view === "calendar" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setView("calendar")}
-              className={cn(
-                view === "calendar"
-                  ? "bg-cyan-500 hover:bg-cyan-600 text-white border-cyan-400"
-                  : "border-slate-600/70 bg-slate-900/40 text-slate-100 hover:bg-slate-800/70",
-              )}
-              data-testid="button-reminders-view-calendar"
-            >
-              <CalendarDays className="h-4 w-4 mr-2" /> Calendario
-            </Button>
-            <Button
-              variant={view === "agenda" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setView("agenda")}
-              className={cn(
-                view === "agenda"
-                  ? "bg-violet-500 hover:bg-violet-600 text-white border-violet-400"
-                  : "border-slate-600/70 bg-slate-900/40 text-slate-100 hover:bg-slate-800/70",
-              )}
-              data-testid="button-reminders-view-agenda"
-            >
-              <Rows3 className="h-4 w-4 mr-2" /> Agenda
-            </Button>
+        {/* Header Superior: Título + Acciones + Selector de Vistas */}
+        <div className="mb-4 sm:mb-6 space-y-3">
+          {/* Fila 1: Título y Acciones principales */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Link href="/">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 rounded-xl bg-slate-800/60 hover:bg-slate-700/60 active:scale-95 border border-slate-700/40 text-slate-300 hover:text-white transition-all shadow-sm"
+                  data-testid="button-back-reminders"
+                  aria-label="Volver"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </Link>
+              <div className="flex items-center gap-2 min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white truncate">
+                  Recordatorios
+                </h1>
+                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  {reminderGroups.all.length}
+                </span>
+              </div>
+            </div>
+
+            {/* Acciones derecha: Seguimiento y Refrescar */}
+            <div className="flex items-center gap-2 shrink-0">
+              <Link href="/follow-up">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 rounded-xl border-slate-700/60 bg-slate-800/60 hover:bg-slate-700/70 text-slate-200 hover:text-white text-xs font-medium px-3 transition-all shadow-sm flex items-center gap-1.5"
+                  data-testid="button-go-followup"
+                >
+                  <ClipboardList className="h-3.5 w-3.5 text-slate-400" />
+                  <span>Seguimiento</span>
+                </Button>
+              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0 rounded-xl bg-slate-800/60 hover:bg-slate-700/60 active:scale-95 border border-slate-700/40 text-slate-300 hover:text-white transition-all shadow-sm"
+                onClick={() => refetch()}
+                data-testid="button-refresh-reminders-page"
+                title="Actualizar recordatorios"
+              >
+                <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin text-emerald-400")} />
+              </Button>
+            </div>
+          </div>
+
+          {/* Fila 2: Segmented Control para Vistas (Lista / Calendario / Agenda) */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="w-full sm:w-auto inline-flex p-1 rounded-xl bg-slate-900/90 border border-slate-800/90 shadow-inner">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setView("list")}
+                className={cn(
+                  "flex-1 sm:flex-initial h-8 px-3.5 rounded-lg text-xs font-semibold transition-all shadow-none select-none flex items-center justify-center gap-1.5",
+                  view === "list"
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60",
+                )}
+                data-testid="button-reminders-view-list"
+              >
+                <List className="h-3.5 w-3.5" />
+                <span>Lista</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setView("calendar")}
+                className={cn(
+                  "flex-1 sm:flex-initial h-8 px-3.5 rounded-lg text-xs font-semibold transition-all shadow-none select-none flex items-center justify-center gap-1.5",
+                  view === "calendar"
+                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60",
+                )}
+                data-testid="button-reminders-view-calendar"
+              >
+                <CalendarDays className="h-3.5 w-3.5" />
+                <span>Calendario</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setView("agenda")}
+                className={cn(
+                  "flex-1 sm:flex-initial h-8 px-3.5 rounded-lg text-xs font-semibold transition-all shadow-none select-none flex items-center justify-center gap-1.5",
+                  view === "agenda"
+                    ? "bg-violet-500/20 text-violet-300 border border-violet-500/40 shadow-sm"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60",
+                )}
+                data-testid="button-reminders-view-agenda"
+              >
+                <Rows3 className="h-3.5 w-3.5" />
+                <span>Agenda</span>
+              </Button>
+            </div>
           </div>
         </div>
 
-        <Card className="mb-5 border-slate-700/60 bg-slate-900/55 backdrop-blur-sm shadow-[0_10px_28px_rgba(2,6,23,.35)]">
-          <CardContent className="pt-4">
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant={filter === "all" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilter("all")}
-                className={cn(
-                  filter === "all"
-                    ? "bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-400"
-                    : "border-slate-600/70 bg-slate-900/30 text-slate-100 hover:bg-slate-800/70",
-                )}
-                data-testid="filter-reminders-all"
-              >
-                <Calendar className="h-4 w-4 mr-2" /> Todos ({reminderGroups.all.length})
-              </Button>
-              <Button
-                variant={filter === "overdue" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilter("overdue")}
-                className={cn(
-                  filter === "overdue"
-                    ? "bg-rose-500 hover:bg-rose-600 text-white border-rose-400"
-                    : "border-slate-600/70 bg-slate-900/30 text-slate-100 hover:bg-slate-800/70",
-                )}
-                data-testid="filter-reminders-overdue"
-              >
-                <AlertCircle className="h-4 w-4 mr-2" /> Vencidos ({reminderGroups.overdue.length})
-              </Button>
-              <Button
-                variant={filter === "today" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilter("today")}
-                className={cn(
-                  filter === "today"
-                    ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-400"
-                    : "border-slate-600/70 bg-slate-900/30 text-slate-100 hover:bg-slate-800/70",
-                )}
-                data-testid="filter-reminders-today"
-              >
-                <Clock className="h-4 w-4 mr-2" /> Hoy ({reminderGroups.today.length})
-              </Button>
-              <Button
-                variant={filter === "upcoming" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilter("upcoming")}
-                className={cn(
-                  filter === "upcoming"
-                    ? "bg-indigo-500 hover:bg-indigo-600 text-white border-indigo-400"
-                    : "border-slate-600/70 bg-slate-900/30 text-slate-100 hover:bg-slate-800/70",
-                )}
-                data-testid="filter-reminders-upcoming"
-              >
-                <CheckCircle2 className="h-4 w-4 mr-2" /> Proximos ({reminderGroups.upcoming.length})
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Filtros de Estado: Grid simétrico 2x2 en móvil y 4 columnas en desktop */}
+        <div className="mb-5 p-2 sm:p-2.5 rounded-2xl border border-slate-800/90 bg-slate-900/70 backdrop-blur-md shadow-[0_8px_24px_rgba(2,6,23,.25)]">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFilter("all")}
+              className={cn(
+                "h-10 sm:h-11 rounded-xl px-2.5 sm:px-3 text-xs font-medium justify-between transition-all active:scale-[0.98]",
+                filter === "all"
+                  ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-300 shadow-sm shadow-emerald-500/10"
+                  : "border-slate-800/80 bg-slate-950/40 text-slate-300 hover:bg-slate-800/70 hover:text-slate-100",
+              )}
+              data-testid="filter-reminders-all"
+            >
+              <span className="flex items-center gap-1.5 truncate min-w-0">
+                <Calendar className={cn("h-3.5 w-3.5 shrink-0", filter === "all" ? "text-emerald-400" : "text-slate-400")} />
+                <span className="truncate">Todos</span>
+              </span>
+              <span className={cn(
+                "ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold shrink-0",
+                filter === "all"
+                  ? "bg-emerald-500/25 text-emerald-200"
+                  : "bg-slate-800/80 text-slate-400 border border-slate-700/40",
+              )}>
+                {reminderGroups.all.length}
+              </span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFilter("overdue")}
+              className={cn(
+                "h-10 sm:h-11 rounded-xl px-2.5 sm:px-3 text-xs font-medium justify-between transition-all active:scale-[0.98]",
+                filter === "overdue"
+                  ? "bg-rose-500/15 border-rose-500/50 text-rose-300 shadow-sm shadow-rose-500/10"
+                  : "border-slate-800/80 bg-slate-950/40 text-slate-300 hover:bg-slate-800/70 hover:text-slate-100",
+              )}
+              data-testid="filter-reminders-overdue"
+            >
+              <span className="flex items-center gap-1.5 truncate min-w-0">
+                <AlertCircle className={cn("h-3.5 w-3.5 shrink-0", filter === "overdue" ? "text-rose-400" : "text-slate-400")} />
+                <span className="truncate">Vencidos</span>
+              </span>
+              <span className={cn(
+                "ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold shrink-0",
+                filter === "overdue"
+                  ? "bg-rose-500/25 text-rose-200"
+                  : "bg-slate-800/80 text-slate-400 border border-slate-700/40",
+              )}>
+                {reminderGroups.overdue.length}
+              </span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFilter("today")}
+              className={cn(
+                "h-10 sm:h-11 rounded-xl px-2.5 sm:px-3 text-xs font-medium justify-between transition-all active:scale-[0.98]",
+                filter === "today"
+                  ? "bg-amber-500/15 border-amber-500/50 text-amber-300 shadow-sm shadow-amber-500/10"
+                  : "border-slate-800/80 bg-slate-950/40 text-slate-300 hover:bg-slate-800/70 hover:text-slate-100",
+              )}
+              data-testid="filter-reminders-today"
+            >
+              <span className="flex items-center gap-1.5 truncate min-w-0">
+                <Clock className={cn("h-3.5 w-3.5 shrink-0", filter === "today" ? "text-amber-400" : "text-slate-400")} />
+                <span className="truncate">Hoy</span>
+              </span>
+              <span className={cn(
+                "ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold shrink-0",
+                filter === "today"
+                  ? "bg-amber-500/25 text-amber-200"
+                  : "bg-slate-800/80 text-slate-400 border border-slate-700/40",
+              )}>
+                {reminderGroups.today.length}
+              </span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFilter("upcoming")}
+              className={cn(
+                "h-10 sm:h-11 rounded-xl px-2.5 sm:px-3 text-xs font-medium justify-between transition-all active:scale-[0.98]",
+                filter === "upcoming"
+                  ? "bg-sky-500/15 border-sky-500/50 text-sky-300 shadow-sm shadow-sky-500/10"
+                  : "border-slate-800/80 bg-slate-950/40 text-slate-300 hover:bg-slate-800/70 hover:text-slate-100",
+              )}
+              data-testid="filter-reminders-upcoming"
+            >
+              <span className="flex items-center gap-1.5 truncate min-w-0">
+                <CheckCircle2 className={cn("h-3.5 w-3.5 shrink-0", filter === "upcoming" ? "text-sky-400" : "text-slate-400")} />
+                <span className="truncate">Próximos</span>
+              </span>
+              <span className={cn(
+                "ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold shrink-0",
+                filter === "upcoming"
+                  ? "bg-sky-500/25 text-sky-200"
+                  : "bg-slate-800/80 text-slate-400 border border-slate-700/40",
+              )}>
+                {reminderGroups.upcoming.length}
+              </span>
+            </Button>
+          </div>
+        </div>
 
         {isLoading ? (
           <div className="flex justify-center py-12">
