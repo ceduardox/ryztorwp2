@@ -251,12 +251,12 @@ export function AdPromptsModal() {
             if (!o) resetForm();
           }}
         >
-          <DrawerContent className="max-h-[92vh] overflow-y-auto border-slate-700/50 bg-slate-900 text-white">
-            <DrawerHeader className="text-left">
+          <DrawerContent className="flex max-h-[90vh] flex-col overflow-hidden border-slate-700/50 bg-slate-900 text-white">
+            <DrawerHeader className="shrink-0 text-left">
               <DrawerTitle className="text-white">Prompts por anuncio</DrawerTitle>
               <DrawerDescription className="text-slate-400">{description}</DrawerDescription>
             </DrawerHeader>
-            <div className="px-4 pb-8">{formContent}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-8">{formContent}</div>
           </DrawerContent>
         </Drawer>
       </>
