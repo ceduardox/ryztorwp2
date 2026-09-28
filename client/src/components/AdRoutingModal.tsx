@@ -39,6 +39,7 @@ interface AdRoutingRule {
   isExclusive: boolean;
   productRoute: string | null;
   promptId?: number | null;
+  promptProfile?: string | null;
   updatedAt?: string | null;
 }
 
@@ -75,7 +76,7 @@ export function AdRoutingModal() {
   const [open, setOpen] = useState(false);
   const [adId, setAdId] = useState("");
   const [productRoute, setProductRoute] = useState("");
-  const [promptId, setPromptId] = useState<string>(NO_PROMPT);
+  const [promptSelection, setPromptSelection] = useState<string>(NO_PROMPT);
   const [isActive, setIsActive] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -97,7 +98,7 @@ export function AdRoutingModal() {
   const resetForm = () => {
     setAdId("");
     setProductRoute("");
-    setPromptId(NO_PROMPT);
+    setPromptSelection(NO_PROMPT);
     setIsActive(true);
     setEditingId(null);
   };
@@ -107,12 +108,15 @@ export function AdRoutingModal() {
       const cleanAdId = adId.trim();
       if (!cleanAdId) throw new Error("Ingrese el ad_id");
       if (activeAgentIds.length === 0) throw new Error("No hay agentes activos disponibles");
+      const promptProfile = promptSelection.startsWith("profile:") ? promptSelection.slice("profile:".length) : null;
+      const promptIdValue = promptSelection.startsWith("prompt:") ? Number(promptSelection.slice("prompt:".length)) : null;
       const payload = {
         adId: cleanAdId,
         agentIds: activeAgentIds,
         isActive,
         productRoute: productRoute || null,
-        promptId: promptId === NO_PROMPT ? null : Number(promptId),
+        promptId: promptIdValue && Number.isInteger(promptIdValue) ? promptIdValue : null,
+        promptProfile,
       };
       return apiRequest(
         editingId ? "PATCH" : "PUT",
@@ -153,7 +157,13 @@ export function AdRoutingModal() {
     setEditingId(rule.id);
     setAdId(rule.adId);
     setProductRoute(rule.productRoute || "");
-    setPromptId(rule.promptId == null ? NO_PROMPT : String(rule.promptId));
+    setPromptSelection(
+      rule.promptProfile
+        ? `profile:${rule.promptProfile}`
+        : rule.promptId
+          ? `prompt:${rule.promptId}`
+          : NO_PROMPT,
+    );
     setIsActive(rule.isActive);
   };
 
@@ -188,14 +198,17 @@ export function AdRoutingModal() {
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-slate-300">Prompt del anuncio (opcional)</Label>
-          <Select value={promptId} onValueChange={setPromptId}>
+          <Select value={promptSelection} onValueChange={setPromptSelection}>
             <SelectTrigger className="bg-slate-800/50 border-slate-600/50 text-white text-xs" data-testid="select-ad-prompt">
               <SelectValue placeholder="Sin prompt (usa el global)" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={NO_PROMPT}>Sin prompt (usa el global)</SelectItem>
+              <SelectItem value="profile:primary">Prompt principal</SelectItem>
+              <SelectItem value="profile:secondary">Prompt alternativo</SelectItem>
+              <SelectItem value="profile:tertiary">Prompt Antigravity (Berberina 1.0)</SelectItem>
               {adPrompts.filter((p) => p.isActive !== false).map((p) => (
-                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                <SelectItem key={p.id} value={`prompt:${p.id}`}>{p.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -255,7 +268,11 @@ export function AdRoutingModal() {
                 <p className="truncate text-sm font-medium text-white">{rule.adId}</p>
                 <p className="text-xs text-slate-400">
                   {getAdProductRouteLabel(rule.productRoute)}
-                  {rule.promptId ? ` · ${adPrompts.find((p) => p.id === rule.promptId)?.name || "Prompt"}` : ""}
+                  {rule.promptProfile
+                    ? ` · ${rule.promptProfile === "secondary" ? "Alternativo" : rule.promptProfile === "tertiary" ? "Antigravity" : "Principal"}`
+                    : rule.promptId
+                      ? ` · ${adPrompts.find((p) => p.id === rule.promptId)?.name || "Prompt"}`
+                      : ""}
                   {" "}{rule.isActive ? "· Activo" : "· Inactivo"}
                 </p>
               </div>

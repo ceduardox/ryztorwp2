@@ -207,6 +207,7 @@ interface AdLeadRoutingRule {
   isExclusive: boolean;
   productRoute?: string | null;
   promptId?: number | null;
+  promptProfile?: string | null;
   updatedAt?: string | Date | null;
 }
 interface AdPrompt {
@@ -384,6 +385,10 @@ async function ensureAdLeadRoutingTableExists() {
   await db.execute(sql`
     ALTER TABLE ad_lead_routing_rules
     ADD COLUMN IF NOT EXISTS prompt_id INTEGER
+  `);
+  await db.execute(sql`
+    ALTER TABLE ad_lead_routing_rules
+    ADD COLUMN IF NOT EXISTS prompt_profile TEXT
   `);
   adLeadRoutingTableEnsured = true;
 }
@@ -715,8 +720,14 @@ function mapAdLeadRoutingRow(row: any): AdLeadRoutingRule {
     isExclusive: Boolean(row.is_exclusive),
     productRoute: normalizeAdProductRoute(row.product_route),
     promptId: row.prompt_id == null ? null : Number(row.prompt_id),
+    promptProfile: normalizePromptProfile(row.prompt_profile),
     updatedAt: row.updated_at ?? null,
   };
+}
+
+function normalizePromptProfile(raw: unknown): string | null {
+  const value = String(raw || "").trim().toLowerCase();
+  return value === "primary" || value === "secondary" || value === "tertiary" ? value : null;
 }
 
 function mapAdPromptRow(row: any): AdPrompt {
@@ -787,7 +798,7 @@ function mapDailyReportRow(row: any): DailyReport {
 async function getAdLeadRoutingRules(): Promise<AdLeadRoutingRule[]> {
   await ensureAdLeadRoutingTableExists();
   const result: any = await db.execute(sql`
-    SELECT id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, updated_at
+    SELECT id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, prompt_profile, updated_at
     FROM ad_lead_routing_rules
     ORDER BY updated_at DESC, id DESC
   `);
@@ -811,7 +822,7 @@ async function getAdLeadRoutingRuleByAdId(adIdRaw: string): Promise<AdLeadRoutin
   const adId = normalizeAdId(adIdRaw);
   if (!adId) return null;
   const result: any = await db.execute(sql`
-    SELECT id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, updated_at
+    SELECT id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, prompt_profile, updated_at
     FROM ad_lead_routing_rules
     WHERE ad_id = ${adId}
     LIMIT 1
@@ -820,7 +831,7 @@ async function getAdLeadRoutingRuleByAdId(adIdRaw: string): Promise<AdLeadRoutin
   return row ? mapAdLeadRoutingRow(row) : null;
 }
 
-async function upsertAdLeadRoutingRule(input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null; promptId?: number | null }): Promise<AdLeadRoutingRule> {
+async function upsertAdLeadRoutingRule(input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null; promptId?: number | null; promptProfile?: string | null }): Promise<AdLeadRoutingRule> {
   await ensureAdLeadRoutingTableExists();
   const adId = normalizeAdId(input.adId);
   const agentIds = parseAgentIds(input.agentIds);
@@ -828,9 +839,10 @@ async function upsertAdLeadRoutingRule(input: { adId: string; agentIds: number[]
   const isExclusive = typeof input.isExclusive === "boolean" ? input.isExclusive : true;
   const productRoute = normalizeAdProductRoute(input.productRoute);
   const promptId = normalizePromptId(input.promptId);
+  const promptProfile = normalizePromptProfile(input.promptProfile);
   const result: any = await db.execute(sql`
-    INSERT INTO ad_lead_routing_rules (ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id)
-    VALUES (${adId}, ${agentIds.join(",")}, ${isActive}, ${isExclusive}, ${productRoute}, ${promptId})
+    INSERT INTO ad_lead_routing_rules (ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, prompt_profile)
+    VALUES (${adId}, ${agentIds.join(",")}, ${isActive}, ${isExclusive}, ${productRoute}, ${promptId}, ${promptProfile})
     ON CONFLICT (ad_id)
     DO UPDATE SET
       agent_ids = EXCLUDED.agent_ids,
@@ -838,13 +850,14 @@ async function upsertAdLeadRoutingRule(input: { adId: string; agentIds: number[]
       is_exclusive = EXCLUDED.is_exclusive,
       product_route = EXCLUDED.product_route,
       prompt_id = EXCLUDED.prompt_id,
+      prompt_profile = EXCLUDED.prompt_profile,
       updated_at = NOW()
-    RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, updated_at
+    RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, prompt_profile, updated_at
   `);
   return mapAdLeadRoutingRow(result.rows[0]);
 }
 
-async function updateAdLeadRoutingRule(id: number, input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null; promptId?: number | null }): Promise<AdLeadRoutingRule | null> {
+async function updateAdLeadRoutingRule(id: number, input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null; promptId?: number | null; promptProfile?: string | null }): Promise<AdLeadRoutingRule | null> {
   await ensureAdLeadRoutingTableExists();
   const adId = normalizeAdId(input.adId);
   const agentIds = parseAgentIds(input.agentIds);
@@ -852,6 +865,7 @@ async function updateAdLeadRoutingRule(id: number, input: { adId: string; agentI
   const isExclusive = typeof input.isExclusive === "boolean" ? input.isExclusive : true;
   const productRoute = normalizeAdProductRoute(input.productRoute);
   const promptId = normalizePromptId(input.promptId);
+  const promptProfile = normalizePromptProfile(input.promptProfile);
   const result: any = await db.execute(sql`
     UPDATE ad_lead_routing_rules
     SET
@@ -861,9 +875,10 @@ async function updateAdLeadRoutingRule(id: number, input: { adId: string; agentI
       is_exclusive = ${isExclusive},
       product_route = ${productRoute},
       prompt_id = ${promptId},
+      prompt_profile = ${promptProfile},
       updated_at = NOW()
     WHERE id = ${id}
-    RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, updated_at
+    RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, prompt_profile, updated_at
   `);
   const row = result.rows?.[0];
   return row ? mapAdLeadRoutingRow(row) : null;
@@ -3567,8 +3582,17 @@ export async function registerRoutes(
                 if (conversation && incomingAdId) {
                   let snapshot: string | null = null;
                   let snapshotProductId: number | null = null;
+                  const profileKey = adRouting.rule?.promptProfile ?? null;
                   const adPromptId = adRouting.rule?.promptId ?? null;
-                  if (adPromptId) {
+                  if (profileKey) {
+                    const profiles = await getPromptProfiles();
+                    const profileText = profileKey === "secondary"
+                      ? profiles.secondaryPrompt
+                      : profileKey === "tertiary"
+                        ? profiles.tertiaryPrompt
+                        : profiles.primaryPrompt;
+                    snapshot = (profileText || "").trim() || null;
+                  } else if (adPromptId) {
                     const adPrompt = await getAdPromptById(adPromptId);
                     if (adPrompt && adPrompt.isActive !== false) {
                       snapshot = adPrompt.systemPrompt || null;
@@ -7371,6 +7395,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         isExclusive: z.boolean().optional(),
         productRoute: z.enum(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular"]).nullable().optional(),
         promptId: z.number().int().positive().nullable().optional(),
+        promptProfile: z.enum(["primary", "secondary", "tertiary"]).nullable().optional(),
       }).parse(req.body);
 
       const activeAgents = await storage.getActiveAgents();
@@ -7387,6 +7412,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         isExclusive: parsed.isExclusive,
         productRoute: parsed.productRoute,
         promptId: parsed.promptId,
+        promptProfile: parsed.promptProfile,
       });
       res.json(saved);
     } catch (error: any) {
@@ -7412,6 +7438,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         isExclusive: z.boolean().optional(),
         productRoute: z.enum(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular"]).nullable().optional(),
         promptId: z.number().int().positive().nullable().optional(),
+        promptProfile: z.enum(["primary", "secondary", "tertiary"]).nullable().optional(),
       }).parse(req.body);
 
       const activeAgents = await storage.getActiveAgents();
@@ -7428,6 +7455,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         isExclusive: parsed.isExclusive,
         productRoute: parsed.productRoute,
         promptId: parsed.promptId,
+        promptProfile: parsed.promptProfile,
       });
 
       if (!saved) {
