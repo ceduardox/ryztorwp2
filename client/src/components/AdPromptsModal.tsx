@@ -47,6 +47,7 @@ export function AdPromptsModal() {
   const [productId, setProductId] = useState(NO_PRODUCT);
   const [isActive, setIsActive] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
 
   const { data: prompts = [], isLoading } = useQuery<AdPrompt[]>({
     queryKey: ["/api/ad-prompts"],
@@ -115,6 +116,26 @@ export function AdPromptsModal() {
   const productName = (id: number | null) =>
     id == null ? "Sin producto" : products.find((p) => p.id === id)?.name || `Producto ${id}`;
 
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredPrompts = prompts.filter(
+    (p) =>
+      !normalizedSearch ||
+      p.name.toLowerCase().includes(normalizedSearch) ||
+      p.systemPrompt.toLowerCase().includes(normalizedSearch),
+  );
+  const groupMap = new Map<string, { key: string; label: string; items: AdPrompt[] }>();
+  for (const p of filteredPrompts) {
+    const key = p.productId == null ? "__none__" : String(p.productId);
+    const label = p.productId == null ? "Sin producto" : productName(p.productId);
+    if (!groupMap.has(key)) groupMap.set(key, { key, label, items: [] });
+    groupMap.get(key)!.items.push(p);
+  }
+  const groupedPrompts = Array.from(groupMap.values()).sort((a, b) => {
+    if (a.key === "__none__") return 1;
+    if (b.key === "__none__") return -1;
+    return a.label.localeCompare(b.label);
+  });
+
   const formContent = (
     <div className="space-y-3">
       <div className="space-y-3 rounded-xl border border-slate-700/50 bg-slate-900/50 p-3">
@@ -181,41 +202,59 @@ export function AdPromptsModal() {
         </div>
       </div>
 
-      <div className="space-y-2">
+      <Input
+        placeholder="Buscar prompt..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="h-9 bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
+        data-testid="input-search-ad-prompt"
+      />
+      <div className="space-y-4">
         {isLoading ? (
           <div className="flex justify-center py-6">
             <Loader2 className="h-5 w-5 animate-spin text-cyan-400" />
           </div>
         ) : prompts.length === 0 ? (
           <p className="py-4 text-center text-xs text-slate-500">Sin prompts creados.</p>
+        ) : filteredPrompts.length === 0 ? (
+          <p className="py-4 text-center text-xs text-slate-500">Sin resultados para "{search}".</p>
         ) : (
-          prompts.map((p) => (
-            <div key={p.id} className="flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-900/40 px-3 py-2">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-white">{p.name}</p>
-                <p className="truncate text-xs text-slate-400">
-                  {productName(p.productId)} {p.isActive ? "· Activo" : "· Inactivo"}
-                </p>
+          groupedPrompts.map((group) => (
+            <div key={group.key} className="space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-700/40 pb-1">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-300/90">{group.label}</p>
+                <span className="text-[11px] text-slate-500">{group.items.length}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => startEdit(p)}
-                className="text-slate-400 transition-colors hover:text-cyan-300"
-                aria-label="Editar prompt"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm(`Eliminar prompt "${p.name}"?`)) deleteMutation.mutate(p.id);
-                }}
-                disabled={deleteMutation.isPending}
-                className="text-slate-400 transition-colors hover:text-red-400 disabled:opacity-50"
-                aria-label="Eliminar prompt"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {group.items.map((p) => (
+                <div key={p.id} className="rounded-lg border border-slate-700/50 bg-slate-900/40 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 flex-shrink-0 rounded-full ${p.isActive ? "bg-emerald-400" : "bg-slate-600"}`} />
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-white">{p.name}</p>
+                    <button
+                      type="button"
+                      onClick={() => startEdit(p)}
+                      className="text-slate-400 transition-colors hover:text-cyan-300"
+                      aria-label="Editar prompt"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Eliminar prompt "${p.name}"?`)) deleteMutation.mutate(p.id);
+                      }}
+                      disabled={deleteMutation.isPending}
+                      className="text-slate-400 transition-colors hover:text-red-400 disabled:opacity-50"
+                      aria-label="Eliminar prompt"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">
+                    {p.systemPrompt.trim() ? p.systemPrompt.slice(0, 160) : "(sin texto)"}
+                  </p>
+                </div>
+              ))}
             </div>
           ))
         )}
