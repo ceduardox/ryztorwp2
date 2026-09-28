@@ -36,7 +36,7 @@ interface ProductItem {
 
 const NO_PRODUCT = "__none__";
 
-export function AdPromptsModal() {
+export function AdPromptsModal({ embedded = false }: { embedded?: boolean }) {
   const { isAdmin } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -48,14 +48,15 @@ export function AdPromptsModal() {
   const [isActive, setIsActive] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [saveError, setSaveError] = useState("");
 
-  const { data: prompts = [], isLoading } = useQuery<AdPrompt[]>({
+  const { data: prompts = [], isLoading, isError: promptsLoadError, refetch: reloadPrompts } = useQuery<AdPrompt[]>({
     queryKey: ["/api/ad-prompts"],
-    enabled: isAdmin && open,
+    enabled: isAdmin && (open || embedded),
   });
   const { data: products = [] } = useQuery<ProductItem[]>({
     queryKey: ["/api/products"],
-    enabled: isAdmin && open,
+    enabled: isAdmin && (open || embedded),
   });
 
   const resetForm = () => {
@@ -64,6 +65,7 @@ export function AdPromptsModal() {
     setProductId(NO_PRODUCT);
     setIsActive(true);
     setEditingId(null);
+    setSaveError("");
   };
 
   const saveMutation = useMutation({
@@ -76,19 +78,32 @@ export function AdPromptsModal() {
         productId: productId === NO_PRODUCT ? null : Number(productId),
         isActive,
       };
-      return apiRequest(
+      if (cleanName.length > 120) throw new Error("El nombre admite hasta 120 caracteres.");
+      if (systemPrompt.length > 40000) throw new Error("El prompt admite hasta 40000 caracteres. Su texto sigue en el editor.");
+      setSaveError("");
+      const response = await apiRequest(
         editingId ? "PATCH" : "POST",
         editingId ? `/api/ad-prompts/${editingId}` : "/api/ad-prompts",
         payload,
       );
+      return await response.json() as AdPrompt;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["/api/ad-prompts"] });
+    onSuccess: async (saved) => {
       const wasEditing = Boolean(editingId);
-      resetForm();
+      queryClient.setQueryData<AdPrompt[]>(["/api/ad-prompts"], (previous = []) =>
+        [saved, ...previous.filter((p) => p.id !== saved.id)]);
+      setEditingId(saved.id);
+      setName(saved.name);
+      setSystemPrompt(saved.systemPrompt);
+      setProductId(saved.productId == null ? NO_PRODUCT : String(saved.productId));
+      setIsActive(saved.isActive);
+      setSearch("");
+      setSaveError("");
+      await queryClient.invalidateQueries({ queryKey: ["/api/ad-prompts"] });
       toast({ title: wasEditing ? "Prompt actualizado" : "Prompt creado" });
     },
     onError: (err: any) => {
+      setSaveError(String(err?.message || "No se pudo guardar"));
       toast({ title: "Error", description: String(err?.message || "No se pudo guardar"), variant: "destructive" });
     },
   });
@@ -105,7 +120,15 @@ export function AdPromptsModal() {
     },
   });
 
+  const savedPrompt = prompts.find((p) => p.id === editingId);
+  const hasDraftChanges = editingId !== null
+    ? Boolean(savedPrompt && (name !== savedPrompt.name || systemPrompt !== savedPrompt.systemPrompt || productId !== (savedPrompt.productId == null ? NO_PRODUCT : String(savedPrompt.productId)) || isActive !== savedPrompt.isActive))
+    : Boolean(name || systemPrompt || productId !== NO_PRODUCT || !isActive);
+  const mayLeaveDraft = () => !saveMutation.isPending && (!hasDraftChanges || window.confirm("Hay cambios sin guardar. Desea descartarlos?"));
+
   const startEdit = (p: AdPrompt) => {
+    if (saveMutation.isPending || p.id === editingId || !mayLeaveDraft()) return;
+    setSaveError("");
     setEditingId(p.id);
     setName(p.name);
     setSystemPrompt(p.systemPrompt);
@@ -137,8 +160,76 @@ export function AdPromptsModal() {
   });
 
   const formContent = (
-    <div className="space-y-3">
-      <div className="space-y-3 rounded-xl border border-slate-700/50 bg-slate-900/50 p-3">
+    <div className="grid items-start gap-5 md:grid-cols-[260px_minmax(0,1fr)]">
+      <aside className="min-w-0 space-y-3 md:max-h-[72vh] overflow-y-auto md:sticky md:top-0">
+        <Button variant="outline" onClick={() => { if (mayLeaveDraft()) resetForm(); }} className="w-full border-slate-600 text-white"><Plus className="h-4 w-4 mr-2" />Nuevo prompt</Button>
+
+
+      <Input
+        placeholder="Buscar prompt..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="h-9 bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
+        data-testid="input-search-ad-prompt"
+      />
+      <div className="space-y-4">
+        {isLoading ? (
+          <div className="flex justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-cyan-400" />
+          </div>
+        ) : promptsLoadError ? (
+          <div role="alert" className="text-sm text-amber-300">No se pudo actualizar la lista de prompts.
+            <Button variant="outline" onClick={() => reloadPrompts()}>Reintentar</Button>
+          </div>
+        ) : prompts.length === 0 ? (
+          <p className="py-4 text-center text-xs text-slate-500">Sin prompts creados.</p>
+        ) : filteredPrompts.length === 0 ? (
+          <p className="py-4 text-center text-xs text-slate-500">Sin resultados para "{search}".</p>
+        ) : (
+          groupedPrompts.map((group) => (
+            <div key={group.key} className="space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-700/40 pb-1">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-300/90">{group.label}</p>
+                <span className="text-[11px] text-slate-500">{group.items.length}</span>
+              </div>
+              {group.items.map((p) => (
+                <div key={p.id} className={`rounded-lg border px-3 py-3 ${editingId === p.id ? "border-emerald-500/60 bg-emerald-500/10" : "border-slate-700/50 bg-slate-900/40"}`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 flex-shrink-0 rounded-full ${p.isActive ? "bg-emerald-400" : "bg-slate-600"}`} />
+                    <button type="button" onClick={() => startEdit(p)} aria-pressed={editingId === p.id} className="min-w-0 flex-1 text-left text-sm font-medium text-white break-words">{p.name}</button>
+                    <button
+                      type="button"
+                      onClick={() => startEdit(p)}
+                      className="text-slate-400 transition-colors hover:text-cyan-300"
+                      aria-label="Editar prompt"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Eliminar prompt "${p.name}"?`)) deleteMutation.mutate(p.id);
+                      }}
+                      disabled={deleteMutation.isPending}
+                      className="text-slate-400 transition-colors hover:text-red-400 disabled:opacity-50"
+                      aria-label="Eliminar prompt"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">
+                    {p.systemPrompt.trim() ? p.systemPrompt.slice(0, 160) : "(sin texto)"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ))
+        )}
+      </div>
+      </aside>
+      <fieldset disabled={saveMutation.isPending} className="min-w-0 space-y-3 rounded-xl border border-slate-700/50 bg-slate-900/50 p-3">
+        <div role="status" className="text-sm text-slate-300">{saveMutation.isPending ? "Guardando..." : hasDraftChanges ? "Cambios sin guardar" : editingId ? "Guardado" : "Nuevo prompt: complete los datos y pulse Crear prompt"}</div>
+        {saveError && <p role="alert" className="text-sm text-red-300">{saveError}</p>}
         <div className="space-y-1">
           <Label className="text-xs text-slate-300">Nombre del prompt</Label>
           <Input
@@ -171,20 +262,20 @@ export function AdPromptsModal() {
             placeholder="Escribe aqui el prompt que usara la IA para los leads de este anuncio..."
             value={systemPrompt}
             onChange={(e) => setSystemPrompt(e.target.value)}
-            rows={8}
-            className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500 font-mono text-xs"
+            rows={22}
+            className="bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500 text-sm leading-7 p-4 h-[50vh] min-h-[300px] resize-y"
             data-testid="input-ad-prompt-text"
           />
           <p className="text-[11px] text-slate-500">{systemPrompt.length} caracteres</p>
         </div>
-        <div className="flex items-center justify-between gap-2">
+        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 bg-slate-900 py-3 border-t border-slate-700">
           <div className="flex items-center gap-2">
             <Switch checked={isActive} onCheckedChange={setIsActive} />
-            <Label className="text-xs text-slate-300">Activo</Label>
+            <Label className="text-xs text-slate-300">Habilitado</Label>
           </div>
           <div className="flex items-center gap-2">
             {editingId && (
-              <Button size="sm" variant="outline" onClick={resetForm} className="border-slate-600 text-slate-300">
+              <Button size="sm" variant="outline" onClick={() => { if (mayLeaveDraft()) resetForm(); }} className="border-slate-600 text-slate-300">
                 Cancelar
               </Button>
             )}
@@ -200,69 +291,13 @@ export function AdPromptsModal() {
             </Button>
           </div>
         </div>
-      </div>
-
-      <Input
-        placeholder="Buscar prompt..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="h-9 bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500"
-        data-testid="input-search-ad-prompt"
-      />
-      <div className="space-y-4">
-        {isLoading ? (
-          <div className="flex justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-cyan-400" />
-          </div>
-        ) : prompts.length === 0 ? (
-          <p className="py-4 text-center text-xs text-slate-500">Sin prompts creados.</p>
-        ) : filteredPrompts.length === 0 ? (
-          <p className="py-4 text-center text-xs text-slate-500">Sin resultados para "{search}".</p>
-        ) : (
-          groupedPrompts.map((group) => (
-            <div key={group.key} className="space-y-2">
-              <div className="flex items-center justify-between border-b border-slate-700/40 pb-1">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-300/90">{group.label}</p>
-                <span className="text-[11px] text-slate-500">{group.items.length}</span>
-              </div>
-              {group.items.map((p) => (
-                <div key={p.id} className="rounded-lg border border-slate-700/50 bg-slate-900/40 px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <span className={`h-2 w-2 flex-shrink-0 rounded-full ${p.isActive ? "bg-emerald-400" : "bg-slate-600"}`} />
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-white">{p.name}</p>
-                    <button
-                      type="button"
-                      onClick={() => startEdit(p)}
-                      className="text-slate-400 transition-colors hover:text-cyan-300"
-                      aria-label="Editar prompt"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm(`Eliminar prompt "${p.name}"?`)) deleteMutation.mutate(p.id);
-                      }}
-                      disabled={deleteMutation.isPending}
-                      className="text-slate-400 transition-colors hover:text-red-400 disabled:opacity-50"
-                      aria-label="Eliminar prompt"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">
-                    {p.systemPrompt.trim() ? p.systemPrompt.slice(0, 160) : "(sin texto)"}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ))
-        )}
-      </div>
+      </fieldset>
     </div>
   );
 
   if (!isAdmin) return null;
+
+  if (embedded) return <section aria-label="Prompts de anuncios" className="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-4 md:p-5"><h3 className="mb-2 font-semibold text-white">Prompts de anuncios</h3><p className="mb-5 text-sm text-slate-400">Cree y edite sus prompts. Asigne cada uno desde las reglas de anuncios. Los chats existentes conservan su copia.</p>{formContent}</section>;
 
   const trigger = (
     <Button
@@ -286,6 +321,7 @@ export function AdPromptsModal() {
         <Drawer
           open={open}
           onOpenChange={(o) => {
+            if (!o && !mayLeaveDraft()) return;
             setOpen(o);
             if (!o) resetForm();
           }}
@@ -308,11 +344,12 @@ export function AdPromptsModal() {
       <Dialog
         open={open}
         onOpenChange={(o) => {
+          if (!o && !mayLeaveDraft()) return;
           setOpen(o);
           if (!o) resetForm();
         }}
       >
-        <DialogContent className="max-h-[88vh] overflow-y-auto border-slate-700/50 bg-slate-900 text-white sm:max-w-lg">
+        <DialogContent className="max-h-[88vh] overflow-y-auto border-slate-700/50 bg-slate-900 text-white sm:max-w-6xl w-[95vw]">
           <DialogHeader>
             <DialogTitle className="text-white">Prompts por anuncio</DialogTitle>
             <DialogDescription className="text-slate-400">{description}</DialogDescription>

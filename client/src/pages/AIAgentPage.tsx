@@ -272,6 +272,8 @@ export default function AIAgentPage() {
     window.scrollTo({ top: 0, behavior: "instant" });
   };
   const { toast } = useToast();
+  const [promptLibraryTab, setPromptLibraryTab] = useState<"general" | "ads">("general");
+  const [viewedPromptSlot, setViewedPromptSlot] = useState<"primary" | "secondary" | "tertiary">("primary");
   const [primaryPrompt, setPrimaryPrompt] = useState("");
   const [secondaryPrompt, setSecondaryPrompt] = useState("");
   const [tertiaryPrompt, setTertiaryPrompt] = useState("");
@@ -1174,7 +1176,7 @@ export default function AIAgentPage() {
         </nav>
       </header>
 
-      <main className="container mx-auto px-4 py-6 space-y-6 max-w-4xl pb-20">
+      <main className={`container mx-auto px-4 py-6 space-y-6 pb-20 ${activeSection === "instructions" ? "max-w-7xl" : "max-w-4xl"}`}>
         {configEdited && (
           <div className="flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between" role="status">
             <p className="text-sm text-amber-200">Cambios sin guardar en configuración. Se guardan juntos Modelo, Audio y Seguimiento.</p>
@@ -1184,7 +1186,15 @@ export default function AIAgentPage() {
           </div>
         )}
         <section hidden={activeSection !== "instructions"} aria-label="Instrucciones" className="space-y-6" data-testid="section-instructions">
-        {/* Instructions Card - 3D Style */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex gap-2" aria-label="Biblioteca de prompts">
+            <Button variant={promptLibraryTab === "general" ? "default" : "outline"} onClick={() => setPromptLibraryTab("general")} aria-pressed={promptLibraryTab === "general"}>Generales</Button>
+            <Button variant={promptLibraryTab === "ads" ? "default" : "outline"} onClick={() => setPromptLibraryTab("ads")} aria-pressed={promptLibraryTab === "ads"}>Prompts de anuncios</Button>
+          </div>
+          <AdRoutingModal />
+        </div>
+        <div hidden={promptLibraryTab !== "ads"}><AdPromptsModal embedded /></div>
+        <div hidden={promptLibraryTab !== "general"}>
         <div className="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-5 relative overflow-hidden">
           <div className="relative space-y-4">
             <div className="flex items-center gap-3">
@@ -1197,7 +1207,16 @@ export default function AIAgentPage() {
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-              <div className="space-y-2">
+              <div className="space-y-4 min-w-0">
+                <nav className="space-y-2" aria-label="Prompts generales">
+                  {([ ["primary", "Principal"], ["secondary", "Alternativo"], ["tertiary", "Antigravity (Berberina 1.0)"] ] as const).map(([slot, title]) => (
+                    <button key={slot} type="button" onClick={() => setViewedPromptSlot(slot)} aria-pressed={viewedPromptSlot === slot}
+                      className={`w-full rounded-lg border px-3 py-3 text-left text-sm ${viewedPromptSlot === slot ? "border-emerald-500/50 bg-emerald-500/10 text-white" : "border-slate-700 text-slate-300 hover:bg-slate-800"}`}>
+                      <span className="block">{title}</span>
+                      {promptProfiles?.activeSlot === slot && <span className="text-xs text-emerald-300">Activo global</span>}
+                    </button>
+                  ))}
+                </nav>
                 <Label htmlFor="active-prompt-slot" className="text-slate-300">Prompt activo</Label>
                 <Select
                   value={activePromptSlot}
@@ -1220,14 +1239,14 @@ export default function AIAgentPage() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-slate-400">
-                  El prompt activo es el que usa la IA ahora. El otro queda guardado para cuando quiera volver a usarlo.
+                  La selección se aplica al guardar. Abrir un prompt para editarlo no cambia el activo.
                 </p>
               </div>
               <div className="space-y-4">
-                <div className="space-y-2">
+                <div hidden={viewedPromptSlot !== "primary"} className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <Label htmlFor="primary-prompt" className="text-slate-300">Prompt principal</Label>
-                    {activePromptSlot === "primary" && (
+                    {promptProfiles?.activeSlot === "primary" && (
                       <span className="text-[11px] font-medium text-emerald-300">Activo ahora</span>
                     )}
                   </div>
@@ -1240,18 +1259,18 @@ export default function AIAgentPage() {
                       setPrimaryPrompt(newValue);
                       setPromptEdited(true);
                     }}
-                    rows={6}
+                    rows={22}
                     data-testid="textarea-primary-prompt"
-                    className="bg-slate-900/50 border-slate-600/50 text-white placeholder:text-slate-500"
+                    className="h-[55vh] min-h-[320px] resize-y bg-slate-900/50 border-slate-600/50 text-white placeholder:text-slate-500 text-sm leading-7 p-4"
                   />
                   <div className={`text-xs ${primaryPrompt.length >= maxPromptChars ? 'text-red-400' : 'text-slate-500'}`}>
                     {primaryPrompt.length} / {maxPromptChars} caracteres
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div hidden={viewedPromptSlot !== "secondary"} className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <Label htmlFor="secondary-prompt" className="text-slate-300">Prompt alternativo</Label>
-                    {activePromptSlot === "secondary" && (
+                    {promptProfiles?.activeSlot === "secondary" && (
                       <span className="text-[11px] font-medium text-cyan-300">Activo ahora</span>
                     )}
                   </div>
@@ -1264,18 +1283,18 @@ export default function AIAgentPage() {
                       setSecondaryPrompt(newValue);
                       setPromptEdited(true);
                     }}
-                    rows={6}
+                    rows={22}
                     data-testid="textarea-secondary-prompt"
-                    className="bg-slate-900/50 border-slate-600/50 text-white placeholder:text-slate-500"
+                    className="h-[55vh] min-h-[320px] resize-y bg-slate-900/50 border-slate-600/50 text-white placeholder:text-slate-500 text-sm leading-7 p-4"
                   />
                   <div className={`text-xs ${secondaryPrompt.length >= maxPromptChars ? 'text-red-400' : 'text-slate-500'}`}>
                     {secondaryPrompt.length} / {maxPromptChars} caracteres
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div hidden={viewedPromptSlot !== "tertiary"} className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <Label htmlFor="tertiary-prompt" className="text-slate-300">Prompt Antigravity (Berberina 1.0)</Label>
-                    {activePromptSlot === "tertiary" && (
+                    {promptProfiles?.activeSlot === "tertiary" && (
                       <span className="text-[11px] font-medium text-violet-300">Activo ahora</span>
                     )}
                   </div>
@@ -1288,9 +1307,9 @@ export default function AIAgentPage() {
                       setTertiaryPrompt(newValue);
                       setPromptEdited(true);
                     }}
-                    rows={6}
+                    rows={22}
                     data-testid="textarea-tertiary-prompt"
-                    className="bg-slate-900/50 border-slate-600/50 text-white placeholder:text-slate-500"
+                    className="h-[55vh] min-h-[320px] resize-y bg-slate-900/50 border-slate-600/50 text-white placeholder:text-slate-500 text-sm leading-7 p-4"
                   />
                   <div className={`text-xs ${tertiaryPrompt.length >= maxPromptChars ? 'text-red-400' : 'text-slate-500'}`}>
                     {tertiaryPrompt.length} / {maxPromptChars} caracteres
@@ -1298,18 +1317,16 @@ export default function AIAgentPage() {
                 </div>
               </div>
             </div>
-            {promptEdited && (
-              <Button onClick={handleSavePrompt} disabled={updatePromptProfilesMutation.isPending} data-testid="button-save-prompt" className="bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white shadow-lg shadow-emerald-500/30">
+            <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-slate-700 bg-slate-900 py-3">
+              {promptEdited && <span className="text-xs text-amber-300">Cambios sin guardar</span>}
+              <Button onClick={handleSavePrompt} disabled={!promptEdited || updatePromptProfilesMutation.isPending} data-testid="button-save-prompt" className="bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white shadow-lg shadow-emerald-500/30">
                 {updatePromptProfilesMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                 Guardar Prompts
               </Button>
-            )}
+            </div>
           </div>
         </div>
 
-        <div className="flex justify-end gap-2">
-          <AdPromptsModal />
-          <AdRoutingModal />
         </div>
 
         <details className="rounded-xl border border-slate-700 p-4">
