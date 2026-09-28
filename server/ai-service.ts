@@ -317,6 +317,7 @@ export async function generateAiResponse(
   advisorName?: string,
   systemPromptOverride?: string | null,
   forcedProductId?: number | null,
+  imageMimeType?: string | null,
 ): Promise<{ response: string; imageUrl?: string; tokensUsed: number; orderReady?: boolean; needsHuman?: boolean; shouldCall?: boolean } | null> {
   try {
     const [settings, allProducts, learnedRules] = await Promise.all([
@@ -431,7 +432,7 @@ ${instructions}
 - Responde en 2-5 líneas máximo
 - Máximo 2 preguntas por respuesta
 - Tono humano y cálido
-- Para enviar imagen usa: [IMAGEN: url]
+    - Para enviar imagen usa: [IMAGEN: url]
 - No uses botones ni listas interactivas ([BOTONES:] / [LISTA:]). Si el cliente debe elegir entre opciones, escríbelas como una lista simple con viñetas (•) dentro del texto.
 - IMPORTANTE: Cuando el cliente confirme el pedido con TODOS los datos requeridos según la modalidad de envío, escribe [PEDIDO_LISTO] al final de tu respuesta para marcar que hay un pedido listo para entregar.
 - Para ciudades con delivery, un pedido está listo cuando tienes: producto, cantidad, nombre y dirección de entrega o ubicación GPS.
@@ -450,7 +451,7 @@ ${productContext ? `\n=== PRODUCTOS ===\n${productContext}` : ""}`;
         { 
           type: "image_url", 
           image_url: { 
-            url: `data:image/jpeg;base64,${imageBase64}`,
+            url: `data:${imageMimeType || "image/jpeg"};base64,${imageBase64}`,
             detail: "low" // Use low detail to save tokens
           } 
         }

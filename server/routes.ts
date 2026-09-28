@@ -3440,6 +3440,7 @@ export async function registerRoutes(
               let messageForAi: string | null = null;
               let wasAudioMessage = false;
               let imageBase64ForAi: string | undefined = undefined;
+              let stickerStoredUrl: string | undefined = undefined;
               
               if (msg.type === 'text') {
                 messageText = msg.text.body;
@@ -3492,6 +3493,33 @@ export async function registerRoutes(
               } else if (msg.type === 'sticker') {
                 messageText = '[Sticker]';
                 messageForAi = '[El cliente envio un sticker]';
+                const stickerId = msg.sticker?.id;
+                if (stickerId) {
+                  try {
+                    const token = process.env.META_ACCESS_TOKEN;
+                    const metaRes = await axios.get(`https://graph.facebook.com/v24.0/${stickerId}`, {
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const stickerMetaUrl = metaRes.data.url;
+                    const stickerMime = metaRes.data.mime_type || msg.sticker?.mime_type || 'image/webp';
+                    const stickerBytes = await axios.get(stickerMetaUrl, {
+                      headers: { Authorization: `Bearer ${token}` },
+                      responseType: 'arraybuffer',
+                    });
+                    const stickerExt = stickerMime.includes('png') ? '.png' : stickerMime.includes('jpeg') || stickerMime.includes('jpg') ? '.jpg' : '.webp';
+                    const stickerFileName = `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}-sticker${stickerExt}`;
+                    await ensureProductImageStorageTableExists();
+                    await db.execute(sql`
+                      INSERT INTO product_uploaded_images (file_name, mime_type, data)
+                      VALUES (${stickerFileName}, ${stickerMime}, ${Buffer.from(stickerBytes.data)})
+                      ON CONFLICT (file_name) DO UPDATE SET mime_type = EXCLUDED.mime_type, data = EXCLUDED.data
+                    `);
+                    stickerStoredUrl = `/uploads/products/${stickerFileName}`;
+                    console.log("=== STICKER DOWNLOADED ===", { stickerId, mime: stickerMime, size: stickerBytes.data.byteLength });
+                  } catch (stickerError) {
+                    console.error("Error downloading sticker:", stickerError);
+                  }
+                }
               } else if (msg.type === 'audio') {
                 // Handle voice notes and audio messages
                 wasAudioMessage = true;
@@ -3664,7 +3692,7 @@ export async function registerRoutes(
                 mimeType: mimeType,
                 timestamp: msg.timestamp,
                 status: "received",
-                rawJson: msg,
+                rawJson: stickerStoredUrl ? { ...msg, _stickerUrl: stickerStoredUrl } : msg,
               });
 
               await queueIncomingMessagePush(

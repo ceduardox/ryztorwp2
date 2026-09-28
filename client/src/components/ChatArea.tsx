@@ -2457,23 +2457,35 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
 
                 {msg.type === "sticker" && (
                   <div className="mb-2 rounded overflow-hidden">
-                    {msg.mediaId && !failedMediaIds[msg.mediaId] ? (
-                      <img
-                        src={`/api/media/${msg.mediaId}`}
-                        alt="Sticker"
-                        className="max-w-[180px] h-auto"
-                        loading="lazy"
-                        onError={() => markMediaAsFailed(msg.mediaId)}
-                      />
-                    ) : msg.mediaId && failedMediaIds[msg.mediaId] ? (
-                      <div className="rounded bg-black/5 dark:bg-white/5 px-2 py-1 text-xs text-slate-500">
-                        Sticker no disponible
-                      </div>
-                    ) : (
-                      <div className="rounded bg-black/5 dark:bg-white/5 px-2 py-1 text-xs text-slate-500">
-                        Sticker
-                      </div>
-                    )}
+                    {(() => {
+                      const storedSticker = (msg.rawJson as any)?._stickerUrl as string | undefined;
+                      const stickerSrc = storedSticker || (msg.mediaId ? `/api/media/${msg.mediaId}` : null);
+                      if (!stickerSrc) {
+                        return (
+                          <div className="rounded bg-black/5 dark:bg-white/5 px-2 py-1 text-xs text-slate-500">
+                            Sticker
+                          </div>
+                        );
+                      }
+                      if (!storedSticker && msg.mediaId && failedMediaIds[msg.mediaId]) {
+                        return (
+                          <div className="rounded bg-black/5 dark:bg-white/5 px-2 py-1 text-xs text-slate-500">
+                            Sticker no disponible
+                          </div>
+                        );
+                      }
+                      return (
+                        <img
+                          src={stickerSrc}
+                          alt="Sticker"
+                          className="max-w-[180px] h-auto"
+                          loading="lazy"
+                          onError={() => {
+                            if (!storedSticker && msg.mediaId) markMediaAsFailed(msg.mediaId);
+                          }}
+                        />
+                      );
+                    })()}
                   </div>
                 )}
 
