@@ -460,6 +460,8 @@ export default function AnalyticsPage() {
       {
         agentId: number;
         agentName: string;
+        incomingMessages: number;
+        outgoingMessages: number;
         inboundNewChats: number;
         assignedInChats: number;
         inboundChats: number;
@@ -481,6 +483,8 @@ export default function AnalyticsPage() {
       const current = grouped.get(key) || {
         agentId: key,
         agentName: String(row.agent_name || `Agente ${key}`),
+        incomingMessages: 0,
+        outgoingMessages: 0,
         inboundNewChats: 0,
         assignedInChats: 0,
         inboundChats: 0,
@@ -495,6 +499,8 @@ export default function AnalyticsPage() {
         totalEstimatedParallelCostBs: 0,
         hasAnyCost: false,
       };
+      current.incomingMessages += Number(row.incoming || 0);
+      current.outgoingMessages += Number(row.outgoing || 0);
       current.inboundNewChats += Number(row.inbound_new_chats || 0);
       current.assignedInChats += Number(row.assigned_in_chats || 0);
       current.inboundChats += Number(row.inbound_chats || 0);
@@ -1090,6 +1096,10 @@ export default function AnalyticsPage() {
                         {isAdmin
                           ? `${item.inboundNewChats} nuevos + ${item.assignedInChats} asignados`
                           : "sumatoria del periodo"}
+                      </p>
+                      <p className="mt-2 text-[11px] text-slate-400">
+                        Mensajes recibidos: <span className="font-semibold text-emerald-300">{item.incomingMessages}</span>
+                        {" · "}Enviados: <span className="font-semibold text-cyan-300">{item.outgoingMessages}</span>
                       </p>
                     </div>
                     <div className="rounded-lg border border-violet-500/30 bg-slate-950/60 p-2.5 md:col-span-2">
