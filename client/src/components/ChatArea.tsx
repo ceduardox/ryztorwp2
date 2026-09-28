@@ -1774,6 +1774,21 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
           </DropdownMenu>
         )}
 
+        {/* Reminder button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative flex-shrink-0 h-7 w-7"
+          onClick={openReminderEditor}
+          title={conversation.reminderAt ? "Editar recordatorio" : "Agregar recordatorio"}
+          data-testid="button-reminder"
+        >
+          <Clock className="h-4 w-4 text-amber-400" />
+          {conversation.reminderAt && (
+            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500" />
+          )}
+        </Button>
+
         {/* Label Dropdown */}
         <Dialog>
           <DropdownMenu>
@@ -1804,21 +1819,6 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                 <Pencil className="h-4 w-4 mr-2" />
                 Gestionar etiquetas
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={openReminderEditor} data-testid="menu-reminder-edit">
-                <Clock className="h-4 w-4 mr-2 text-amber-500" />
-                {conversation.reminderAt ? "Editar recordatorio" : "Agregar recordatorio"}
-              </DropdownMenuItem>
-              {conversation.reminderAt && (
-                <DropdownMenuItem
-                  onClick={() => clearReminderMutation.mutate()}
-                  data-testid="menu-reminder-clear"
-                  className="text-red-500 focus:text-red-500"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Eliminar recordatorio
-                </DropdownMenuItem>
-              )}
               <DropdownMenuSeparator />
               <DialogTrigger asChild>
                 <DropdownMenuItem>
