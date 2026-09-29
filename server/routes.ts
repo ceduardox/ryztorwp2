@@ -969,6 +969,28 @@ async function setConversationAdSnapshot(conversationId: number, adId: string | 
   `);
 }
 
+// Resuelve el prompt/texto y el producto a partir de la regla del anuncio (perfil global o prompt de biblioteca).
+async function buildAdSnapshotForRule(rule: AdLeadRoutingRule | null | undefined): Promise<{ snapshot: string | null; productId: number | null }> {
+  const profileKey = rule?.promptProfile ?? null;
+  const adPromptId = rule?.promptId ?? null;
+  if (profileKey) {
+    const profiles = await getPromptProfiles();
+    const profileText = profileKey === "secondary"
+      ? profiles.secondaryPrompt
+      : profileKey === "tertiary"
+        ? profiles.tertiaryPrompt
+        : profiles.primaryPrompt;
+    return { snapshot: (profileText || "").trim() || null, productId: null };
+  }
+  if (adPromptId) {
+    const adPrompt = await getAdPromptById(adPromptId);
+    if (adPrompt && adPrompt.isActive !== false) {
+      return { snapshot: adPrompt.systemPrompt || null, productId: adPrompt.productId ?? null };
+    }
+  }
+  return { snapshot: null, productId: null };
+}
+
 async function getAnalyticsViewPermissions(): Promise<AnalyticsViewPermission[]> {
   await ensureAnalyticsViewPermissionsTableExists();
   const result: any = await db.execute(sql`
@@ -3608,26 +3630,8 @@ export async function registerRoutes(
                 }
               }
                 if (conversation && incomingAdId) {
-                  let snapshot: string | null = null;
-                  let snapshotProductId: number | null = null;
-                  const profileKey = adRouting.rule?.promptProfile ?? null;
-                  const adPromptId = adRouting.rule?.promptId ?? null;
-                  if (profileKey) {
-                    const profiles = await getPromptProfiles();
-                    const profileText = profileKey === "secondary"
-                      ? profiles.secondaryPrompt
-                      : profileKey === "tertiary"
-                        ? profiles.tertiaryPrompt
-                        : profiles.primaryPrompt;
-                    snapshot = (profileText || "").trim() || null;
-                  } else if (adPromptId) {
-                    const adPrompt = await getAdPromptById(adPromptId);
-                    if (adPrompt && adPrompt.isActive !== false) {
-                      snapshot = adPrompt.systemPrompt || null;
-                      snapshotProductId = adPrompt.productId ?? null;
-                    }
-                  }
-                  await setConversationAdSnapshot(conversation.id, incomingAdId, snapshot, snapshotProductId);
+                  const { snapshot, productId } = await buildAdSnapshotForRule(adRouting.rule);
+                  await setConversationAdSnapshot(conversation.id, incomingAdId, snapshot, productId);
                 }
               } else {
                 await storage.updateConversation(conversation.id, {
@@ -3636,6 +3640,18 @@ export async function registerRoutes(
                   lastMessageTimestamp: new Date(parseInt(msg.timestamp) * 1000),
                   lastFollowUpAt: null,
                 });
+                // Backfill: la conversacion ya existia y todavia no tenia prompt de anuncio.
+                if (incomingAdId) {
+                  const adCtx = await getConversationAdContext(conversation.id);
+                  if (!adCtx.adId && !adCtx.promptSnapshot) {
+                    const adRouting = await getNextAgentForAdIdRouting(incomingAdId);
+                    const { snapshot, productId } = await buildAdSnapshotForRule(adRouting.rule);
+                    if (snapshot) {
+                      await setConversationAdSnapshot(conversation.id, incomingAdId, snapshot, productId);
+                      console.log(`[AdPrompt][Backfill] conv=${conversation.id} ad_id=${incomingAdId} snapshot=${snapshot.length} chars`);
+                    }
+                  }
+                }
               }
 
               // 3. Prevent Duplicate Messages
