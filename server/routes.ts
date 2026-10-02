@@ -3463,6 +3463,7 @@ export async function registerRoutes(
               let wasAudioMessage = false;
               let imageBase64ForAi: string | undefined = undefined;
               let stickerStoredUrl: string | undefined = undefined;
+              let documentStoredUrl: string | undefined = undefined;
               
               if (msg.type === 'text') {
                 messageText = msg.text.body;
@@ -3609,7 +3610,33 @@ export async function registerRoutes(
                 const docCaption = String(doc.caption || "").trim();
                 messageText = docCaption || `[Documento] ${docName}`;
                 messageForAi = `El cliente envió un documento: ${docName}${doc.mime_type ? ` (${doc.mime_type})` : ""}${docCaption ? `. Comentario: ${docCaption}` : ""}.`;
-                console.log("=== DOCUMENT RECEIVED ===", docName);
+                const docId = doc.id;
+                if (docId) {
+                  try {
+                    const token = process.env.META_ACCESS_TOKEN;
+                    const docMetaRes = await axios.get(`https://graph.facebook.com/v24.0/${docId}`, {
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const docMetaUrl = docMetaRes.data.url;
+                    const docMime = docMetaRes.data.mime_type || doc.mime_type || 'application/octet-stream';
+                    const docBytes = await axios.get(docMetaUrl, {
+                      headers: { Authorization: `Bearer ${token}` },
+                      responseType: 'arraybuffer',
+                    });
+                    const safeDocName = docName.replace(/[^A-Za-z0-9._-]/g, "_") || "documento";
+                    const docFileName = `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}-${safeDocName}`;
+                    await ensureProductImageStorageTableExists();
+                    await db.execute(sql`
+                      INSERT INTO product_uploaded_images (file_name, mime_type, data)
+                      VALUES (${docFileName}, ${docMime}, ${Buffer.from(docBytes.data)})
+                      ON CONFLICT (file_name) DO UPDATE SET mime_type = EXCLUDED.mime_type, data = EXCLUDED.data
+                    `);
+                    documentStoredUrl = `/uploads/products/${docFileName}`;
+                    console.log("=== DOCUMENT DOWNLOADED ===", { docName, mime: docMime, size: docBytes.data.byteLength });
+                  } catch (docError) {
+                    console.error("Error downloading document:", docError);
+                  }
+                }
               } else if (msg.type === 'system') {
                 const sysBody = String(msg.system?.body || "evento del sistema").trim();
                 messageText = `[Sistema] ${sysBody}`;
@@ -3763,7 +3790,9 @@ export async function registerRoutes(
                 mimeType: mimeType,
                 timestamp: msg.timestamp,
                 status: "received",
-                rawJson: stickerStoredUrl ? { ...msg, _stickerUrl: stickerStoredUrl } : msg,
+                rawJson: (stickerStoredUrl || documentStoredUrl)
+                  ? { ...msg, ...(stickerStoredUrl ? { _stickerUrl: stickerStoredUrl } : {}), ...(documentStoredUrl ? { _documentUrl: documentStoredUrl } : {}) }
+                  : msg,
               });
 
               await queueIncomingMessagePush(

@@ -2489,6 +2489,28 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                   </div>
                 )}
 
+                {msg.type === "document" && (() => {
+                  const docUrl = (msg.rawJson as any)?._documentUrl as string | undefined;
+                  const label = msg.text ? msg.text : "Documento";
+                  return (
+                    <div className="mb-2">
+                      {docUrl ? (
+                        <a
+                          href={docUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-slate-300/50 dark:border-slate-600 bg-black/5 dark:bg-white/5 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:underline"
+                        >
+                          <span aria-hidden>📄</span>
+                          <span className="truncate">{label}</span>
+                        </a>
+                      ) : (
+                        <div className="rounded bg-black/5 dark:bg-white/5 px-2 py-1 text-xs text-slate-500">{label}</div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {msg.type === "audio" && msg.mediaId && !failedMediaIds[msg.mediaId] && (
                   <div className="mb-2">
                     <audio
