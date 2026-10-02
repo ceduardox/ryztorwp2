@@ -3596,6 +3596,48 @@ export async function registerRoutes(
                 messageText = `[Contacto] ${contactDesc}`;
                 messageForAi = `El cliente compartio este contacto: ${contactDesc}.`;
                 console.log("=== CONTACT RECEIVED ===", contactDesc);
+              } else if (msg.type === 'reaction') {
+                const reactionEmoji = String(msg.reaction?.emoji || "").trim();
+                messageText = reactionEmoji || '[Reacción]';
+                messageForAi = reactionEmoji
+                  ? `El cliente reaccionó con el emoji "${reactionEmoji}". Interprétalo según el contexto (👍/✅/👌 = sí o aprobación; ❤️/😍 = me gusta; 🙏 = gracias; 😂 = risa). Si es respuesta a una pregunta de confirmación (ej. "¿le llevamos su pedido?"), tómalo como un SÍ y avanza el pedido.`
+                  : '[El cliente reaccionó a un mensaje]';
+                console.log("=== REACTION RECEIVED ===", reactionEmoji);
+              } else if (msg.type === 'document') {
+                const doc = msg.document || {};
+                const docName = String(doc.filename || "documento").trim();
+                const docCaption = String(doc.caption || "").trim();
+                messageText = docCaption || `[Documento] ${docName}`;
+                messageForAi = `El cliente envió un documento: ${docName}${doc.mime_type ? ` (${doc.mime_type})` : ""}${docCaption ? `. Comentario: ${docCaption}` : ""}.`;
+                console.log("=== DOCUMENT RECEIVED ===", docName);
+              } else if (msg.type === 'system') {
+                const sysBody = String(msg.system?.body || "evento del sistema").trim();
+                messageText = `[Sistema] ${sysBody}`;
+                messageForAi = `Aviso del sistema de WhatsApp: ${sysBody}.`;
+                console.log("=== SYSTEM MESSAGE ===", sysBody);
+              } else if (msg.type === 'ephemeral') {
+                const inner = msg.ephemeral || {};
+                const innerText = String(inner.text?.body || "").trim();
+                if (innerText) {
+                  messageText = `[Ver una vez] ${innerText}`;
+                  messageForAi = innerText;
+                } else if (inner.image?.id) {
+                  messageText = '[Ver una vez: imagen]';
+                  messageForAi = '[El cliente envió una imagen de ver una vez]';
+                } else if (inner.video?.id) {
+                  messageText = '[Ver una vez: video]';
+                  messageForAi = '[El cliente envió un video de ver una vez]';
+                } else {
+                  messageText = '[Ver una vez]';
+                  messageForAi = '[El cliente envió un contenido de ver una vez]';
+                }
+                console.log("=== EPHEMERAL MESSAGE ===", messageText);
+              } else if (msg.type === 'edit') {
+                messageText = '[El cliente editó un mensaje]';
+                messageForAi = '[El cliente editó un mensaje anterior]';
+              } else if (msg.type === 'revoke' || msg.type === 'deleted') {
+                messageText = '[El cliente eliminó un mensaje]';
+                messageForAi = '[El cliente eliminó un mensaje anterior]';
               } else {
                 messageText = `[${msg.type}]`;
                 messageForAi = `[El cliente envio un mensaje de tipo: ${msg.type}]`;
