@@ -3583,6 +3583,19 @@ export async function registerRoutes(
                   messageForAi = `[El cliente selecciono una opcion interactiva]`;
                 }
                 console.log("=== INTERACTIVE REPLY ===", messageText);
+              } else if (msg.type === 'contacts') {
+                const contactList = Array.isArray(msg.contacts) ? msg.contacts : [];
+                const contactDescs = contactList.map((ct: any) => {
+                  const nm = ct?.name?.formatted_name
+                    || [ct?.name?.first_name, ct?.name?.last_name].filter(Boolean).join(" ")
+                    || "Contacto";
+                  const ph = ct?.phones?.[0]?.phone || ct?.phones?.[0]?.wa_id || "";
+                  return ph ? `${nm} (${ph})` : nm;
+                });
+                const contactDesc = contactDescs.join("; ") || "un contacto";
+                messageText = `[Contacto] ${contactDesc}`;
+                messageForAi = `El cliente compartio este contacto: ${contactDesc}.`;
+                console.log("=== CONTACT RECEIVED ===", contactDesc);
               } else {
                 messageText = `[${msg.type}]`;
                 messageForAi = `[El cliente envio un mensaje de tipo: ${msg.type}]`;
