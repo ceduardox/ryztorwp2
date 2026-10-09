@@ -168,12 +168,29 @@ export default function InboxPage() {
     setVisibleConversations(INITIAL_VISIBLE_CONVERSATIONS);
   }, [dateFilter, searchQuery]);
 
+  useEffect(() => {
+    const vv = (window as any).visualViewport as VisualViewport | undefined;
+    if (!vv) return;
+    const apply = () => {
+      document.documentElement.style.setProperty("--app-height", `${Math.round(vv.height)}px`);
+    };
+    apply();
+    vv.addEventListener("resize", apply);
+    vv.addEventListener("scroll", apply);
+    window.addEventListener("orientationchange", apply);
+    return () => {
+      vv.removeEventListener("resize", apply);
+      vv.removeEventListener("scroll", apply);
+      window.removeEventListener("orientationchange", apply);
+    };
+  }, []);
+
   const handleLoadMore = () => {
     setVisibleConversations((count) => count + LOAD_MORE_STEP);
   };
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden bg-slate-900 text-foreground flex flex-col">
+    <div className="h-[100dvh] w-full overflow-hidden bg-slate-900 text-foreground flex flex-col" style={{ height: "var(--app-height, 100dvh)" }}>
       <style dangerouslySetInnerHTML={{ __html: pulseLineAnimation }} />
       
       {/* Desktop Header - Futuristic */}
