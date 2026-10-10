@@ -1487,6 +1487,19 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
     setImageUrl("");
     setShowImageInput(false);
 
+    // Mantener el teclado abierto: devolver el foco al input despues de enviar.
+    requestAnimationFrame(() => {
+      const el = messageInputRef.current;
+      if (!el) return;
+      el.focus();
+      const end = el.value.length;
+      try {
+        el.setSelectionRange(end, end);
+      } catch {
+        // ignore
+      }
+    });
+
     sendMessage(
       {
         to: conversation.waId,
@@ -3088,6 +3101,12 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
               requestAnimationFrame(() => resizeMessageInput());
             }}
             onKeyDown={handleKeyDown}
+            onFocus={() => {
+              requestAnimationFrame(() => {
+                const el = scrollRef.current;
+                if (el) el.scrollTop = el.scrollHeight;
+              });
+            }}
             placeholder="Escribir..."
             className="flex-1 min-w-0 min-h-[40px] max-h-[200px] md:max-h-[140px] resize-none overflow-hidden border-0 bg-white dark:bg-[#2a3942] rounded-3xl px-3 md:px-4 py-2 text-sm leading-[1.35] focus-visible:ring-0"
             rows={1}
@@ -3106,6 +3125,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
           </Button>
 
           <Button
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSend()}
             disabled={(!hasTextDraft && !imageUrl && !selectedFile) || isPending || uploadImageMutation.isPending || uploadAudioMutation.isPending || uploadVideoMutation.isPending || uploadDocumentMutation.isPending || isRecording}
             size="icon"
