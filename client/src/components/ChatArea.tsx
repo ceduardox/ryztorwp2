@@ -1812,7 +1812,9 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
         </Button>
 
         {/* Delivery comprobante button */}
-        {conversation.deliveryComprobante && (
+        {(conversation.deliveryComprobante ||
+          conversation.orderStatus === "ready" ||
+          conversation.orderStatus === "delivered") && (
           <Button
             variant="ghost"
             size="icon"
@@ -2032,8 +2034,14 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
               <DialogTitle>Comprobante de entrega</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 mt-3">
-              <pre className="max-h-[55vh] overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted p-3 text-sm">{conversation.deliveryComprobante}</pre>
-              <p className="text-xs text-muted-foreground">Es el mismo mensaje que se envió por WhatsApp.</p>
+              {conversation.deliveryComprobante ? (
+                <pre className="max-h-[55vh] overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted p-3 text-sm">{conversation.deliveryComprobante}</pre>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Esta conversación todavía no tiene un comprobante generado. Pulsa "Generar" para que la IA lea la conversación y lo cree.
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">Es el mismo mensaje que se envía por WhatsApp.</p>
               <div className="flex justify-end gap-2">
                 <Button
                   variant="outline"
@@ -2042,10 +2050,11 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                   data-testid="button-delivery-comprobante-regenerate"
                 >
                   <RefreshCw className={cn("h-4 w-4 mr-2", regenerateDeliveryComprobanteMutation.isPending && "animate-spin")} />
-                  {regenerateDeliveryComprobanteMutation.isPending ? "Generando..." : "Regenerar"}
+                  {regenerateDeliveryComprobanteMutation.isPending ? "Generando..." : (conversation.deliveryComprobante ? "Regenerar" : "Generar")}
                 </Button>
                 <Button
                   onClick={() => copyToClipboard(conversation.deliveryComprobante || "", "Comprobante copiado")}
+                  disabled={!conversation.deliveryComprobante}
                   data-testid="button-delivery-comprobante-copy"
                 >
                   <Copy className="h-4 w-4 mr-2" />
