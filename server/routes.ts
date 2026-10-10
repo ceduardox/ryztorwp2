@@ -7,7 +7,7 @@ import session from "express-session";
 import MemoryStore from "memorystore";
 import connectPgSimple from "connect-pg-simple";
 import axios from "axios";
-import { generateAiResponse } from "./ai-service";
+import { generateAiResponse, generateDeliveryComprobante } from "./ai-service";
 import { initFollowUp } from "./follow-up";
 import { conversations, insertProductSchema, messages as messagesTable, updateOrderStatusSchema, type Message as StoredMessage, type Product as StoredProduct } from "@shared/schema";
 import { db, pool } from "./db";
@@ -1683,48 +1683,30 @@ function formatDeliveryFallback(params: DeliveryNotifyParams): string {
 }
 
 async function buildDeliveryOrderMessage(params: DeliveryNotifyParams): Promise<string> {
-  const hoy = new Date().toLocaleDateString("es-BO", {
-    weekday: "long",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-  const instruccion = [
-    "[SISTEMA INTERNO - NO ES UN MENSAJE AL CLIENTE]",
-    `Hoy es ${hoy} (Bolivia).`,
-    "Lee la conversacion y genera UNICAMENTE un comprobante de entrega con EXACTAMENTE este formato, sin saludo ni texto adicional:",
-    "",
-    "DELIVERY: <dia y fecha de entrega>",
-    `Vendedor: ${params.vendorName || "<vendedor>"}`,
-    "Producto: <producto>",
-    "",
-    "1) Nombre: <nombre del cliente>",
-    "2) Telefono:",
-    ` wa.me/${params.waId}`,
-    "3) GPS y descripcion:",
-    "<si hay coordenadas usa https://www.google.com/maps?q=LAT,LON ; si no, la direccion o referencia>",
-    "4) Hora de la entrega:",
-    "<hora mencionada>",
-    "5) Metodo de pago:",
-    "<efectivo/qr/otro>",
-    "6) Unidades a entregar:",
-    " <producto> (<precio> Bs)",
-    "",
-    "TOTAL <monto> BS",
-    "",
-    'Si un dato no aparece en la conversacion, escribe "Por confirmar". No inventes. No agregues nada mas.',
-  ].join("\n");
+  // Transcripcion completa de la conversacion para que la IA extraiga los datos.
+  const conversationText = [...params.recentMessages]
+    .map((m) => `${m.direction === "in" ? "Cliente" : "Asesor"}: ${(m.text || "").trim()}`)
+    .filter((line) => line.replace(/^(Cliente|Asesor):\s*/i, "").trim().length > 0)
+    .join("\n");
 
   try {
-    const result = await generateAiResponse(
-      params.conversationId,
-      instruccion,
-      params.recentMessages,
-      undefined,
-      params.vendorName || undefined,
-    );
-    const text = (result?.response || "").replace(DELIVERY_TOKEN_REGEX, "").trim();
-    if (text && text.length > 20) return text;
+    const raw = await generateDeliveryComprobante({
+      conversationText,
+      advisorName: params.vendorName,
+      waId: params.waId,
+      contactName: params.contactName,
+    });
+    const text = (raw || "").replace(DELIVERY_TOKEN_REGEX, "").trim();
+    // Validar que sea un comprobante COMPLETO: si el modelo devolvio algo corto o
+    // incompleto, usamos el fallback en vez de un mensaje roto.
+    if (
+      text.length > 20 &&
+      /1\)\s*Nombre/i.test(text) &&
+      /TOTAL/i.test(text)
+    ) {
+      return text;
+    }
+    console.warn("[DeliveryNotify] Comprobante incompleto de la IA, se usa fallback. Salida:", text);
   } catch (error) {
     console.error("[DeliveryNotify] Fallo la generacion con IA:", error);
   }

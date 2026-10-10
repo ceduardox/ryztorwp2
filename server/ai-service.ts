@@ -648,3 +648,74 @@ ${productContext ? `\n=== PRODUCTOS ===\n${productContext}` : ""}`;
     return null;
   }
 }
+
+// Genera el comprobante de entrega leyendo la conversacion. Usa un prompt DEDICADO
+// (sin el prompt de ventas) y un modelo confiable para devolver el formato exacto.
+export async function generateDeliveryComprobante(params: {
+  conversationText: string;
+  advisorName?: string | null;
+  waId: string;
+  contactName?: string | null;
+}): Promise<string | null> {
+  try {
+    const hoy = new Date().toLocaleDateString("es-BO", {
+      weekday: "long",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    const advisor = (params.advisorName || "").trim() || "Isabella";
+
+    const systemPrompt = [
+      "Eres un asistente que SOLO extrae datos de una conversacion de WhatsApp y devuelve un comprobante de entrega.",
+      "Reglas obligatorias:",
+      "- Lee TODA la conversacion y usa los datos reales que aparezcan en ella (nombre, direccion/ubicacion, producto, precio, pago, fecha/hora).",
+      "- Devuelve UNICAMENTE el comprobante con el formato pedido. No saludes, no expliques, no resumas, no agregues texto extra.",
+      "- NO uses tokens como [PEDIDO_LISTO] ni [NECESITO_HUMANO].",
+      '- Si un dato realmente no aparece en la conversacion, escribe exactamente "Por confirmar". No inventes.',
+    ].join("\n");
+
+    const instruction = [
+      `Hoy es ${hoy} (Bolivia).`,
+      `Numero de WhatsApp del cliente: ${params.waId}.`,
+      params.contactName ? `Nombre en la agenda: ${params.contactName}.` : "",
+      "",
+      "Genera el comprobante con EXACTAMENTE este formato (respeta las lineas):",
+      "DELIVERY: <dia y fecha de entrega; si no se menciono, escribe la fecha de hoy>",
+      `Vendedor: ${advisor}`,
+      "Producto: <producto>",
+      "",
+      "1) Nombre: <nombre completo del cliente>",
+      "2) Telefono:",
+      ` wa.me/${params.waId}`,
+      "3) GPS y descripcion:",
+      "<si hay coordenadas usa https://www.google.com/maps?q=LAT,LON ; si no, la direccion o referencia>",
+      "4) Hora de la entrega:",
+      "<hora mencionada; si no, Por confirmar>",
+      "5) Metodo de pago:",
+      "<efectivo / QR / pago al recibir / otro>",
+      "6) Unidades a entregar:",
+      " <producto y cantidad> (<precio unitario> Bs)",
+      "",
+      "TOTAL <monto total> BS",
+    ].filter(Boolean).join("\n");
+
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `CONVERSACION:\n${params.conversationText}\n\n${instruction}` },
+    ];
+
+    const result = await requestOpenAiCompletion({
+      model: DEFAULT_OPENAI_MODEL,
+      messages,
+      maxTokens: 800,
+      temperature: 0.2,
+    });
+
+    const text = (result.responseText || "").trim();
+    return text || null;
+  } catch (error) {
+    console.error("[DeliveryNotify] Error generando comprobante con IA:", error);
+    return null;
+  }
+}
