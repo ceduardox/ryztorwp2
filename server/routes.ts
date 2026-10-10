@@ -2890,7 +2890,7 @@ async function sendPushNotification(
       url: targetUrl,
       chrome_web_icon: "https://ryzapp.org/icon-512.png",
       web_push_topic: uniqueTopic,
-      ttl: 60,
+      ttl: 259200,
     };
 
     if (targetExternalIds.length > 0) {

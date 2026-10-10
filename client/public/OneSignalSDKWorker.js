@@ -86,20 +86,26 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil((async () => {
     const windowClients = await clients.matchAll({ type: "window", includeUncontrolled: true });
-    for (const client of windowClients) {
-      if (typeof client.navigate === "function") {
-        try {
-          await client.navigate(targetUrl);
-        } catch {
-          // ignore navigation failures
-        }
-        try {
-          await client.focus();
-        } catch {
-          // ignore focus failures
-        }
-        return;
+    const origin = self.location?.origin || "";
+    const appClient =
+      windowClients.find((client) => typeof client.url === "string" && client.url.startsWith(origin)) ||
+      windowClients[0];
+
+    if (appClient) {
+      // Traer la app al frente PRIMERO. Antes se hacia navigate() y luego focus();
+      // cuando el navigate no resolvia (pestana en segundo plano) el focus nunca
+      // corria, por eso el chat solo abria al sacar la app de segundo plano a mano.
+      try {
+        await appClient.focus();
+      } catch {
+        // ignore focus failures
       }
+      try {
+        await appClient.navigate(targetUrl);
+      } catch {
+        // ignore navigation failures
+      }
+      return;
     }
 
     if (clients.openWindow) {
