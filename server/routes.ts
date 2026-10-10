@@ -1732,8 +1732,17 @@ async function buildDeliveryOrderMessage(params: DeliveryNotifyParams): Promise<
 }
 
 async function notifyDeliveryOrder(params: DeliveryNotifyParams): Promise<void> {
-  if (DELIVERY_NOTIFY_NUMBERS.length === 0) return;
   const message = await buildDeliveryOrderMessage(params);
+
+  // Guardar el comprobante en la conversacion para poder verlo/copiarlo desde el CRM,
+  // aunque no haya numeros de aviso configurados.
+  try {
+    await storage.updateConversation(params.conversationId, { deliveryComprobante: message });
+  } catch (error) {
+    console.error("[DeliveryNotify] No se pudo guardar el comprobante:", error);
+  }
+
+  if (DELIVERY_NOTIFY_NUMBERS.length === 0) return;
 
   let anySent = false;
   for (const number of DELIVERY_NOTIFY_NUMBERS) {
@@ -6223,6 +6232,35 @@ export async function registerRoutes(
       );
     }
     res.json(updated);
+  });
+
+  // Regenerate the delivery comprobante by having the AI re-read the conversation
+  app.post("/api/conversations/:id/delivery-comprobante/regenerate", requireAuth, async (req, res) => {
+    const id = parseInt(req.params.id);
+    const conversation = await storage.getConversation(id);
+    if (!conversation) {
+      return res.status(404).json({ message: "Conversación no encontrada" });
+    }
+    const recentMessages = await storage.getMessages(id);
+    let vendorName: string | null = null;
+    if (conversation.assignedAgentId) {
+      const agent = await storage.getAgent(conversation.assignedAgentId);
+      vendorName = agent?.name || null;
+    }
+    try {
+      const message = await buildDeliveryOrderMessage({
+        conversationId: id,
+        waId: conversation.waId,
+        contactName: conversation.contactName || conversation.waId,
+        vendorName,
+        recentMessages,
+      });
+      const updated = await storage.updateConversation(id, { deliveryComprobante: message });
+      res.json({ success: true, deliveryComprobante: message, conversation: updated });
+    } catch (error) {
+      console.error("[DeliveryNotify] Error al regenerar comprobante:", error);
+      res.status(500).json({ message: "No se pudo regenerar el comprobante" });
+    }
   });
 
   // Lock/unlock a conversation (blocks delete and kanban moves until unlocked)

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft, Volume2, Lock, LockOpen } from "lucide-react";
+import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft, Volume2, Lock, LockOpen, RefreshCw } from "lucide-react";
 import type { Conversation, Message, Label, QuickMessage, Agent } from "@shared/schema";
 import {
   DropdownMenu,
@@ -194,6 +194,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [editingQuickMessageId, setEditingQuickMessageId] = useState<number | null>(null);
   const [showReminderDialog, setShowReminderDialog] = useState(false);
+  const [showDeliveryComprobanteDialog, setShowDeliveryComprobanteDialog] = useState(false);
   const [reminderAtInput, setReminderAtInput] = useState("");
   const [reminderNoteInput, setReminderNoteInput] = useState("");
   const [showLearnModal, setShowLearnModal] = useState(false);
@@ -888,6 +889,27 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations/:id"] });
       setShowReminderDialog(false);
       toast({ title: "Recordatorio eliminado" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const regenerateDeliveryComprobanteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/conversations/${conversation.id}/delivery-comprobante/regenerate`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error?.message || "Error al regenerar el comprobante");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations/:id"] });
+      toast({ title: "Comprobante regenerado" });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -1789,6 +1811,20 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
           )}
         </Button>
 
+        {/* Delivery comprobante button */}
+        {conversation.deliveryComprobante && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="flex-shrink-0 h-7 w-7"
+            onClick={() => setShowDeliveryComprobanteDialog(true)}
+            title="Ver comprobante de entrega"
+            data-testid="button-delivery-comprobante"
+          >
+            <Truck className="h-4 w-4 text-emerald-400" />
+          </Button>
+        )}
+
         {/* Label Dropdown */}
         <Dialog>
           <DropdownMenu>
@@ -1988,6 +2024,37 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
 	            </div>
 	          </DialogContent>
 	        </Dialog>
+
+        {/* Delivery comprobante dialog */}
+        <Dialog open={showDeliveryComprobanteDialog} onOpenChange={setShowDeliveryComprobanteDialog}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Comprobante de entrega</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-3">
+              <pre className="max-h-[55vh] overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted p-3 text-sm">{conversation.deliveryComprobante}</pre>
+              <p className="text-xs text-muted-foreground">Es el mismo mensaje que se envió por WhatsApp.</p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => regenerateDeliveryComprobanteMutation.mutate()}
+                  disabled={regenerateDeliveryComprobanteMutation.isPending}
+                  data-testid="button-delivery-comprobante-regenerate"
+                >
+                  <RefreshCw className={cn("h-4 w-4 mr-2", regenerateDeliveryComprobanteMutation.isPending && "animate-spin")} />
+                  {regenerateDeliveryComprobanteMutation.isPending ? "Generando..." : "Regenerar"}
+                </Button>
+                <Button
+                  onClick={() => copyToClipboard(conversation.deliveryComprobante || "", "Comprobante copiado")}
+                  data-testid="button-delivery-comprobante-copy"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copiar
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Admin-only AI audio recovery */}
         {canSendAdminAiAudio && (
