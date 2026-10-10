@@ -34,6 +34,7 @@ export default function InboxPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleConversations, setVisibleConversations] = useState(INITIAL_VISIBLE_CONVERSATIONS);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const maxDays = 30;
   const iaHref = isAdmin ? "/ai-agent" : "/agent-ai";
   const serverLimit = useMemo(
@@ -299,7 +300,7 @@ export default function InboxPage() {
         </div>
       </div>
       {/* Kanban View - responsive para movil y desktop */}
-      <div className="flex flex-1 min-h-0 pb-14 md:pb-0">
+      <div className={`flex flex-1 min-h-0 ${mobileChatOpen ? "pb-0" : "pb-14"} md:pb-0`}>
         <KanbanView
           conversations={filteredByRangeAndSearch}
           isLoading={loadingList}
@@ -312,6 +313,7 @@ export default function InboxPage() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onClearSearch={() => setSearchQuery("")}
+          onMobileChatOpenChange={setMobileChatOpen}
         />
       </div>
       {!loadingList && hasMoreConversations && (
@@ -327,7 +329,7 @@ export default function InboxPage() {
         </div>
       )}
       {/* Mobile Bottom Navigation - Futuristic */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-xl border-t border-emerald-500/20 flex justify-around items-center py-2 px-1 z-50">
+      <div className={`md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-xl border-t border-emerald-500/20 flex justify-around items-center py-2 px-1 z-50 ${mobileChatOpen ? "hidden" : ""}`}>
         <Link href="/">
           <button className={`flex flex-col items-center px-3 py-1.5 rounded-xl transition-all ${location === '/' ? 'text-emerald-400 bg-emerald-500/20' : 'text-slate-500'}`}>
             <LayoutGrid className="h-5 w-5" />

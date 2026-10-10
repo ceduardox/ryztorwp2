@@ -67,6 +67,7 @@ interface KanbanViewProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
   onClearSearch: () => void;
+  onMobileChatOpenChange?: (open: boolean) => void;
 }
 
 interface ColumnProps {
@@ -757,7 +758,7 @@ const tabConfig: { key: TabType; label: string; shortLabel: string; icon: typeof
   { key: "entregado", label: "Enviados y Entregados", shortLabel: "Enviado", icon: Truck },
 ];
 
-export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterChange, onLoadMore, hasMoreConversations, maxDays, columnVisibleLimit, searchQuery, onSearchChange, onClearSearch }: KanbanViewProps) {
+export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterChange, onLoadMore, hasMoreConversations, maxDays, columnVisibleLimit, searchQuery, onSearchChange, onClearSearch, onMobileChatOpenChange }: KanbanViewProps) {
   const { isAdmin, isAgent, user } = useAuth();
   const canDragKanban = isAdmin || isAgent;
   const { toast } = useToast();
@@ -810,6 +811,17 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
   });
   const { data: activeConversation } = useConversation(activeId);
   const isMobileChatOpen = !!(activeId && activeConversation);
+
+  useEffect(() => {
+    onMobileChatOpenChange?.(isMobileChatOpen);
+  }, [isMobileChatOpen, onMobileChatOpenChange]);
+
+  useEffect(() => {
+    return () => {
+      onMobileChatOpenChange?.(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { data: labels = [] } = useQuery<Label[]>({ queryKey: ["/api/labels"] });
   const ownedLabels = useMemo(
     () =>
