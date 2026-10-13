@@ -62,6 +62,7 @@ const AD_PRODUCT_ROUTE_OPTIONS = [
   { value: "diabetes_y_peso", label: "Berberina + Bitter Melon" },
   { value: "dolor_y_estres", label: "Citrato de Magnesio" },
   { value: "dolor_articular", label: "Boswellia Serrata" },
+  { value: "creatina", label: "Creatina" },
 ] as const;
 
 function getAdProductRouteLabel(route?: string | null): string {

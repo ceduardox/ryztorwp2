@@ -172,7 +172,30 @@ Producto americano de alta calidad.
 Adultos: 2 capsulas al dia.
 Tomarlas con comida y agua.
 Constancia diaria recomendada para mejor resultado.
-[LISTA: Opciones Boswellia | Beneficios, Indicaciones, Precio y envio, Quiero hacer mi pedido, Quiero hablar con alguien, Tengo otra consulta]`,
+    [LISTA: Opciones Boswellia | Beneficios, Indicaciones, Precio y envio, Quiero hacer mi pedido, Quiero hablar con alguien, Tengo otra consulta]`,
+  },
+  creatina: {
+    productName: "Creatina RYZTOR",
+    imageUrl: "",
+    listText: "[LISTA: Opciones Creatina | Beneficios, Indicaciones, Precio y envio, Quiero hacer mi pedido, Quiero hablar con alguien, Tengo otra consulta]",
+    responseText: `*Creatina RYZTOR*
+Ideal para fuerza, energia y rendimiento fisico.
+- Apoya el rendimiento en entrenamiento de fuerza y potencia.
+- Ayuda a la recuperacion muscular y al aumento de masa.
+- Favorece energia y resistencia fisica.
+Producto americano de alta calidad.
+*190 Bs* | Envio segun ciudad.
+[LISTA: Opciones Creatina | Beneficios, Indicaciones, Precio y envio, Quiero hacer mi pedido, Quiero hablar con alguien, Tengo otra consulta]`,
+    benefitsText: `*Beneficios Creatina*
+- Apoya fuerza, potencia y rendimiento en el entrenamiento.
+- Ayuda a la recuperacion muscular.
+- Favorece energia, resistencia y aumento de masa muscular.
+[LISTA: Opciones Creatina | Beneficios, Indicaciones, Precio y envio, Quiero hacer mi pedido, Quiero hablar con alguien, Tengo otra consulta]`,
+    indicationsText: `*Indicaciones Creatina*
+Adultos: 1 medida diaria.
+Preferiblemente con agua o jugo.
+Constancia diaria recomendada para mejor resultado.
+[LISTA: Opciones Creatina | Beneficios, Indicaciones, Precio y envio, Quiero hacer mi pedido, Quiero hablar con alguien, Tengo otra consulta]`,
   },
 } as const;
 interface BufferedMessage {
@@ -697,7 +720,7 @@ function normalizeAdId(raw: unknown): string {
     .replace(/\s+/g, "");
 }
 
-const AD_PRODUCT_ROUTE_KEYS = new Set(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular"]);
+const AD_PRODUCT_ROUTE_KEYS = new Set(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular", "creatina"]);
 
 function normalizeAdProductRoute(raw: unknown): string | null {
   const value = String(raw ?? "").trim();
@@ -7541,7 +7564,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         agentIds: z.array(z.number().int().positive()).min(1).max(50),
         isActive: z.boolean().optional(),
         isExclusive: z.boolean().optional(),
-        productRoute: z.enum(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular"]).nullable().optional(),
+        productRoute: z.enum(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular", "creatina"]).nullable().optional(),
         promptId: z.number().int().positive().nullable().optional(),
         promptProfile: z.enum(["primary", "secondary", "tertiary"]).nullable().optional(),
       }).parse(req.body);
@@ -7584,7 +7607,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         agentIds: z.array(z.number().int().positive()).min(1).max(50),
         isActive: z.boolean().optional(),
         isExclusive: z.boolean().optional(),
-        productRoute: z.enum(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular"]).nullable().optional(),
+        productRoute: z.enum(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular", "creatina"]).nullable().optional(),
         promptId: z.number().int().positive().nullable().optional(),
         promptProfile: z.enum(["primary", "secondary", "tertiary"]).nullable().optional(),
       }).parse(req.body);
