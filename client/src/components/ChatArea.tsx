@@ -2506,7 +2506,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                     type="button"
                     className={cn(
                       "absolute -top-2 -left-2 z-10 rounded-full bg-white/95 p-1.5 text-slate-600 shadow ring-1 ring-slate-200 transition",
-                      isTouchDevice ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                      isTouchDevice ? "opacity-100" : "hidden",
                     )}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -2524,7 +2524,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                       <button
                         type="button"
                         className={cn(
-                          "absolute -top-2 right-7 z-10 rounded-full bg-white/95 p-1.5 text-slate-600 shadow ring-1 ring-slate-200 transition opacity-0 group-hover:opacity-100",
+                          "absolute -top-2 -right-2 z-10 rounded-full bg-white/95 p-1.5 text-slate-600 shadow ring-1 ring-slate-200 transition opacity-0 group-hover:opacity-100",
                         )}
                         onClick={(e) => e.stopPropagation()}
                         aria-label="Opciones del mensaje"
@@ -2585,7 +2585,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                     type="button"
                     className={cn(
                       "absolute -top-2 -right-2 z-10 rounded-full bg-white/95 p-1.5 text-slate-600 shadow ring-1 ring-slate-200 transition",
-                      isTouchDevice ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                      isTouchDevice ? "opacity-100" : "hidden",
                     )}
                     onClick={(e) => {
                       e.stopPropagation();
