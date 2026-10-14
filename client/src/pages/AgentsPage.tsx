@@ -31,6 +31,7 @@ import {
   MessageSquare,
   Clock,
   TrendingUp,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Agent } from "@shared/schema";
@@ -200,6 +201,7 @@ export default function AgentsPage() {
   const [analyticsPermissionsDraft, setAnalyticsPermissionsDraft] = useState<Record<number, number[]>>({});
   const [selectedAnalyticsViewerId, setSelectedAnalyticsViewerId] = useState<number | null>(null);
   const [analyticsTargetSearch, setAnalyticsTargetSearch] = useState("");
+  const [agentSearch, setAgentSearch] = useState("");
 
   const { data: agents = [], isLoading } = useQuery<AgentWithStats[]>({
     queryKey: ["/api/agents", dateFrom, dateTo],
@@ -539,6 +541,13 @@ export default function AgentsPage() {
 
   const activeAgents = agents.filter(a => a.isActive);
   const inactiveAgents = agents.filter(a => !a.isActive);
+  const normalizedAgentSearch = agentSearch.trim().toLowerCase();
+  const matchesAgentSearch = (agent: AgentWithStats) =>
+    !normalizedAgentSearch ||
+    agent.name.toLowerCase().includes(normalizedAgentSearch) ||
+    agent.username.toLowerCase().includes(normalizedAgentSearch);
+  const filteredActiveAgents = normalizedAgentSearch ? activeAgents.filter(matchesAgentSearch) : activeAgents;
+  const filteredInactiveAgents = normalizedAgentSearch ? inactiveAgents.filter(matchesAgentSearch) : inactiveAgents;
   const sessionsByAgentId = agentSessions.reduce<Record<number, AgentSession[]>>((acc, session) => {
     if (!acc[session.agentId]) acc[session.agentId] = [];
     acc[session.agentId].push(session);
@@ -1415,6 +1424,30 @@ export default function AgentsPage() {
           </div>
         )}
 
+        {agents.length > 0 && (
+          <div className="mb-5 relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Input
+              value={agentSearch}
+              onChange={(e) => setAgentSearch(e.target.value)}
+              placeholder="Buscar agente por nombre o usuario..."
+              className="bg-slate-800/60 border-slate-700/50 text-white placeholder:text-slate-600 pl-9 pr-9"
+              data-testid="input-search-agent"
+            />
+            {agentSearch && (
+              <button
+                type="button"
+                onClick={() => setAgentSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 transition-colors hover:text-slate-300"
+                aria-label="Limpiar búsqueda"
+                data-testid="button-clear-agent-search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-16">
             <div className="animate-spin h-10 w-10 border-3 border-emerald-500 border-t-transparent rounded-full" />
@@ -1430,7 +1463,16 @@ export default function AgentsPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {activeAgents.length > 0 && (
+            {normalizedAgentSearch && filteredActiveAgents.length === 0 && filteredInactiveAgents.length === 0 && (
+              <div className="text-center py-16 bg-slate-800/30 backdrop-blur-xl rounded-2xl border border-slate-700/30">
+                <div className="w-14 h-14 mx-auto mb-4 rounded-xl bg-slate-800/50 flex items-center justify-center border border-slate-700/50">
+                  <Search className="h-6 w-6 text-slate-600" />
+                </div>
+                <p className="text-slate-400 text-sm">No se encontraron agentes para "{agentSearch.trim()}"</p>
+                <p className="text-slate-600 text-xs mt-1">Prueba con otro nombre o usuario</p>
+              </div>
+            )}
+            {filteredActiveAgents.length > 0 && (
               <div className="bg-slate-800/30 backdrop-blur-xl rounded-2xl border border-slate-700/30 shadow-xl shadow-emerald-500/10 overflow-hidden">
                 <div className="bg-gradient-to-r from-emerald-600/80 to-teal-600/80 px-4 py-3 relative overflow-hidden">
                   <div className="absolute inset-0 animate-glow-line" />
@@ -1438,12 +1480,12 @@ export default function AgentsPage() {
                     <Zap className="h-4 w-4" />
                     <span className="font-semibold text-sm text-white">Agentes Activos</span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm font-bold">
-                      {activeAgents.length}
+                      {filteredActiveAgents.length}
                     </span>
                   </div>
                 </div>
                 <div className="p-3 space-y-2">
-                  {activeAgents.map((agent) => (
+                  {filteredActiveAgents.map((agent) => (
                     <AgentCard
                       key={agent.id}
                       agent={agent}
@@ -1473,7 +1515,7 @@ export default function AgentsPage() {
               </div>
             )}
 
-            {inactiveAgents.length > 0 && (
+            {filteredInactiveAgents.length > 0 && (
               <div className="bg-slate-800/30 backdrop-blur-xl rounded-2xl border border-slate-700/30 shadow-xl shadow-slate-500/10 overflow-hidden">
                 <div className="bg-gradient-to-r from-slate-600/80 to-slate-700/80 px-4 py-3 relative overflow-hidden">
                   <div className="absolute inset-0 animate-glow-line" />
@@ -1481,12 +1523,12 @@ export default function AgentsPage() {
                     <PowerOff className="h-4 w-4" />
                     <span className="font-semibold text-sm text-white">Inactivos</span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm font-bold">
-                      {inactiveAgents.length}
+                      {filteredInactiveAgents.length}
                     </span>
                   </div>
                 </div>
                 <div className="p-3 space-y-2">
-                  {inactiveAgents.map((agent) => (
+                  {filteredInactiveAgents.map((agent) => (
                     <AgentCard
                       key={agent.id}
                       agent={agent}
