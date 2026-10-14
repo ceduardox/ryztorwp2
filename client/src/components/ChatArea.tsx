@@ -2508,23 +2508,6 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                     </div>
                   </div>
                 )}
-                {canEditMessage && !isEditingThisMessage && (
-                  <button
-                    type="button"
-                    className={cn(
-                      "absolute -top-2 -left-2 z-10 rounded-full bg-white/95 p-1.5 text-slate-600 shadow ring-1 ring-slate-200 transition",
-                      isTouchDevice ? "opacity-100" : "hidden",
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startEditingMessage(msg);
-                    }}
-                    aria-label="Editar mensaje"
-                    title="Editar mensaje"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                )}
                 {!isEditingThisMessage && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
