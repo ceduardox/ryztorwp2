@@ -1430,7 +1430,7 @@ export default function AgentsPage() {
             <Input
               value={agentSearch}
               onChange={(e) => setAgentSearch(e.target.value)}
-              placeholder="Buscar agente por nombre o usuario..."
+              placeholder="Buscar agente (nombre o usuario)..."
               className="bg-slate-800/60 border-slate-700/50 text-white placeholder:text-slate-600 pl-9 pr-9"
               data-testid="input-search-agent"
             />
