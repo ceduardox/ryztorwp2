@@ -65,6 +65,7 @@ export interface IStorage {
   // Messages
   getMessages(conversationId: number): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
+  getMessage(id: number): Promise<Message | undefined>;
   getMessageByWaId(waMessageId: string): Promise<Message | undefined>;
   updateMessageStatus(waMessageId: string, status: string): Promise<void>;
 
@@ -495,6 +496,11 @@ export class DatabaseStorage implements IStorage {
 
   async getMessageByWaId(waMessageId: string): Promise<Message | undefined> {
     const [message] = await db.select().from(messages).where(eq(messages.waMessageId, waMessageId));
+    return message;
+  }
+
+  async getMessage(id: number): Promise<Message | undefined> {
+    const [message] = await db.select().from(messages).where(eq(messages.id, id));
     return message;
   }
 

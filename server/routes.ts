@@ -3196,7 +3196,7 @@ function parseInteractiveElements(text: string): { cleanText: string; buttons?: 
 }
 
 // Helper to send messages via Graph API
-async function sendToWhatsApp(to: string, type: 'text' | 'image' | 'interactive', content: any) {
+async function sendToWhatsApp(to: string, type: 'text' | 'image' | 'interactive' | 'reaction', content: any) {
   const token = process.env.META_ACCESS_TOKEN;
   const phoneId = process.env.WA_PHONE_NUMBER_ID;
 
@@ -3244,6 +3244,8 @@ async function sendToWhatsApp(to: string, type: 'text' | 'image' | 'interactive'
     }
   } else if (type === 'interactive') {
     payload.interactive = content.interactive;
+  } else if (type === 'reaction') {
+    payload.reaction = { message_id: content.reactionMessageId, emoji: content.emoji };
   }
 
   const sanitizedPayload = repairMojibakeDeep(payload);
@@ -4643,6 +4645,35 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating message text:", error);
       res.status(500).json({ message: "Error updating message" });
+    }
+  });
+
+  app.post("/api/messages/:id/reaction", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ message: "Invalid message id" });
+      }
+      const emoji = String(req.body?.emoji ?? "").trim();
+      const message = await storage.getMessage(id);
+      if (!message) {
+        return res.status(404).json({ message: "Mensaje no encontrado" });
+      }
+      if (!message.waMessageId) {
+        return res.status(400).json({ message: "El mensaje no tiene id de WhatsApp" });
+      }
+      const conversation = await storage.getConversation(message.conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversacion no encontrada" });
+      }
+      const waResponse = await sendToWhatsApp(conversation.waId, "reaction", {
+        reactionMessageId: message.waMessageId,
+        emoji,
+      });
+      res.json({ success: true, response: waResponse });
+    } catch (error: any) {
+      console.error("Error sending reaction:", error);
+      res.status(500).json({ message: "No se pudo enviar la reaccion" });
     }
   });
 

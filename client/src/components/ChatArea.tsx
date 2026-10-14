@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft, Volume2, Lock, LockOpen, RefreshCw, ChevronDown } from "lucide-react";
+import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft, Volume2, Lock, LockOpen, RefreshCw, ChevronDown, Smile } from "lucide-react";
 import type { Conversation, Message, Label, QuickMessage, Agent, Product } from "@shared/schema";
 import {
   DropdownMenu,
@@ -16,6 +16,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -1144,6 +1147,28 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
     },
     onError: (error: Error) => {
       toast({ title: "Error al editar", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const sendReactionMutation = useMutation({
+    mutationFn: async ({ messageId, emoji }: { messageId: number; emoji: string }) => {
+      const res = await fetch(`/api/messages/${messageId}/reaction`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ emoji }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error?.message || "No se pudo enviar la reaccion");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Reaccion enviada" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
@@ -2512,19 +2537,44 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                     <DropdownMenuContent
                       align="end"
                       onClick={(e) => e.stopPropagation()}
-                      className="z-50"
+                      className="z-50 min-w-[190px]"
                     >
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <Smile className="h-4 w-4" /> Reaccionar
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent className="rounded-full p-1">
+                          <div className="flex items-center gap-1">
+                            {["👍", "❤️", "😂", "😮", "😢", "🙏"].map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                className="flex h-9 w-9 items-center justify-center rounded-full text-xl transition hover:scale-110 hover:bg-slate-100"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  sendReactionMutation.mutate({ messageId: msg.id, emoji });
+                                }}
+                                aria-label={`Reaccionar con ${emoji}`}
+                                data-testid={`button-react-${emoji}-${msg.id}`}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => setReplyingToMessage(msg)}>
-                        <CornerUpLeft className="h-4 w-4 mr-2" /> Responder
+                        <CornerUpLeft className="h-4 w-4" /> Responder
                       </DropdownMenuItem>
                       {msg.text?.trim() && (
                         <DropdownMenuItem onClick={() => void copyToClipboard(msg.text || "")}>
-                          <Copy className="h-4 w-4 mr-2" /> Copiar
+                          <Copy className="h-4 w-4" /> Copiar
                         </DropdownMenuItem>
                       )}
                       {canEditMessage && (
                         <DropdownMenuItem onClick={() => startEditingMessage(msg)}>
-                          <Pencil className="h-4 w-4 mr-2" /> Editar
+                          <Pencil className="h-4 w-4" /> Editar
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>
