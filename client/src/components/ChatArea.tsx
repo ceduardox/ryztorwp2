@@ -1497,7 +1497,14 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
     longPressStartRef.current = null;
   };
 
-  const isTouchDevice = typeof window !== "undefined" && (navigator.maxTouchPoints > 0 || "ontouchstart" in window);
+  // "PC" = puntero con hover y preciso; movil/tablet real = tactil sin hover.
+  // (Antes: navigator.maxTouchPoints > 0 || "ontouchstart" in window, que daba true
+  //  en laptops con pantalla tactil o navegadores de escritorio que exponen ontouchstart.)
+  const isTouchDevice = typeof window !== "undefined" && (
+    typeof window.matchMedia === "function"
+      ? !window.matchMedia("(hover: hover) and (pointer: fine)").matches
+      : (navigator.maxTouchPoints > 0 || "ontouchstart" in window)
+  );
 
   useEffect(() => {
     return () => clearLongPressTimeout();
