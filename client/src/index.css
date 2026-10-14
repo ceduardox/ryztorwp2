@@ -187,6 +187,16 @@
   transform: scale(0.9);
 }
 
+.press-ripple {
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 110ms ease;
+}
+
+.press-ripple:active {
+  transform: scale(0.9);
+}
+
 .ripple {
   position: absolute;
   border-radius: 50%;

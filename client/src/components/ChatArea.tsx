@@ -1165,7 +1165,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Reaccion enviada" });
+      // Sin toast: la reacción se envía sin notificación emergente.
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -1397,10 +1397,10 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
     return "";
   };
 
-  const copyToClipboard = async (text: string, description = "Texto copiado al portapapeles") => {
+  const copyToClipboard = async (text: string, description = "Texto copiado al portapapeles", silent = false) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast({ title: "Copiado", description });
+      if (!silent) toast({ title: "Copiado", description });
       return;
     } catch {
       try {
@@ -1414,7 +1414,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
         textarea.select();
         document.execCommand("copy");
         document.body.removeChild(textarea);
-        toast({ title: "Copiado", description });
+        if (!silent) toast({ title: "Copiado", description });
         return;
       } catch {
         toast({ title: "No se pudo copiar", description: "Intenta de nuevo", variant: "destructive" });
@@ -2514,7 +2514,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                       <button
                         type="button"
                         className={cn(
-                          "absolute -top-2 -right-2 z-10 rounded-full bg-white/95 p-1.5 text-slate-600 shadow ring-1 ring-slate-200 transition",
+                          "absolute -top-2 -right-2 z-10 rounded-full bg-white/95 p-1.5 text-slate-600 shadow ring-1 ring-slate-200 transition press-ripple",
                           isTouchDevice ? "opacity-100" : "opacity-0 group-hover:opacity-100",
                         )}
                         onClick={(e) => e.stopPropagation()}
@@ -2559,7 +2559,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                         <CornerUpLeft className="h-4 w-4" /> Responder
                       </DropdownMenuItem>
                       {msg.text?.trim() && (
-                        <DropdownMenuItem onClick={() => void copyToClipboard(msg.text || "")}>
+                        <DropdownMenuItem onClick={() => void copyToClipboard(msg.text || "", undefined, true)}>
                           <Copy className="h-4 w-4" /> Copiar
                         </DropdownMenuItem>
                       )}
@@ -2593,7 +2593,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        void copyToClipboard(msg.text || "");
+                        void copyToClipboard(msg.text || "", undefined, true);
                         setCopyPressedMessageId(null);
                         setLongPressActiveMessageId(null);
                       }}

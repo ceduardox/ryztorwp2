@@ -224,7 +224,7 @@ function App() {
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null;
-      const host = target?.closest?.(".active-elevate-2") as HTMLElement | null;
+      const host = target?.closest?.(".active-elevate-2, .press-ripple") as HTMLElement | null;
       if (!host || host.getAttribute("data-no-ripple") === "true") return;
       const rect = host.getBoundingClientRect();
       const size = Math.max(rect.width, rect.height);
