@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft, Volume2, Lock, LockOpen, RefreshCw } from "lucide-react";
-import type { Conversation, Message, Label, QuickMessage, Agent } from "@shared/schema";
+import type { Conversation, Message, Label, QuickMessage, Agent, Product } from "@shared/schema";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -190,6 +190,8 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   const [newQmName, setNewQmName] = useState("");
   const [newQmText, setNewQmText] = useState("");
   const [newQmImageUrl, setNewQmImageUrl] = useState("");
+  const [quickMessageMode, setQuickMessageMode] = useState<"manual" | "product">("manual");
+  const [quickProductId, setQuickProductId] = useState<string>("");
   const [showQuickMessageDialog, setShowQuickMessageDialog] = useState(false);
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [editingQuickMessageId, setEditingQuickMessageId] = useState<number | null>(null);
@@ -369,6 +371,10 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
 
   const { data: quickMessagesData = [] } = useQuery<QuickMessage[]>({
     queryKey: ["/api/quick-messages"],
+  });
+
+  const { data: quickProducts = [] } = useQuery<Product[]>({
+    queryKey: ["/api/products"],
   });
 
   const { data: agentsData = [] } = useQuery<Agent[]>({
@@ -1642,11 +1648,43 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
     }
   };
 
+  const getProductImageOptions = (product?: Product | null): { label: string; url: string }[] => {
+    if (!product) return [];
+    return [
+      { label: "Principal", url: product.imageUrl },
+      { label: "Frasco", url: product.imageBottleUrl },
+      { label: "Dosis", url: product.imageDoseUrl },
+      { label: "Ingredientes", url: product.imageIngredientsUrl },
+      { label: "Testimonio 1", url: product.imageTestimonialUrl },
+      { label: "Testimonio 2", url: product.imageTestimonial2Url },
+    ].filter((option) => Boolean(option.url)) as { label: string; url: string }[];
+  };
+
+  const buildProductQuickText = (product: Product): string => {
+    const parts: string[] = [`*${product.name}*`];
+    if (product.description) parts.push(product.description.trim());
+    if (product.price) parts.push(`Precio: ${product.price}`);
+    if (product.comboQty && product.comboPrice) parts.push(`Combo x${product.comboQty}: ${product.comboPrice}`);
+    return parts.join("\n\n");
+  };
+
+  const applyQuickProduct = (productId: string) => {
+    setQuickProductId(productId);
+    const product = quickProducts.find((p) => String(p.id) === productId);
+    if (!product) return;
+    setNewQmName(product.name || "");
+    setNewQmText(buildProductQuickText(product));
+    const firstImage = getProductImageOptions(product)[0];
+    setNewQmImageUrl(firstImage?.url || "");
+  };
+
   const resetQuickMessageForm = () => {
     setEditingQuickMessageId(null);
     setNewQmName("");
     setNewQmText("");
     setNewQmImageUrl("");
+    setQuickMessageMode("manual");
+    setQuickProductId("");
     if (quickMessageImageInputRef.current) {
       quickMessageImageInputRef.current.value = "";
     }
@@ -1662,6 +1700,8 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
     setNewQmName(qm.name || "");
     setNewQmText(qm.text || "");
     setNewQmImageUrl(qm.imageUrl || "");
+    setQuickMessageMode("manual");
+    setQuickProductId("");
     if (quickMessageImageInputRef.current) {
       quickMessageImageInputRef.current.value = "";
     }
@@ -3005,44 +3045,127 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                 <DialogTitle>{editingQuickMessageId ? "Editar Mensaje Rapido" : "Nuevo Mensaje Rapido"}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-2">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Imagen (opcional)</label>
-                  <Input
-                    ref={quickMessageImageInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleQuickMessageImageFileSelect}
-                    data-testid="input-quick-message-image-file"
-                    className="file:mr-3 file:rounded-md file:border-0 file:bg-emerald-600 file:px-3 file:py-1 file:text-sm file:font-medium file:text-white hover:file:bg-emerald-500"
-                  />
-                  {uploadQuickMessageImageMutation.isPending && (
-                    <p className="text-xs text-muted-foreground">Subiendo imagen...</p>
-                  )}
-                  {newQmImageUrl && (
-                    <div className="flex items-center gap-2 rounded-md border p-2">
-                      <img
-                        src={newQmImageUrl}
-                        alt="Preview mensaje rapido"
-                        className="h-12 w-12 rounded object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                        }}
-                      />
-                      <span className="text-xs text-muted-foreground truncate">{newQmImageUrl}</span>
-                    </div>
-                  )}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={quickMessageMode === "manual" ? "default" : "outline"}
+                    onClick={() => setQuickMessageMode("manual")}
+                    data-testid="button-quick-message-mode-manual"
+                  >
+                    Manual
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={quickMessageMode === "product" ? "default" : "outline"}
+                    onClick={() => setQuickMessageMode("product")}
+                    data-testid="button-quick-message-mode-product"
+                  >
+                    Por producto
+                  </Button>
                 </div>
+
+                {quickMessageMode === "product" ? (
+                  <>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">Producto</label>
+                      <select
+                        value={quickProductId}
+                        onChange={(e) => applyQuickProduct(e.target.value)}
+                        className="h-10 w-full rounded-md border border-slate-600/50 bg-slate-800/50 px-3 text-sm text-white outline-none focus:border-emerald-500"
+                        data-testid="select-quick-message-product"
+                      >
+                        <option value="">Seleccione un producto</option>
+                        {quickProducts.map((p) => (
+                          <option key={p.id} value={String(p.id)}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[11px] text-muted-foreground">
+                        Se genera el texto con el producto. Puedes editarlo abajo.
+                      </p>
+                    </div>
+                    {quickProductId && (() => {
+                      const product = quickProducts.find((p) => String(p.id) === quickProductId);
+                      const images = getProductImageOptions(product);
+                      if (images.length === 0) {
+                        return (
+                          <p className="text-xs text-muted-foreground">
+                            Este producto no tiene imagenes cargadas.
+                          </p>
+                        );
+                      }
+                      return (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-muted-foreground">Imagen del producto</label>
+                          <div className="grid grid-cols-4 gap-2">
+                            {images.map((img) => (
+                              <button
+                                key={img.url}
+                                type="button"
+                                onClick={() => setNewQmImageUrl(img.url)}
+                                title={img.label}
+                                className={cn(
+                                  "rounded-md border p-0.5 transition",
+                                  newQmImageUrl === img.url
+                                    ? "border-emerald-500 ring-2 ring-emerald-500/40"
+                                    : "border-slate-700 hover:border-slate-500",
+                                )}
+                              >
+                                <img src={img.url} alt={img.label} className="h-14 w-full rounded object-cover" />
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            {newQmImageUrl ? "Se enviara con la imagen seleccionada." : "Selecciona una imagen (opcional)."}
+                          </p>
+                        </div>
+                      );
+                    })()}
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">Imagen (opcional)</label>
+                      <Input
+                        ref={quickMessageImageInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleQuickMessageImageFileSelect}
+                        data-testid="input-quick-message-image-file"
+                        className="file:mr-3 file:rounded-md file:border-0 file:bg-emerald-600 file:px-3 file:py-1 file:text-sm file:font-medium file:text-white hover:file:bg-emerald-500"
+                      />
+                      {uploadQuickMessageImageMutation.isPending && (
+                        <p className="text-xs text-muted-foreground">Subiendo imagen...</p>
+                      )}
+                      {newQmImageUrl && (
+                        <div className="flex items-center gap-2 rounded-md border p-2">
+                          <img
+                            src={newQmImageUrl}
+                            alt="Preview mensaje rapido"
+                            className="h-12 w-12 rounded object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                          <span className="text-xs text-muted-foreground truncate">{newQmImageUrl}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">URL de imagen (opcional)</label>
+                      <Input placeholder="https://..." value={newQmImageUrl} onChange={(e) => setNewQmImageUrl(e.target.value)} />
+                    </div>
+                  </>
+                )}
+
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Nombre</label>
                   <Input placeholder="Ej: Saludo" value={newQmName} onChange={(e) => setNewQmName(e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Texto del mensaje</label>
-                  <Textarea placeholder="Escribe el mensaje que se insertará..." value={newQmText} onChange={(e) => setNewQmText(e.target.value)} rows={3} />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">URL de imagen (opcional)</label>
-                  <Input placeholder="https://..." value={newQmImageUrl} onChange={(e) => setNewQmImageUrl(e.target.value)} />
+                  <Textarea placeholder="Escribe el mensaje que se insertará..." value={newQmText} onChange={(e) => setNewQmText(e.target.value)} rows={4} />
                 </div>
                 <Button
                   className="w-full"
