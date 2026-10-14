@@ -169,9 +169,9 @@
   height: 16px;
 }
 
-/* Botones: efecto de pulsado tipo WhatsApp/Telegram (onda circular "ripple" + leve hundido).
-   El componente Button ya aplica las clases hover-elevate / active-elevate-2,
-   pero no estaban definidas en CSS. */
+/* Botones: efecto de pulsado tipo WhatsApp/Telegram (onda "ripple" desde el punto del clic + leve hundido).
+   El componente Button ya aplica las clases hover-elevate / active-elevate-2.
+   La onda se genera por JS (App.tsx) en el punto exacto del clic. */
 .hover-elevate {
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
@@ -180,30 +180,26 @@
   position: relative;
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 110ms ease;
-}
-
-.active-elevate-2::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  height: 160%;
-  aspect-ratio: 1 / 1;
-  border-radius: 9999px;
-  background-color: currentColor;
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(0.35);
-  transition: transform 240ms ease-out, opacity 360ms ease-out;
-  pointer-events: none;
+  transition: transform 110ms ease, background-color 200ms ease;
 }
 
 .active-elevate-2:active {
-  transform: scale(0.96);
+  transform: scale(0.9);
 }
 
-.active-elevate-2:active::after {
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background-color: currentColor;
   opacity: 0.18;
-  transform: translate(-50%, -50%) scale(1);
-  transition-duration: 0ms;
+  transform: scale(0);
+  animation: ripple-effect 450ms ease-out;
+  pointer-events: none;
+}
+
+@keyframes ripple-effect {
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
 }

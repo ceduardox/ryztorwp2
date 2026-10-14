@@ -220,6 +220,27 @@ function OneSignalIdentitySync() {
 }
 
 function App() {
+  // Efecto ripple (onda) tipo WhatsApp/Telegram en todos los botones del sistema.
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      const host = target?.closest?.(".active-elevate-2") as HTMLElement | null;
+      if (!host || host.getAttribute("data-no-ripple") === "true") return;
+      const rect = host.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height);
+      const ripple = document.createElement("span");
+      ripple.className = "ripple";
+      ripple.style.width = `${size}px`;
+      ripple.style.height = `${size}px`;
+      ripple.style.left = `${event.clientX - rect.left - size / 2}px`;
+      ripple.style.top = `${event.clientY - rect.top - size / 2}px`;
+      host.appendChild(ripple);
+      window.setTimeout(() => ripple.remove(), 480);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
