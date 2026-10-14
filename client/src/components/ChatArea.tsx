@@ -2525,13 +2525,14 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                 )}
-                {!isEditingThisMessage && !isTouchDevice && (
+                {!isEditingThisMessage && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
                         className={cn(
-                          "absolute -top-2 -right-2 z-10 rounded-full bg-white/95 p-1.5 text-slate-600 shadow ring-1 ring-slate-200 transition opacity-0 group-hover:opacity-100",
+                          "absolute -top-2 -right-2 z-10 rounded-full bg-white/95 p-1.5 text-slate-600 shadow ring-1 ring-slate-200 transition",
+                          isTouchDevice ? "opacity-100" : "opacity-0 group-hover:opacity-100",
                         )}
                         onClick={(e) => e.stopPropagation()}
                         aria-label="Opciones del mensaje"
@@ -2586,23 +2587,6 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
-                )}
-                {!isEditingThisMessage && (
-                  <button
-                    type="button"
-                    className={cn(
-                      "absolute -top-2 -right-2 z-10 rounded-full bg-white/95 p-1.5 text-slate-600 shadow ring-1 ring-slate-200 transition",
-                      isTouchDevice ? "opacity-100" : "hidden",
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setReplyingToMessage(msg);
-                    }}
-                    aria-label="Responder"
-                    title="Responder"
-                  >
-                    <CornerUpLeft className="h-3.5 w-3.5" />
-                  </button>
                 )}
                 {longPressActiveMessageId === msg.id && msg.text?.trim() && (
                   <div className="absolute -top-3 right-1 z-10 flex items-center gap-1 rounded-full bg-slate-900/95 p-1 text-white shadow-md">
