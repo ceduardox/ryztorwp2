@@ -854,7 +854,7 @@ async function getAdLeadRoutingRuleByAdId(adIdRaw: string): Promise<AdLeadRoutin
   return row ? mapAdLeadRoutingRow(row) : null;
 }
 
-async function upsertAdLeadRoutingRule(input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null; promptId?: number | null; promptProfile?: string | null }): Promise<AdLeadRoutingRule> {
+async function upsertAdLeadRoutingRule(input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null; promptId?: number | null; promptProfile?: string | null }, updatePrompt = true): Promise<AdLeadRoutingRule> {
   await ensureAdLeadRoutingTableExists();
   const adId = normalizeAdId(input.adId);
   const agentIds = parseAgentIds(input.agentIds);
@@ -863,24 +863,38 @@ async function upsertAdLeadRoutingRule(input: { adId: string; agentIds: number[]
   const productRoute = normalizeAdProductRoute(input.productRoute);
   const promptId = normalizePromptId(input.promptId);
   const promptProfile = normalizePromptProfile(input.promptProfile);
-  const result: any = await db.execute(sql`
-    INSERT INTO ad_lead_routing_rules (ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, prompt_profile)
-    VALUES (${adId}, ${agentIds.join(",")}, ${isActive}, ${isExclusive}, ${productRoute}, ${promptId}, ${promptProfile})
-    ON CONFLICT (ad_id)
-    DO UPDATE SET
-      agent_ids = EXCLUDED.agent_ids,
-      is_active = EXCLUDED.is_active,
-      is_exclusive = EXCLUDED.is_exclusive,
-      product_route = EXCLUDED.product_route,
-      prompt_id = EXCLUDED.prompt_id,
-      prompt_profile = EXCLUDED.prompt_profile,
-      updated_at = NOW()
-    RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, prompt_profile, updated_at
-  `);
+  // updatePrompt=false (p.ej. guardado desde /agents, que no envía prompt): conserva el prompt existente.
+  const result: any = updatePrompt
+    ? await db.execute(sql`
+        INSERT INTO ad_lead_routing_rules (ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, prompt_profile)
+        VALUES (${adId}, ${agentIds.join(",")}, ${isActive}, ${isExclusive}, ${productRoute}, ${promptId}, ${promptProfile})
+        ON CONFLICT (ad_id)
+        DO UPDATE SET
+          agent_ids = EXCLUDED.agent_ids,
+          is_active = EXCLUDED.is_active,
+          is_exclusive = EXCLUDED.is_exclusive,
+          product_route = EXCLUDED.product_route,
+          prompt_id = EXCLUDED.prompt_id,
+          prompt_profile = EXCLUDED.prompt_profile,
+          updated_at = NOW()
+        RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, prompt_profile, updated_at
+      `)
+    : await db.execute(sql`
+        INSERT INTO ad_lead_routing_rules (ad_id, agent_ids, is_active, is_exclusive, product_route)
+        VALUES (${adId}, ${agentIds.join(",")}, ${isActive}, ${isExclusive}, ${productRoute})
+        ON CONFLICT (ad_id)
+        DO UPDATE SET
+          agent_ids = EXCLUDED.agent_ids,
+          is_active = EXCLUDED.is_active,
+          is_exclusive = EXCLUDED.is_exclusive,
+          product_route = EXCLUDED.product_route,
+          updated_at = NOW()
+        RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, prompt_profile, updated_at
+      `);
   return mapAdLeadRoutingRow(result.rows[0]);
 }
 
-async function updateAdLeadRoutingRule(id: number, input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null; promptId?: number | null; promptProfile?: string | null }): Promise<AdLeadRoutingRule | null> {
+async function updateAdLeadRoutingRule(id: number, input: { adId: string; agentIds: number[]; isActive?: boolean; isExclusive?: boolean; productRoute?: string | null; promptId?: number | null; promptProfile?: string | null }, updatePrompt = true): Promise<AdLeadRoutingRule | null> {
   await ensureAdLeadRoutingTableExists();
   const adId = normalizeAdId(input.adId);
   const agentIds = parseAgentIds(input.agentIds);
@@ -889,20 +903,34 @@ async function updateAdLeadRoutingRule(id: number, input: { adId: string; agentI
   const productRoute = normalizeAdProductRoute(input.productRoute);
   const promptId = normalizePromptId(input.promptId);
   const promptProfile = normalizePromptProfile(input.promptProfile);
-  const result: any = await db.execute(sql`
-    UPDATE ad_lead_routing_rules
-    SET
-      ad_id = ${adId},
-      agent_ids = ${agentIds.join(",")},
-      is_active = ${isActive},
-      is_exclusive = ${isExclusive},
-      product_route = ${productRoute},
-      prompt_id = ${promptId},
-      prompt_profile = ${promptProfile},
-      updated_at = NOW()
-    WHERE id = ${id}
-    RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, prompt_profile, updated_at
-  `);
+  // updatePrompt=false (p.ej. guardado desde /agents, que no envía prompt): conserva el prompt existente.
+  const result: any = updatePrompt
+    ? await db.execute(sql`
+        UPDATE ad_lead_routing_rules
+        SET
+          ad_id = ${adId},
+          agent_ids = ${agentIds.join(",")},
+          is_active = ${isActive},
+          is_exclusive = ${isExclusive},
+          product_route = ${productRoute},
+          prompt_id = ${promptId},
+          prompt_profile = ${promptProfile},
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, prompt_profile, updated_at
+      `)
+    : await db.execute(sql`
+        UPDATE ad_lead_routing_rules
+        SET
+          ad_id = ${adId},
+          agent_ids = ${agentIds.join(",")},
+          is_active = ${isActive},
+          is_exclusive = ${isExclusive},
+          product_route = ${productRoute},
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING id, ad_id, agent_ids, is_active, is_exclusive, product_route, prompt_id, prompt_profile, updated_at
+      `);
   const row = result.rows?.[0];
   return row ? mapAdLeadRoutingRow(row) : null;
 }
@@ -7578,6 +7606,10 @@ Maximo 2 lineas. Se especifico y practico.`;
         return res.status(400).json({ message: "Debe seleccionar al menos un agente activo" });
       }
 
+      const promptProvided =
+        Object.prototype.hasOwnProperty.call(req.body ?? {}, "promptId") ||
+        Object.prototype.hasOwnProperty.call(req.body ?? {}, "promptProfile");
+
       const saved = await upsertAdLeadRoutingRule({
         adId: parsed.adId,
         agentIds: validAgentIds,
@@ -7586,7 +7618,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         productRoute: parsed.productRoute,
         promptId: parsed.promptId,
         promptProfile: parsed.promptProfile,
-      });
+      }, promptProvided);
       res.json(saved);
     } catch (error: any) {
       if (error?.name === "ZodError") {
@@ -7621,6 +7653,10 @@ Maximo 2 lineas. Se especifico y practico.`;
         return res.status(400).json({ message: "Debe seleccionar al menos un agente activo" });
       }
 
+      const promptProvided =
+        Object.prototype.hasOwnProperty.call(req.body ?? {}, "promptId") ||
+        Object.prototype.hasOwnProperty.call(req.body ?? {}, "promptProfile");
+
       const saved = await updateAdLeadRoutingRule(id, {
         adId: parsed.adId,
         agentIds: validAgentIds,
@@ -7629,7 +7665,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         productRoute: parsed.productRoute,
         promptId: parsed.promptId,
         promptProfile: parsed.promptProfile,
-      });
+      }, promptProvided);
 
       if (!saved) {
         return res.status(404).json({ message: "Rule not found" });

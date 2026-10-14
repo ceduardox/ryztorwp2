@@ -4,6 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
@@ -82,7 +89,15 @@ interface AdRoutingRule {
   isActive: boolean;
   isExclusive: boolean;
   productRoute?: string | null;
+  promptId?: number | null;
+  promptProfile?: string | null;
   updatedAt?: string | null;
+}
+
+interface AdPromptItem {
+  id: number;
+  name: string;
+  isActive: boolean;
 }
 
 interface DailyCostSetting {
@@ -139,6 +154,16 @@ function getAdProductRouteLabel(route?: string | null): string {
   return AD_PRODUCT_ROUTE_OPTIONS.find((option) => option.value === route)?.label || "Sin producto directo";
 }
 
+// Auto-selecciona el prompt de anuncio segun el producto del anuncio.
+const AD_NO_PROMPT = "__none__";
+const AD_ROUTE_TO_PROMPT_NAME: Record<string, string> = {
+  diabetes: "BERBERINA",
+  diabetes_y_peso: "BERBERINA",
+  dolor_y_estres: "CITRATO",
+  dolor_articular: "BOSWELLIA",
+  creatina: "CREATINA",
+};
+
 function parsePositiveNumber(value: string, fallback = 0): number {
   const normalized = String(value || "").replace(",", ".").trim();
   const parsed = Number(normalized);
@@ -187,6 +212,7 @@ export default function AgentsPage() {
   const [routingIsActive, setRoutingIsActive] = useState(true);
   const [routingIsExclusive, setRoutingIsExclusive] = useState(true);
   const [routingProductRoute, setRoutingProductRoute] = useState("");
+  const [routingPromptSelection, setRoutingPromptSelection] = useState<string>(AD_NO_PROMPT);
   const [routingAgentIds, setRoutingAgentIds] = useState<number[]>([]);
   const [editingAdRoutingRuleId, setEditingAdRoutingRuleId] = useState<number | null>(null);
   const [costDate, setCostDate] = useState(() => {
@@ -245,6 +271,15 @@ export default function AgentsPage() {
     queryFn: async () => {
       const res = await fetch("/api/ad-routing-rules", { credentials: "include" });
       if (!res.ok) throw new Error("No se pudo cargar reglas por anuncio");
+      return res.json();
+    },
+  });
+
+  const { data: adPrompts = [] } = useQuery<AdPromptItem[]>({
+    queryKey: ["/api/ad-prompts"],
+    queryFn: async () => {
+      const res = await fetch("/api/ad-prompts", { credentials: "include" });
+      if (!res.ok) throw new Error("No se pudieron cargar los prompts de anuncio");
       return res.json();
     },
   });
@@ -409,7 +444,7 @@ export default function AgentsPage() {
   });
 
   const upsertAdRoutingMutation = useMutation({
-    mutationFn: async (data: { id?: number | null; adId: string; agentIds: number[]; isActive: boolean; isExclusive: boolean; productRoute: string | null }) => {
+    mutationFn: async (data: { id?: number | null; adId: string; agentIds: number[]; isActive: boolean; isExclusive: boolean; productRoute: string | null; promptId: number | null; promptProfile: string | null }) => {
       const { id, ...payload } = data;
       return apiRequest(id ? "PATCH" : "PUT", id ? `/api/ad-routing-rules/${id}` : "/api/ad-routing-rules", payload);
     },
@@ -420,6 +455,7 @@ export default function AgentsPage() {
       setRoutingIsActive(true);
       setRoutingIsExclusive(true);
       setRoutingProductRoute("");
+      setRoutingPromptSelection(AD_NO_PROMPT);
       setEditingAdRoutingRuleId(null);
       toast({ title: editingAdRoutingRuleId ? "Regla de anuncio actualizada" : "Regla de anuncio guardada" });
     },
@@ -488,6 +524,7 @@ export default function AgentsPage() {
     setRoutingIsActive(true);
     setRoutingIsExclusive(true);
     setRoutingProductRoute("");
+    setRoutingPromptSelection(AD_NO_PROMPT);
   };
 
   const startEditAdRoutingRule = (rule: AdRoutingRule) => {
@@ -497,6 +534,48 @@ export default function AgentsPage() {
     setRoutingIsActive(rule.isActive);
     setRoutingIsExclusive(rule.isExclusive);
     setRoutingProductRoute(rule.productRoute || "");
+    setRoutingPromptSelection(
+      rule.promptProfile
+        ? `profile:${rule.promptProfile}`
+        : rule.promptId
+          ? `prompt:${rule.promptId}`
+          : AD_NO_PROMPT,
+    );
+  };
+
+  const resolveAdPromptSelection = (selection: string): { promptId: number | null; promptProfile: string | null } => {
+    if (selection.startsWith("profile:")) {
+      return { promptId: null, promptProfile: selection.slice("profile:".length) };
+    }
+    if (selection.startsWith("prompt:")) {
+      const id = Number(selection.slice("prompt:".length));
+      return { promptId: Number.isInteger(id) && id > 0 ? id : null, promptProfile: null };
+    }
+    return { promptId: null, promptProfile: null };
+  };
+
+  const getAdPromptLabel = (rule: AdRoutingRule): string => {
+    if (rule.promptProfile) {
+      return rule.promptProfile === "secondary"
+        ? "Prompt alternativo"
+        : rule.promptProfile === "tertiary"
+          ? "Prompt Antigravity"
+          : "Prompt principal";
+    }
+    if (rule.promptId) {
+      return adPrompts.find((p) => p.id === rule.promptId)?.name || `Prompt ${rule.promptId}`;
+    }
+    return "Sin prompt";
+  };
+
+  const handleRoutingProductChange = (value: string) => {
+    setRoutingProductRoute(value);
+    const targetName = AD_ROUTE_TO_PROMPT_NAME[value];
+    if (!targetName) return;
+    const match = adPrompts.find(
+      (p) => p.isActive !== false && p.name.trim().toUpperCase() === targetName,
+    );
+    if (match) setRoutingPromptSelection(`prompt:${match.id}`);
   };
 
   const handleCreate = () => {
@@ -933,7 +1012,7 @@ export default function AgentsPage() {
             <p className="text-xs text-slate-400 mb-2">Producto inicial del anuncio</p>
             <select
               value={routingProductRoute}
-              onChange={(e) => setRoutingProductRoute(e.target.value)}
+              onChange={(e) => handleRoutingProductChange(e.target.value)}
               className="h-10 w-full rounded-md border border-slate-700/50 bg-slate-800/60 px-3 text-sm text-white outline-none focus:border-emerald-500"
               data-testid="select-ad-routing-product-route"
             >
@@ -946,6 +1025,33 @@ export default function AgentsPage() {
             </select>
             <p className="text-[11px] text-slate-500 mt-2">
               Si el lead nuevo llega con este ad_id y mensaje generico, se envia este producto antes del menu inicial.
+            </p>
+          </div>
+          <div className="mb-3">
+            <p className="text-xs text-slate-400 mb-2">Prompt del anuncio (lo que la IA usara para este ad_id)</p>
+            <Select value={routingPromptSelection} onValueChange={setRoutingPromptSelection}>
+              <SelectTrigger
+                className="bg-slate-800/60 border-slate-700/50 text-white"
+                data-testid="select-ad-routing-prompt"
+              >
+                <SelectValue placeholder="Sin prompt (usa el global)" />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-900 border-slate-700 text-slate-100">
+                <SelectItem value={AD_NO_PROMPT}>Sin prompt (usa el global)</SelectItem>
+                <SelectItem value="profile:primary">Prompt principal</SelectItem>
+                <SelectItem value="profile:secondary">Prompt alternativo</SelectItem>
+                <SelectItem value="profile:tertiary">Prompt Antigravity (Berberina 1.0)</SelectItem>
+                {adPrompts
+                  .filter((p) => p.isActive !== false)
+                  .map((p) => (
+                    <SelectItem key={p.id} value={`prompt:${p.id}`}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-slate-500 mt-2">
+              Se auto-selecciona segun el producto. Guardar aqui ya no borra el prompt.
             </p>
           </div>
           <div className="mb-3">
@@ -982,6 +1088,7 @@ export default function AgentsPage() {
                   toast({ title: "Seleccione al menos un agente activo", variant: "destructive" });
                   return;
                 }
+                const promptFields = resolveAdPromptSelection(routingPromptSelection);
                 upsertAdRoutingMutation.mutate({
                   id: editingAdRoutingRuleId,
                   adId: cleanAdId,
@@ -989,6 +1096,8 @@ export default function AgentsPage() {
                   isActive: routingIsActive,
                   isExclusive: routingIsExclusive,
                   productRoute: routingProductRoute || null,
+                  promptId: promptFields.promptId,
+                  promptProfile: promptFields.promptProfile,
                 });
               }}
               disabled={upsertAdRoutingMutation.isPending}
@@ -1030,6 +1139,7 @@ export default function AgentsPage() {
                       {rule.isActive ? "Activo" : "Inactivo"} |{" "}
                       {rule.isExclusive ? "Solo anuncio" : "Anuncio + general"} |{" "}
                       {getAdProductRouteLabel(rule.productRoute)} |{" "}
+                      {getAdPromptLabel(rule)} |{" "}
                       {rule.agentIds.map(getAgentName).join(", ")}
                     </p>
                   </div>
