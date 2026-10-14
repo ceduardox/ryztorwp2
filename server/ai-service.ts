@@ -309,6 +309,56 @@ function getProductImageContext(product: Product) {
   return imageLines.join("\n");
 }
 
+// Genera un texto plano usando el proveedor de IA configurado (mismo que el agente).
+export async function generatePlainAiText(
+  systemPrompt: string,
+  userPrompt: string,
+  options?: { maxTokens?: number; temperature?: number },
+): Promise<string> {
+  const settings = await storage.getAiSettings();
+  const provider = normalizeAiProvider(settings?.aiProvider);
+  const model = settings?.model || getDefaultModelForProvider(provider);
+  const maxTokens = options?.maxTokens ?? 900;
+  const temperature = options?.temperature ?? 0.6;
+  const messages: any[] = [
+    { role: "system", content: systemPrompt || "" },
+    { role: "user", content: userPrompt },
+  ];
+
+  try {
+    if (provider === "deepseek") {
+      const r = await requestDeepSeekCompletion({ model, messages, maxTokens, temperature });
+      if (r.responseText?.trim()) return r.responseText.trim();
+    } else if (provider === "groq") {
+      const r = await requestGroqCompletion({ model, messages, maxTokens, temperature });
+      if (r.responseText?.trim()) return r.responseText.trim();
+    } else if (provider === "muse") {
+      const r = await requestMuseCompletion({ model, messages, maxTokens, temperature });
+      if (r.responseText?.trim()) return r.responseText.trim();
+    } else if (provider === "gemini") {
+      const r = await requestGeminiCompletion({
+        model,
+        systemPrompt: systemPrompt || "",
+        conversationHistory: [],
+        userMessage: userPrompt,
+        maxTokens,
+        temperature,
+      });
+      if (r.responseText?.trim()) return r.responseText.trim();
+    }
+  } catch (error) {
+    console.error("[AI] generatePlainAiText provider failed. Falling back to OpenAI:", error);
+  }
+
+  const fallback = await requestOpenAiCompletion({
+    model: getDefaultModelForProvider("openai"),
+    messages,
+    maxTokens,
+    temperature,
+  });
+  return (fallback.responseText || "").trim();
+}
+
 export async function generateAiResponse(
   conversationId: number,
   userMessage: string,

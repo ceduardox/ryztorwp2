@@ -7,7 +7,7 @@ import session from "express-session";
 import MemoryStore from "memorystore";
 import connectPgSimple from "connect-pg-simple";
 import axios from "axios";
-import { generateAiResponse, generateDeliveryComprobante } from "./ai-service";
+import { generateAiResponse, generateDeliveryComprobante, generatePlainAiText } from "./ai-service";
 import { initFollowUp } from "./follow-up";
 import { conversations, insertProductSchema, messages as messagesTable, updateOrderStatusSchema, type Message as StoredMessage, type Product as StoredProduct } from "@shared/schema";
 import { db, pool } from "./db";
@@ -5059,6 +5059,59 @@ export async function registerRoutes(
       res.json(qm);
     } catch (error) {
       res.status(400).json({ message: "Invalid quick message data" });
+    }
+  });
+
+  app.post("/api/quick-messages/generate", requireAdmin, async (req, res) => {
+    try {
+      const productId = Number(req.body?.productId);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        return res.status(400).json({ message: "productId requerido" });
+      }
+      const products = await storage.getProducts();
+      const product = products.find((p) => p.id === productId);
+      if (!product) {
+        return res.status(404).json({ message: "Producto no encontrado" });
+      }
+
+      // Reutiliza el prompt del anuncio del producto; si no hay, el prompt global activo.
+      const adPrompts = await getAdPrompts();
+      const matchedAdPrompt = adPrompts.find((p) => p.isActive !== false && p.productId === productId);
+      let systemPrompt = matchedAdPrompt?.systemPrompt || "";
+      if (!systemPrompt) {
+        const profiles = await getPromptProfiles();
+        systemPrompt =
+          profiles.activeSlot === "tertiary"
+            ? profiles.tertiaryPrompt
+            : profiles.activeSlot === "secondary"
+              ? profiles.secondaryPrompt
+              : profiles.primaryPrompt;
+      }
+      if (!systemPrompt) {
+        systemPrompt = "Eres Isabella, asesora de ventas de RYZTOR en Bolivia. Responde de forma cercana y vendedora.";
+      }
+
+      const priceLine = product.price ? ` Precio: ${product.price}.` : "";
+      const comboLine =
+        product.comboQty && product.comboPrice
+          ? ` Si aplica, promociona el combo de ${product.comboQty} por ${product.comboPrice}.`
+          : "";
+      const userPrompt = `Genera UN mensaje de WhatsApp de primer contacto para ofrecer el producto "${product.name}".
+Reglas:
+- Maximo 6 lineas, tono cercano y vendedor.
+- Un saludo breve y 2 a 4 beneficios en vinetas (usa el caracter •).
+- Menciona el precio.${priceLine}${comboLine}
+- Termina con UNA pregunta corta para calificar el interes del cliente.
+- Sin titulos, sin markdown, sin explicaciones. Devuelve SOLO el mensaje.`;
+
+      const text = await generatePlainAiText(systemPrompt, userPrompt, { maxTokens: 700, temperature: 0.6 });
+      if (!text) {
+        return res.status(502).json({ message: "La IA no genero texto" });
+      }
+      res.json({ text });
+    } catch (error: any) {
+      console.error("Error generating quick message:", error);
+      res.status(500).json({ message: "Error al generar el mensaje rapido" });
     }
   });
 

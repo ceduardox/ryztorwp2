@@ -1213,6 +1213,28 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
+  const generateQuickMessageMutation = useMutation({
+    mutationFn: async (productId: number) => {
+      const res = await fetch("/api/quick-messages/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ productId }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error?.message || "No se pudo generar el mensaje");
+      }
+      return (await res.json()) as { text: string };
+    },
+    onSuccess: (data) => {
+      setNewQmText(data.text || "");
+      toast({ title: "Mensaje generado con IA" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
 
   const createQuickMessageMutation = useMutation({
     mutationFn: async (data: { name: string; text?: string | null; imageUrl?: string | null }) => {
@@ -3085,6 +3107,28 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                         Se genera el texto con el producto. Puedes editarlo abajo.
                       </p>
                     </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        if (quickProductId) generateQuickMessageMutation.mutate(Number(quickProductId));
+                      }}
+                      disabled={!quickProductId || generateQuickMessageMutation.isPending}
+                      data-testid="button-generate-quick-message-ai"
+                    >
+                      {generateQuickMessageMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Generando...
+                        </>
+                      ) : (
+                        <>
+                          <Bot className="h-4 w-4 mr-2" />
+                          Generar con IA
+                        </>
+                      )}
+                    </Button>
                     {quickProductId && (() => {
                       const product = quickProducts.find((p) => String(p.id) === quickProductId);
                       const images = getProductImageOptions(product);
