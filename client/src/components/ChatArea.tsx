@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft, Volume2, Lock, LockOpen, RefreshCw } from "lucide-react";
+import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft, Volume2, Lock, LockOpen, RefreshCw, ChevronDown } from "lucide-react";
 import type { Conversation, Message, Label, QuickMessage, Agent, Product } from "@shared/schema";
 import {
   DropdownMenu,
@@ -2492,6 +2492,43 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
+                )}
+                {!isEditingThisMessage && !isTouchDevice && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className={cn(
+                          "absolute -top-2 right-7 z-10 rounded-full bg-white/95 p-1.5 text-slate-600 shadow ring-1 ring-slate-200 transition opacity-0 group-hover:opacity-100",
+                        )}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label="Opciones del mensaje"
+                        title="Opciones"
+                        data-testid={`button-message-menu-${msg.id}`}
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      onClick={(e) => e.stopPropagation()}
+                      className="z-50"
+                    >
+                      <DropdownMenuItem onClick={() => setReplyingToMessage(msg)}>
+                        <CornerUpLeft className="h-4 w-4 mr-2" /> Responder
+                      </DropdownMenuItem>
+                      {msg.text?.trim() && (
+                        <DropdownMenuItem onClick={() => void copyToClipboard(msg.text || "")}>
+                          <Copy className="h-4 w-4 mr-2" /> Copiar
+                        </DropdownMenuItem>
+                      )}
+                      {canEditMessage && (
+                        <DropdownMenuItem onClick={() => startEditingMessage(msg)}>
+                          <Pencil className="h-4 w-4 mr-2" /> Editar
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
                 {!isEditingThisMessage && (
                   <button
