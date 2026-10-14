@@ -108,13 +108,18 @@ export function AdRoutingModal() {
     mutationFn: async () => {
       const cleanAdId = adId.trim();
       if (!cleanAdId) throw new Error("Ingrese el ad_id");
-      if (activeAgentIds.length === 0) throw new Error("No hay agentes activos disponibles");
+      const existing = editingId ? rules.find((r) => r.id === editingId) : null;
+      // Al crear: todos los agentes activos + exclusivo. Al editar: conserva agentes y exclusividad existentes.
+      const preservedAgentIds = (existing?.agentIds ?? []).filter((id) => activeAgentIds.includes(id));
+      const targetAgentIds = preservedAgentIds.length ? preservedAgentIds : activeAgentIds;
+      if (targetAgentIds.length === 0) throw new Error("No hay agentes activos disponibles");
       const promptProfile = promptSelection.startsWith("profile:") ? promptSelection.slice("profile:".length) : null;
       const promptIdValue = promptSelection.startsWith("prompt:") ? Number(promptSelection.slice("prompt:".length)) : null;
       const payload = {
         adId: cleanAdId,
-        agentIds: activeAgentIds,
+        agentIds: targetAgentIds,
         isActive,
+        isExclusive: existing ? existing.isExclusive : true,
         productRoute: productRoute || null,
         promptId: promptIdValue && Number.isInteger(promptIdValue) ? promptIdValue : null,
         promptProfile,
