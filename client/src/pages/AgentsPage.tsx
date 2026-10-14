@@ -39,6 +39,7 @@ import {
   Clock,
   TrendingUp,
   Search,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Agent } from "@shared/schema";
@@ -1053,6 +1054,14 @@ export default function AgentsPage() {
             <p className="text-[11px] text-slate-500 mt-2">
               Se auto-selecciona segun el producto. Guardar aqui ya no borra el prompt.
             </p>
+            {routingPromptSelection === AD_NO_PROMPT && (
+              <p className="mt-2 flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-200">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Esta regla quedara <strong>sin prompt</strong>: la IA usara el prompt global, no el de este anuncio.
+                </span>
+              </p>
+            )}
           </div>
           <div className="mb-3">
             <p className="text-xs text-slate-400 mb-2">Agentes destino</p>
@@ -1087,6 +1096,12 @@ export default function AgentsPage() {
                 if (selectedActiveAgents.length === 0) {
                   toast({ title: "Seleccione al menos un agente activo", variant: "destructive" });
                   return;
+                }
+                if (routingPromptSelection === AD_NO_PROMPT) {
+                  const ok = confirm(
+                    "Esta regla quedara SIN prompt de anuncio: la IA usara el prompt global, no el de este anuncio.\n\n¿Guardar de todos modos?",
+                  );
+                  if (!ok) return;
                 }
                 const promptFields = resolveAdPromptSelection(routingPromptSelection);
                 upsertAdRoutingMutation.mutate({
@@ -1139,7 +1154,9 @@ export default function AgentsPage() {
                       {rule.isActive ? "Activo" : "Inactivo"} |{" "}
                       {rule.isExclusive ? "Solo anuncio" : "Anuncio + general"} |{" "}
                       {getAdProductRouteLabel(rule.productRoute)} |{" "}
-                      {getAdPromptLabel(rule)} |{" "}
+                      <span className={!rule.promptId && !rule.promptProfile ? "font-semibold text-amber-300" : undefined}>
+                        {getAdPromptLabel(rule)}
+                      </span> |{" "}
                       {rule.agentIds.map(getAgentName).join(", ")}
                     </p>
                   </div>
