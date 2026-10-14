@@ -168,3 +168,14 @@
   width: 16px;
   height: 16px;
 }
+
+/* Botones: efecto de "hundirse" al presionar.
+   El componente Button ya aplica las clases hover-elevate / active-elevate-2,
+   pero no estaban definidas en CSS. */
+.hover-elevate {
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.active-elevate-2:active {
+  transform: scale(0.95);
+}
