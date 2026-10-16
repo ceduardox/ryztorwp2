@@ -186,6 +186,18 @@ export default function LoginPage() {
           Potenciado con Inteligencia Artificial
           <span className="h-1 w-1 bg-emerald-500 rounded-full animate-pulse" />
         </p>
+
+        <p className="text-center text-xs text-slate-500 mt-3">
+          Developed by{" "}
+          <a
+            href="https://ryztor.us/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+          >
+            RYZTOR
+          </a>
+        </p>
       </div>
     </div>
   );
