@@ -187,8 +187,9 @@ async function requestDeepSeekCompletion(params: {
   const completion = await deepseek.chat.completions.create({
     model: params.model,
     messages: params.messages,
-    // DeepSeek necesita mas presupuesto que OpenAI: con muy pocos tokens devuelve contenido vacio.
-    max_tokens: Math.max(params.maxTokens, 1024),
+    // DeepSeek es un modelo de razonamiento: con pocos tokens el "pensamiento" consume
+    // el presupuesto y devuelve contenido vacio. Se sube el piso para evitarlo.
+    max_tokens: Math.max(params.maxTokens, 2500),
     temperature: params.temperature,
   });
 
