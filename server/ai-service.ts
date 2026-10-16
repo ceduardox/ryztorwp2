@@ -427,12 +427,12 @@ export async function generateAiResponse(
           productContext = catalog.substring(0, 1500);
         }
       } else {
-        // Fallback: producto principal. Asegura que la IA tenga siempre disponibles
-        // las imagenes y testimonios del producto aunque el cliente no lo nombre.
-        const primaryProduct = allProducts.find(p => /berberina/i.test(p.name)) || allProducts[0];
-        if (primaryProduct) {
-          productContext = `${primaryProduct.name} - ${primaryProduct.price || "Consultar precio"}${primaryProduct.comboQty ? `\nCOMBO: ${primaryProduct.comboQty} por ${primaryProduct.comboPrice || "Consultar"}` : ""}\n${primaryProduct.description || ""}\n${getProductImageContext(primaryProduct)}`;
-          productInContext = primaryProduct;
+        // Sin producto detectado y sin anuncio: dar TODOS los productos para que la IA
+        // pueda preguntar o detectar el correcto, en vez de asumir uno fijo (Berberina).
+        if (allProducts.length > 0) {
+          productContext = allProducts.map(p =>
+            `${p.name} - ${p.price || "Consultar precio"}${p.comboQty ? `\nCOMBO: ${p.comboQty} por ${p.comboPrice || "Consultar"}` : ""}\n${p.description || ""}\n${getProductImageContext(p)}`
+          ).join("\n\n");
         } else if (catalog) {
           productContext = catalog.substring(0, 1500);
         }
