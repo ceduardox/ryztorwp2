@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Tooltip } from "recharts";
-import { ArrowLeft, TrendingUp, Users, Phone, Truck, CheckCircle, AlertCircle, MessageSquare, Calendar, CalendarDays, Zap, Inbox, Send as SendIcon, Download } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, Phone, Truck, CheckCircle, AlertCircle, MessageSquare, Calendar, CalendarDays, Zap, Inbox, Send as SendIcon, Download, MoreVertical } from "lucide-react";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface AgentStat {
   agent_id: number;
@@ -109,6 +110,7 @@ export default function AnalyticsPage() {
   const { data: conversations = [] } = useConversations();
   const [filterMode, setFilterMode] = useState<"day" | "range">("day");
   const [activeSection, setActiveSection] = useState<"resumen" | "agentes" | "costos" | "mensajes">("resumen");
+  const [showActions, setShowActions] = useState(false);
   const analyticsSections = [
     { id: "resumen", label: "Resumen", icon: TrendingUp },
     { id: "agentes", label: "Agentes", icon: Users },
@@ -565,24 +567,50 @@ export default function AnalyticsPage() {
     </div>
   );
 
+  const handleExportChats = () => {
+    window.open(`/api/admin/export-conversations?limit=${exportChatLimit}`, "_blank");
+  };
+
+  const handleDownloadJson = () => {
+    const agentes = (isAllAgentsSelected
+      ? availableAgents
+      : availableAgents.filter((a) => selectedAgentIds.includes(a.id))
+    ).map((a) => a.name);
+    const payload = {
+      generadoEn: new Date().toISOString(),
+      rango: { dateFrom: appliedRange.dateFrom, dateTo: appliedRange.dateTo },
+      agentes,
+      filas: agentStatsFiltered,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `analytics_${appliedRange.dateFrom}_${appliedRange.dateTo}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-white">
       <div className="sticky top-0 z-10 bg-slate-800/80 backdrop-blur-lg border-b border-slate-700/50 px-4 py-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <Link href="/">
-              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white">
+              <Button variant="ghost" size="icon" className="shrink-0 text-slate-400 hover:text-white">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
-            <div>
-              <h1 className="font-bold text-lg flex items-center gap-2">
-                Analytics <Zap className="h-4 w-4 text-yellow-400" />
+            <div className="min-w-0">
+              <h1 className="truncate font-bold text-base sm:text-lg flex items-center gap-2">
+                Analytics <Zap className="h-4 w-4 shrink-0 text-yellow-400" />
               </h1>
-              <p className="text-xs text-slate-400">Panel de estadisticas</p>
+              <p className="truncate text-[11px] sm:text-xs text-slate-400">Panel de estadisticas</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-2 shrink-0">
             {isAdmin && (
               <div className="flex items-center gap-2">
                 <Select value={exportChatLimit} onValueChange={setExportChatLimit}>
@@ -601,35 +629,13 @@ export default function AnalyticsPage() {
                   </SelectContent>
                 </Select>
                 <Button
-                  onClick={() => {
-                    window.open(`/api/admin/export-conversations?limit=${exportChatLimit}`, "_blank");
-                  }}
+                  onClick={handleExportChats}
                   className="flex items-center gap-2 bg-[#00A6B4] text-white hover:bg-[#008f9c] px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide shadow transition-all duration-200 hover:shadow-md cursor-pointer border-0"
                 >
                   <Download className="h-4 w-4" /> Exportar chats
                 </Button>
                 <Button
-                  onClick={() => {
-                    const agentes = (isAllAgentsSelected
-                      ? availableAgents
-                      : availableAgents.filter((a) => selectedAgentIds.includes(a.id))
-                    ).map((a) => a.name);
-                    const payload = {
-                      generadoEn: new Date().toISOString(),
-                      rango: { dateFrom: appliedRange.dateFrom, dateTo: appliedRange.dateTo },
-                      agentes,
-                      filas: agentStatsFiltered,
-                    };
-                    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `analytics_${appliedRange.dateFrom}_${appliedRange.dateTo}.json`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  }}
+                  onClick={handleDownloadJson}
                   className="flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-500 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide shadow transition-all duration-200 hover:shadow-md cursor-pointer border-0"
                   data-testid="button-download-analytics-json"
                 >
@@ -648,8 +654,82 @@ export default function AnalyticsPage() {
               </Button>
             </Link>
           </div>
+
+          <div className="flex md:hidden items-center gap-2 shrink-0">
+            <Link href="/analytics/calendar">
+              <Button variant="outline" size="icon" className="h-9 w-9 border-cyan-500/35 bg-cyan-500/10 text-cyan-100" aria-label="Vista calendario">
+                <CalendarDays className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-9 border-slate-600 text-slate-200"
+              onClick={() => setShowActions(true)}
+              aria-label="Acciones"
+              data-testid="button-analytics-actions"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
+
+      <Dialog open={showActions} onOpenChange={setShowActions}>
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Acciones</DialogTitle>
+          </DialogHeader>
+          <div className="mt-2 space-y-3">
+            {isAdmin && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">Cantidad de chats a exportar</label>
+                  <Select value={exportChatLimit} onValueChange={setExportChatLimit}>
+                    <SelectTrigger className="h-9 border-slate-600 bg-slate-900/70 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[10, 30, 50, 100, 150, 200, 300, 500, 1000, 2000].map((limit) => (
+                        <SelectItem key={limit} value={String(limit)}>
+                          {limit} chats
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  onClick={() => {
+                    handleExportChats();
+                    setShowActions(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 bg-[#00A6B4] text-white hover:bg-[#008f9c] border-0"
+                >
+                  <Download className="h-4 w-4" /> Exportar chats
+                </Button>
+                <Button
+                  onClick={() => {
+                    handleDownloadJson();
+                    setShowActions(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white hover:bg-emerald-500 border-0"
+                >
+                  <Download className="h-4 w-4" /> Descargar JSON
+                </Button>
+              </>
+            )}
+            <Link href="/analytics/calendar">
+              <Button
+                variant="outline"
+                onClick={() => setShowActions(false)}
+                className="w-full border-cyan-500/35 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+              >
+                <CalendarDays className="h-4 w-4 mr-2" /> Vista calendario
+              </Button>
+            </Link>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="p-4 space-y-6 pb-20">
         <div className="hidden md:flex flex-wrap gap-2 rounded-2xl border border-slate-700/40 bg-slate-800/60 p-2">
