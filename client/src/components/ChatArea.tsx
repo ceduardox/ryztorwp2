@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft, Volume2, Lock, LockOpen, RefreshCw, ChevronDown, Smile } from "lucide-react";
+import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft, Volume2, Lock, LockOpen, RefreshCw, ChevronDown, Smile, MessageSquare } from "lucide-react";
 import type { Conversation, Message, Label, QuickMessage, Agent, Product } from "@shared/schema";
 import {
   DropdownMenu,
@@ -969,32 +969,32 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
     },
   });
 
-  const adminAiAudioReplyMutation = useMutation({
-    mutationFn: async () => {
+  const adminAiReplyMutation = useMutation({
+    mutationFn: async (format: "text" | "audio") => {
       if (!latestMessage || latestMessage.direction !== "in") {
         throw new Error("La conversacion ya no tiene un mensaje pendiente");
       }
       const res = await fetch(`/api/conversations/${conversation.id}/ai-audio-reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lastInboundMessageId: latestMessage.id }),
+        body: JSON.stringify({ lastInboundMessageId: latestMessage.id, format }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.message || "No se pudo enviar la respuesta en audio");
+        throw new Error(data?.message || "No se pudo enviar la respuesta con IA");
       }
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, format) => {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations/:id", conversation.id] });
-      toast({ title: "Respuesta de IA enviada en audio" });
+      toast({ title: format === "text" ? "Respuesta de IA enviada en texto" : "Respuesta de IA enviada en audio" });
     },
     onError: (error: Error) => {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations/:id", conversation.id] });
       toast({
-        title: "No se envio el audio",
+        title: "No se pudo enviar la respuesta",
         description: error.message,
         variant: "destructive",
       });
@@ -2174,19 +2174,34 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
 
         {/* Admin-only AI audio recovery */}
         {canSendAdminAiAudio && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="flex-shrink-0 h-7 w-7 text-violet-600 hover:text-violet-700"
-            onClick={() => adminAiAudioReplyMutation.mutate()}
-            disabled={adminAiAudioReplyMutation.isPending}
-            title="Responder el ultimo mensaje con IA en audio"
-            data-testid="button-admin-ai-audio-reply"
-          >
-            {adminAiAudioReplyMutation.isPending
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <Volume2 className="h-4 w-4" />}
-          </Button>
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="flex-shrink-0 h-7 w-7 text-violet-600 hover:text-violet-700"
+              onClick={() => adminAiReplyMutation.mutate("text")}
+              disabled={adminAiReplyMutation.isPending}
+              title="Responder el ultimo mensaje con IA en texto"
+              data-testid="button-admin-ai-text-reply"
+            >
+              {adminAiReplyMutation.isPending && adminAiReplyMutation.variables === "text"
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <MessageSquare className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="flex-shrink-0 h-7 w-7 text-violet-600 hover:text-violet-700"
+              onClick={() => adminAiReplyMutation.mutate("audio")}
+              disabled={adminAiReplyMutation.isPending}
+              title="Responder el ultimo mensaje con IA en audio"
+              data-testid="button-admin-ai-audio-reply"
+            >
+              {adminAiReplyMutation.isPending && adminAiReplyMutation.variables === "audio"
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Volume2 className="h-4 w-4" />}
+            </Button>
+          </>
         )}
 
         {/* AI Toggle Button (admin and agents) */}

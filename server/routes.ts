@@ -4434,6 +4434,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Mensaje entrante invalido" });
       }
 
+      const replyFormat = req.body?.format === "text" ? "text" : "audio";
+
       const conversation = await storage.getConversation(conversationId);
       if (!conversation) {
         return res.status(404).json({ message: "Conversacion no encontrada" });
@@ -4489,6 +4491,30 @@ export async function registerRoutes(
         return res.status(409).json({
           message: "La conversacion recibio otra actividad y no se envio el audio.",
         });
+      }
+
+      if (replyFormat === "text") {
+        const waResponse = await sendToWhatsApp(conversation.waId, "text", { text: aiResult.response });
+        const waMessageId = waResponse.messages[0].id;
+        await storage.createMessage({
+          conversationId,
+          waMessageId,
+          direction: "out",
+          type: "text",
+          text: aiResult.response,
+          timestamp: Math.floor(Date.now() / 1000).toString(),
+          status: "sent",
+          rawJson: { source: "admin_ai_text_reply" },
+        });
+        const updateData: any = {
+          lastMessage: aiResult.response,
+          lastMessageTimestamp: new Date(),
+          needsHumanAttention: false,
+        };
+        if (aiResult.orderReady) updateData.orderStatus = "ready";
+        if (aiResult.shouldCall) updateData.shouldCall = true;
+        await storage.updateConversation(conversationId, updateData);
+        return res.json({ success: true, messageId: waMessageId, response: aiResult.response, format: "text" });
       }
 
       const aiSettings = await storage.getAiSettings();
