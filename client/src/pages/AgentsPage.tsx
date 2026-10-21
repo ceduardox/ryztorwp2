@@ -40,6 +40,9 @@ import {
   TrendingUp,
   Search,
   AlertTriangle,
+  DollarSign,
+  Megaphone,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Agent } from "@shared/schema";
@@ -189,11 +192,11 @@ export default function AgentsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const sections = [
-    { id: "agents", label: "Agentes" },
-    { id: "performance", label: "Rendimiento" },
-    { id: "costs", label: "Costos" },
-    { id: "routing", label: "Anuncios" },
-    { id: "permissions", label: "Permisos" },
+    { id: "agents", label: "Agentes", icon: Users },
+    { id: "performance", label: "Rendimiento", icon: TrendingUp },
+    { id: "costs", label: "Costos", icon: DollarSign },
+    { id: "routing", label: "Anuncios", icon: Megaphone },
+    { id: "permissions", label: "Permisos", icon: ShieldCheck },
   ] as const;
   const [activeSection, setActiveSection] = useState("agents");
   const changeSection = (section: string) => {
@@ -734,7 +737,7 @@ export default function AgentsPage() {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.03)_1px,transparent_1px)] bg-[size:60px_60px]" />
       </div>
 
-      <div className="relative z-10 max-w-4xl mx-auto p-4 md:p-8">
+      <div className="relative z-10 max-w-4xl mx-auto p-4 pb-24 md:p-8">
         <div className="flex items-center gap-4 mb-6">
           <Link href="/">
             <Button variant="ghost" size="icon" className="text-slate-400" data-testid="button-back-agents">
@@ -750,21 +753,14 @@ export default function AgentsPage() {
           </div>
         </div>
 
-        <nav aria-label="Secciones de agentes" className="sticky top-0 z-20 mb-5 rounded-xl border border-slate-700/60 bg-slate-950/95 p-2 backdrop-blur-xl">
-          <div className="md:hidden">
-            <label htmlFor="agents-section-select" className="mb-1 block px-1 text-xs text-slate-400">Sección</label>
-            <select id="agents-section-select" value={activeSection} onChange={event => changeSection(event.target.value)}
-              className="min-h-12 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 text-base text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              data-testid="select-agents-section">
-              {sections.map(section => <option key={section.id} value={section.id}>{section.label}</option>)}
-            </select>
-          </div>
-          <div className="hidden md:flex md:gap-1">
-            {sections.map(section => (
-              <button key={section.id} type="button" aria-pressed={activeSection === section.id}
-                onClick={() => changeSection(section.id)} data-testid={`agents-nav-${section.id}`}
-                className={`flex-1 rounded-lg px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${activeSection === section.id ? "bg-emerald-500/15 text-emerald-300" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}>
-                {section.label}
+        <nav aria-label="Secciones de agentes" className="sticky top-0 z-20 mb-5 hidden rounded-xl border border-slate-700/60 bg-slate-950/95 p-2 backdrop-blur-xl md:block">
+          <div className="flex gap-1">
+            {sections.map(item => (
+              <button key={item.id} type="button" aria-pressed={activeSection === item.id}
+                onClick={() => changeSection(item.id)} data-testid={`agents-nav-${item.id}`}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${activeSection === item.id ? "bg-emerald-500/15 text-emerald-300" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}>
+                <item.icon className="h-4 w-4" />
+                {item.label}
               </button>
             ))}
           </div>
@@ -1689,6 +1685,22 @@ export default function AgentsPage() {
         )}
         </section>
 
+      </div>
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-slate-700/60 bg-slate-950/95 backdrop-blur-xl">
+        <div className="flex items-stretch justify-around px-0.5 py-1">
+          {sections.map((item) => (
+            <button
+              key={`bottom-${item.id}`}
+              type="button"
+              onClick={() => changeSection(item.id)}
+              className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-0.5 py-1.5 text-[9px] font-medium transition-colors ${activeSection === item.id ? "text-emerald-300" : "text-slate-400"}`}
+              data-testid={`agents-bottom-nav-${item.id}`}
+            >
+              <item.icon className={`h-4 w-4 ${activeSection === item.id ? "text-emerald-300" : "text-slate-400"}`} />
+              <span className="truncate">{item.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
