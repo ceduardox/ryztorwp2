@@ -108,6 +108,17 @@ export default function AnalyticsPage() {
   const isAdmin = user?.role === "admin";
   const { data: conversations = [] } = useConversations();
   const [filterMode, setFilterMode] = useState<"day" | "range">("day");
+  const [activeSection, setActiveSection] = useState<"resumen" | "agentes" | "costos" | "mensajes">("resumen");
+  const analyticsSections = [
+    { id: "resumen", label: "Resumen", icon: TrendingUp },
+    { id: "agentes", label: "Agentes", icon: Users },
+    { id: "costos", label: "Costos", icon: Calendar },
+    { id: "mensajes", label: "Mensajes", icon: MessageSquare },
+  ] as const;
+  const changeSection = (section: "resumen" | "agentes" | "costos" | "mensajes") => {
+    setActiveSection(section);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   const [reportDate, setReportDate] = useState(() => toLaPazInputDate(new Date()));
   const [reportDateFrom, setReportDateFrom] = useState(() => toLaPazInputDate(new Date()));
   const [reportDateTo, setReportDateTo] = useState(() => toLaPazInputDate(new Date()));
@@ -641,6 +652,21 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="p-4 space-y-6 pb-20">
+        <div className="hidden md:flex flex-wrap gap-2 rounded-2xl border border-slate-700/40 bg-slate-800/60 p-2">
+          {analyticsSections.map((item) => (
+            <Button
+              key={item.id}
+              type="button"
+              variant={activeSection === item.id ? "default" : "ghost"}
+              className={activeSection === item.id ? "h-9 bg-gradient-to-r from-emerald-600 to-cyan-600 border-0" : "h-9 text-slate-300"}
+              onClick={() => changeSection(item.id)}
+              data-testid={`button-analytics-tab-${item.id}`}
+            >
+              <item.icon className="h-4 w-4 mr-2" />
+              {item.label}
+            </Button>
+          ))}
+        </div>
         <div className="rounded-2xl border border-slate-700/40 bg-slate-800/60 p-4">
           <h3 className="text-sm font-semibold text-white mb-3">Filtro por fecha</h3>
 
@@ -735,7 +761,7 @@ export default function AnalyticsPage() {
         </div>
 
         {isAdmin && (
-          <div className="rounded-2xl border border-cyan-500/30 bg-slate-800/70 p-4">
+          <div hidden={activeSection !== "costos"} className="rounded-2xl border border-cyan-500/30 bg-slate-800/70 p-4">
             <h3 className="text-sm font-semibold text-white mb-3">Costo diario (admin)</h3>
             <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-end">
               <div>
@@ -824,6 +850,7 @@ export default function AnalyticsPage() {
           </div>
         )}
 
+        <div hidden={activeSection !== "resumen"} className="space-y-6">
         <div className="group bg-gradient-to-r from-emerald-600/20 via-teal-600/20 to-cyan-600/20 rounded-2xl p-6 border border-emerald-500/30 shadow-xl shadow-emerald-500/10 hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-300 relative overflow-hidden transform hover:scale-[1.02]">
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-2xl" />
           <div className="absolute -top-20 -right-20 w-60 h-60 bg-emerald-500/20 rounded-full blur-3xl" />
@@ -951,7 +978,9 @@ export default function AnalyticsPage() {
             </ResponsiveContainer>
           </div>
         </div>
+        </div>
 
+        <div hidden={activeSection !== "agentes"} className="space-y-6">
         <div className="group bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/50 shadow-xl shadow-black/20 relative overflow-hidden">
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-emerald-500/5 to-transparent rounded-2xl" />
           <div className="pointer-events-none absolute -top-10 -left-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl" />
@@ -1142,8 +1171,10 @@ export default function AnalyticsPage() {
             </div>
           )}
         </div>
+        </div>
 
         {/* Agent Message Stats */}
+        <div hidden={activeSection !== "mensajes"} className="space-y-6">
         <div className="group bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/50 shadow-xl shadow-black/20 relative overflow-hidden">
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-amber-500/5 to-transparent rounded-2xl" />
           <div className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl" />
@@ -1345,6 +1376,23 @@ export default function AnalyticsPage() {
               Sin datos de mensajes
             </div>
           )}
+        </div>
+        </div>
+      </div>
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-slate-700/50 bg-slate-900/95 backdrop-blur-xl">
+        <div className="flex items-center justify-around px-1 py-1.5">
+          {analyticsSections.map((item) => (
+            <button
+              key={`mobile-analytics-${item.id}`}
+              type="button"
+              onClick={() => changeSection(item.id)}
+              className={`flex flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[10px] font-medium transition-colors ${activeSection === item.id ? "bg-emerald-500/15 text-emerald-400" : "text-slate-400"}`}
+              data-testid={`button-analytics-mobile-${item.id}`}
+            >
+              <item.icon className="h-5 w-5" />
+              {item.label}
+            </button>
+          ))}
         </div>
       </div>
     </div>
