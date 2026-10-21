@@ -4454,9 +4454,8 @@ export async function registerRoutes(
       }
 
       const messageForAi = String(latestMessage.text || "").trim();
-      if (!messageForAi) {
-        return res.status(400).json({ message: "El ultimo mensaje no contiene texto para responder" });
-      }
+      const providedText = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+      const previewOnly = req.body?.preview === true;
 
       let advisorName: string | undefined;
       if (conversation.assignedAgentId) {
@@ -4464,20 +4463,39 @@ export async function registerRoutes(
         advisorName = getConversationAdvisorName(assignedAgent?.name || null);
       }
 
-      const aiResult = await generateAiResponse(
-        conversationId,
-        messageForAi,
-        conversationMessages,
-        undefined,
-        advisorName,
-      );
-      if (!aiResult?.response) {
+      let replyText = providedText;
+      let replyOrderReady = false;
+      let replyShouldCall = false;
+
+      if (!replyText) {
+        if (!messageForAi) {
+          return res.status(400).json({ message: "El ultimo mensaje no contiene texto para responder" });
+        }
+        const aiResult = await generateAiResponse(
+          conversationId,
+          messageForAi,
+          conversationMessages,
+          undefined,
+          advisorName,
+        );
+        if (!aiResult?.response) {
+          return res.status(502).json({ message: "La IA no genero una respuesta" });
+        }
+        if (aiResult.needsHuman) {
+          return res.status(422).json({ message: "La IA indico que esta conversacion requiere atencion humana" });
+        }
+        replyText = aiResult.response.replace(/\[IMAGEN:[^\]]*\]?/gi, "").trim();
+        replyOrderReady = Boolean(aiResult.orderReady);
+        replyShouldCall = Boolean(aiResult.shouldCall);
+      }
+
+      if (!replyText) {
         return res.status(502).json({ message: "La IA no genero una respuesta" });
       }
-      if (aiResult.needsHuman) {
-        return res.status(422).json({ message: "La IA indico que esta conversacion requiere atencion humana" });
+
+      if (previewOnly) {
+        return res.json({ preview: true, text: replyText });
       }
-      aiResult.response = aiResult.response.replace(/\[IMAGEN:[^\]]*\]?/gi, "").trim();
 
       // Recheck immediately before sending to avoid a duplicate if a reply arrived
       // while the model was generating the response.
@@ -4494,27 +4512,27 @@ export async function registerRoutes(
       }
 
       if (replyFormat === "text") {
-        const waResponse = await sendToWhatsApp(conversation.waId, "text", { text: aiResult.response });
+        const waResponse = await sendToWhatsApp(conversation.waId, "text", { text: replyText });
         const waMessageId = waResponse.messages[0].id;
         await storage.createMessage({
           conversationId,
           waMessageId,
           direction: "out",
           type: "text",
-          text: aiResult.response,
+          text: replyText,
           timestamp: Math.floor(Date.now() / 1000).toString(),
           status: "sent",
           rawJson: { source: "admin_ai_text_reply" },
         });
         const updateData: any = {
-          lastMessage: aiResult.response,
+          lastMessage: replyText,
           lastMessageTimestamp: new Date(),
           needsHumanAttention: false,
         };
-        if (aiResult.orderReady) updateData.orderStatus = "ready";
-        if (aiResult.shouldCall) updateData.shouldCall = true;
+        if (replyOrderReady) updateData.orderStatus = "ready";
+        if (replyShouldCall) updateData.shouldCall = true;
         await storage.updateConversation(conversationId, updateData);
-        return res.json({ success: true, messageId: waMessageId, response: aiResult.response, format: "text" });
+        return res.json({ success: true, messageId: waMessageId, response: replyText, format: "text" });
       }
 
       const aiSettings = await storage.getAiSettings();
@@ -4528,7 +4546,7 @@ export async function registerRoutes(
 
       const audioMediaId = await sendAudioResponse(
         conversation.waId,
-        aiResult.response,
+        replyText,
         selectedVoice,
         {
           speed: ttsSpeed,
@@ -4549,7 +4567,7 @@ export async function registerRoutes(
         waMessageId,
         direction: "out",
         type: "audio",
-        text: aiResult.response,
+        text: replyText,
         mediaId: audioMediaId,
         mimeType: "audio/ogg",
         timestamp: Math.floor(Date.now() / 1000).toString(),
@@ -4561,18 +4579,18 @@ export async function registerRoutes(
       });
 
       const updateData: any = {
-        lastMessage: aiResult.response,
+        lastMessage: replyText,
         lastMessageTimestamp: new Date(),
         needsHumanAttention: false,
       };
-      if (aiResult.orderReady) updateData.orderStatus = "ready";
-      if (aiResult.shouldCall) updateData.shouldCall = true;
+      if (replyOrderReady) updateData.orderStatus = "ready";
+      if (replyShouldCall) updateData.shouldCall = true;
       await storage.updateConversation(conversationId, updateData);
 
       res.json({
         success: true,
         messageId: waMessageId,
-        response: aiResult.response,
+        response: replyText,
       });
     } catch (error: any) {
       const details = error?.response?.data?.error?.message || error?.message || "Error desconocido";

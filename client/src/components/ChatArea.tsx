@@ -196,6 +196,9 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   const [quickMessageMode, setQuickMessageMode] = useState<"manual" | "product">("manual");
   const [quickProductId, setQuickProductId] = useState<string>("");
   const [showQuickMessageDialog, setShowQuickMessageDialog] = useState(false);
+  const [showAiReplyModal, setShowAiReplyModal] = useState(false);
+  const [aiReplyDraft, setAiReplyDraft] = useState("");
+  const [aiReplyPreferredFormat, setAiReplyPreferredFormat] = useState<"text" | "audio">("text");
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [editingQuickMessageId, setEditingQuickMessageId] = useState<number | null>(null);
   const [showReminderDialog, setShowReminderDialog] = useState(false);
@@ -970,14 +973,14 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   });
 
   const adminAiReplyMutation = useMutation({
-    mutationFn: async (format: "text" | "audio") => {
+    mutationFn: async ({ format, text }: { format: "text" | "audio"; text?: string }) => {
       if (!latestMessage || latestMessage.direction !== "in") {
         throw new Error("La conversacion ya no tiene un mensaje pendiente");
       }
       const res = await fetch(`/api/conversations/${conversation.id}/ai-audio-reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lastInboundMessageId: latestMessage.id, format }),
+        body: JSON.stringify({ lastInboundMessageId: latestMessage.id, format, text }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -985,10 +988,12 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
       }
       return data;
     },
-    onSuccess: (_data, format) => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations/:id", conversation.id] });
-      toast({ title: format === "text" ? "Respuesta de IA enviada en texto" : "Respuesta de IA enviada en audio" });
+      setShowAiReplyModal(false);
+      setAiReplyDraft("");
+      toast({ title: vars.format === "text" ? "Respuesta de IA enviada en texto" : "Respuesta de IA enviada en audio" });
     },
     onError: (error: Error) => {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
@@ -998,6 +1003,31 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  const generateAiReplyMutation = useMutation({
+    mutationFn: async () => {
+      if (!latestMessage || latestMessage.direction !== "in") {
+        throw new Error("La conversacion ya no tiene un mensaje pendiente");
+      }
+      const res = await fetch(`/api/conversations/${conversation.id}/ai-audio-reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lastInboundMessageId: latestMessage.id, preview: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.message || "No se pudo generar la respuesta con IA");
+      }
+      return data as { text: string };
+    },
+    onSuccess: (data) => {
+      setAiReplyDraft(data.text || "");
+      setShowAiReplyModal(true);
+    },
+    onError: (error: Error) => {
+      toast({ title: "No se pudo generar la respuesta", description: error.message, variant: "destructive" });
     },
   });
 
@@ -2179,12 +2209,15 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
               variant="ghost"
               size="icon"
               className="flex-shrink-0 h-7 w-7 text-violet-600 hover:text-violet-700"
-              onClick={() => adminAiReplyMutation.mutate("text")}
-              disabled={adminAiReplyMutation.isPending}
-              title="Responder el ultimo mensaje con IA en texto"
+              onClick={() => {
+                setAiReplyPreferredFormat("text");
+                generateAiReplyMutation.mutate();
+              }}
+              disabled={generateAiReplyMutation.isPending}
+              title="Generar respuesta con IA (revisar y enviar en texto)"
               data-testid="button-admin-ai-text-reply"
             >
-              {adminAiReplyMutation.isPending && adminAiReplyMutation.variables === "text"
+              {generateAiReplyMutation.isPending
                 ? <Loader2 className="h-4 w-4 animate-spin" />
                 : <MessageSquare className="h-4 w-4" />}
             </Button>
@@ -2192,12 +2225,15 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
               variant="ghost"
               size="icon"
               className="flex-shrink-0 h-7 w-7 text-violet-600 hover:text-violet-700"
-              onClick={() => adminAiReplyMutation.mutate("audio")}
-              disabled={adminAiReplyMutation.isPending}
-              title="Responder el ultimo mensaje con IA en audio"
+              onClick={() => {
+                setAiReplyPreferredFormat("audio");
+                generateAiReplyMutation.mutate();
+              }}
+              disabled={generateAiReplyMutation.isPending}
+              title="Generar respuesta con IA (revisar y enviar en audio)"
               data-testid="button-admin-ai-audio-reply"
             >
-              {adminAiReplyMutation.isPending && adminAiReplyMutation.variables === "audio"
+              {generateAiReplyMutation.isPending
                 ? <Loader2 className="h-4 w-4 animate-spin" />
                 : <Volume2 className="h-4 w-4" />}
             </Button>
@@ -3076,6 +3112,73 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* AI reply review modal */}
+          <Dialog
+            open={showAiReplyModal}
+            onOpenChange={(open) => {
+              setShowAiReplyModal(open);
+              if (!open) setAiReplyDraft("");
+            }}
+          >
+            <DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Revisar respuesta con IA</DialogTitle>
+              </DialogHeader>
+              <div className="mt-2 space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Revisa y edita la respuesta antes de enviarla.
+                </p>
+                <Textarea
+                  value={aiReplyDraft}
+                  onChange={(e) => setAiReplyDraft(e.target.value)}
+                  rows={8}
+                  className="resize-y"
+                  data-testid="textarea-ai-reply-draft"
+                />
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => generateAiReplyMutation.mutate()}
+                    disabled={generateAiReplyMutation.isPending || adminAiReplyMutation.isPending}
+                  >
+                    {generateAiReplyMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Regenerar
+                  </Button>
+                  <Button
+                    variant={aiReplyPreferredFormat === "text" ? "default" : "outline"}
+                    onClick={() => adminAiReplyMutation.mutate({ format: "text", text: aiReplyDraft })}
+                    disabled={!aiReplyDraft.trim() || adminAiReplyMutation.isPending}
+                    data-testid="button-ai-reply-send-text"
+                  >
+                    {adminAiReplyMutation.isPending && adminAiReplyMutation.variables?.format === "text" ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                    )}
+                    Enviar texto
+                  </Button>
+                  <Button
+                    variant={aiReplyPreferredFormat === "audio" ? "default" : "outline"}
+                    onClick={() => adminAiReplyMutation.mutate({ format: "audio", text: aiReplyDraft })}
+                    disabled={!aiReplyDraft.trim() || adminAiReplyMutation.isPending}
+                    data-testid="button-ai-reply-send-audio"
+                  >
+                    {adminAiReplyMutation.isPending && adminAiReplyMutation.variables?.format === "audio" ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Volume2 className="h-4 w-4 mr-2" />
+                    )}
+                    Enviar audio
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Quick Messages Menu */}
           <Dialog
