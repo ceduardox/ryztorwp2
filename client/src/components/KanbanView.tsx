@@ -709,7 +709,21 @@ function KanbanColumn({ hideHeader = false, title, items, activeId, onSelect, co
           )}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5" onScroll={handleColumnScroll}>
+      <div
+        tabIndex={0}
+        onKeyDown={(e) => {
+          const el = e.currentTarget;
+          const page = Math.max(120, Math.round(el.clientHeight * 0.8));
+          if (e.key === "ArrowDown") { el.scrollBy({ top: 80 }); e.preventDefault(); }
+          else if (e.key === "ArrowUp") { el.scrollBy({ top: -80 }); e.preventDefault(); }
+          else if (e.key === "PageDown") { el.scrollBy({ top: page }); e.preventDefault(); }
+          else if (e.key === "PageUp") { el.scrollBy({ top: -page }); e.preventDefault(); }
+          else if (e.key === "Home") { el.scrollTo({ top: 0 }); e.preventDefault(); }
+          else if (e.key === "End") { el.scrollTo({ top: el.scrollHeight }); e.preventDefault(); }
+        }}
+        className="kanban-scroll flex-1 overflow-y-auto overscroll-contain p-2.5 space-y-2.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400"
+        onScroll={handleColumnScroll}
+      >
         {isDropTarget && draggingConversationId !== null && (
           <div className="rounded-xl border border-dashed border-emerald-400/60 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300">
             Suelta aqui para mover
