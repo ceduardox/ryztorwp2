@@ -4443,22 +4443,22 @@ export async function registerRoutes(
 
       const conversationMessages = await storage.getMessages(conversationId);
       const latestMessage = conversationMessages[conversationMessages.length - 1];
-      if (
-        !latestMessage
-        || latestMessage.id !== expectedInboundMessageId
-        || latestMessage.direction !== "in"
-      ) {
+      if (!latestMessage || latestMessage.id !== expectedInboundMessageId) {
         return res.status(409).json({
-          message: "La conversacion ya cambio o ya fue respondida. Actualice el chat antes de reintentar.",
+          message: "La conversacion ya cambio. Actualice el chat antes de reintentar.",
         });
       }
 
-      const messageForAi = String(latestMessage.text || "").trim();
+      const lastInbound = [...conversationMessages].reverse().find((m) => m.direction === "in");
+      const messageForAi = String(lastInbound?.text || "").trim();
       const providedText = typeof req.body?.text === "string" ? req.body.text.trim() : "";
       const previewOnly = req.body?.preview === true;
+      const requestedAdvisorName = typeof req.body?.advisorName === "string" ? req.body.advisorName.trim() : "";
 
       let advisorName: string | undefined;
-      if (conversation.assignedAgentId) {
+      if (requestedAdvisorName) {
+        advisorName = getConversationAdvisorName(requestedAdvisorName);
+      } else if (conversation.assignedAgentId) {
         const assignedAgent = await storage.getAgent(conversation.assignedAgentId);
         advisorName = getConversationAdvisorName(assignedAgent?.name || null);
       }
@@ -4501,13 +4501,9 @@ export async function registerRoutes(
       // while the model was generating the response.
       const messagesBeforeSend = await storage.getMessages(conversationId);
       const latestBeforeSend = messagesBeforeSend[messagesBeforeSend.length - 1];
-      if (
-        !latestBeforeSend
-        || latestBeforeSend.id !== expectedInboundMessageId
-        || latestBeforeSend.direction !== "in"
-      ) {
+      if (!latestBeforeSend || latestBeforeSend.id !== expectedInboundMessageId) {
         return res.status(409).json({
-          message: "La conversacion recibio otra actividad y no se envio el audio.",
+          message: "La conversacion recibio otra actividad y no se envio la respuesta.",
         });
       }
 

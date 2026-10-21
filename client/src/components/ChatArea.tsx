@@ -199,6 +199,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   const [showAiReplyModal, setShowAiReplyModal] = useState(false);
   const [aiReplyDraft, setAiReplyDraft] = useState("");
   const [aiReplyPreferredFormat, setAiReplyPreferredFormat] = useState<"text" | "audio">("text");
+  const [aiReplyAdvisor, setAiReplyAdvisor] = useState<string>("");
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [editingQuickMessageId, setEditingQuickMessageId] = useState<number | null>(null);
   const [showReminderDialog, setShowReminderDialog] = useState(false);
@@ -248,7 +249,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const latestMessage = messages[messages.length - 1] || null;
-  const canSendAdminAiAudio = isAdmin && latestMessage?.direction === "in";
+  const canSendAdminAiReply = isAdmin;
 
   const [replyingToMessage, setReplyingToMessage] = useState<Message | null>(null);
 
@@ -387,6 +388,9 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
     queryKey: ["/api/agents"],
     enabled: isAdmin,
   });
+
+  const assignedAdvisorName = agentsData.find((a) => a.id === conversation.assignedAgentId)?.name || "";
+  const aiReplyAdvisorValue = aiReplyAdvisor || assignedAdvisorName;
 
   const currentLabelIds = [conversation.labelId, conversation.labelId2].filter(
     (value): value is number => typeof value === "number" && value > 0,
@@ -973,14 +977,14 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   });
 
   const adminAiReplyMutation = useMutation({
-    mutationFn: async ({ format, text }: { format: "text" | "audio"; text?: string }) => {
-      if (!latestMessage || latestMessage.direction !== "in") {
-        throw new Error("La conversacion ya no tiene un mensaje pendiente");
+    mutationFn: async ({ format, text, advisorName }: { format: "text" | "audio"; text?: string; advisorName?: string }) => {
+      if (!latestMessage) {
+        throw new Error("No hay mensajes en la conversacion");
       }
       const res = await fetch(`/api/conversations/${conversation.id}/ai-audio-reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lastInboundMessageId: latestMessage.id, format, text }),
+        body: JSON.stringify({ lastInboundMessageId: latestMessage.id, format, text, advisorName }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1007,14 +1011,14 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   });
 
   const generateAiReplyMutation = useMutation({
-    mutationFn: async () => {
-      if (!latestMessage || latestMessage.direction !== "in") {
-        throw new Error("La conversacion ya no tiene un mensaje pendiente");
+    mutationFn: async ({ advisorName }: { advisorName?: string } = {}) => {
+      if (!latestMessage) {
+        throw new Error("No hay mensajes en la conversacion");
       }
       const res = await fetch(`/api/conversations/${conversation.id}/ai-audio-reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lastInboundMessageId: latestMessage.id, preview: true }),
+        body: JSON.stringify({ lastInboundMessageId: latestMessage.id, preview: true, advisorName }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -2203,7 +2207,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
         </Dialog>
 
         {/* Admin-only AI audio recovery */}
-        {canSendAdminAiAudio && (
+        {canSendAdminAiReply && (
           <>
             <Button
               variant="ghost"
@@ -2211,7 +2215,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
               className="flex-shrink-0 h-7 w-7 text-violet-600 hover:text-violet-700"
               onClick={() => {
                 setAiReplyPreferredFormat("text");
-                generateAiReplyMutation.mutate();
+                generateAiReplyMutation.mutate({ advisorName: aiReplyAdvisorValue });
               }}
               disabled={generateAiReplyMutation.isPending}
               title="Generar respuesta con IA (revisar y enviar en texto)"
@@ -2227,7 +2231,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
               className="flex-shrink-0 h-7 w-7 text-violet-600 hover:text-violet-700"
               onClick={() => {
                 setAiReplyPreferredFormat("audio");
-                generateAiReplyMutation.mutate();
+                generateAiReplyMutation.mutate({ advisorName: aiReplyAdvisorValue });
               }}
               disabled={generateAiReplyMutation.isPending}
               title="Generar respuesta con IA (revisar y enviar en audio)"
@@ -3129,6 +3133,23 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                 <p className="text-xs text-muted-foreground">
                   Revisa y edita la respuesta antes de enviarla.
                 </p>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Asesor (agente) de la respuesta</label>
+                  <select
+                    value={aiReplyAdvisorValue}
+                    onChange={(e) => setAiReplyAdvisor(e.target.value)}
+                    className="h-9 w-full rounded-md border border-slate-600/50 bg-slate-800/50 px-3 text-sm text-white outline-none focus:border-emerald-500"
+                    data-testid="select-ai-reply-advisor"
+                  >
+                    <option value="">Asesor por defecto</option>
+                    {agentsData.filter((a) => a.isActive !== false).map((a) => (
+                      <option key={a.id} value={a.name}>{a.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-muted-foreground">
+                    La IA usa el nombre del asesor elegido. Si lo cambias, pulsa Regenerar.
+                  </p>
+                </div>
                 <Textarea
                   value={aiReplyDraft}
                   onChange={(e) => setAiReplyDraft(e.target.value)}
@@ -3139,7 +3160,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => generateAiReplyMutation.mutate()}
+                    onClick={() => generateAiReplyMutation.mutate({ advisorName: aiReplyAdvisorValue })}
                     disabled={generateAiReplyMutation.isPending || adminAiReplyMutation.isPending}
                   >
                     {generateAiReplyMutation.isPending ? (
@@ -3151,7 +3172,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                   </Button>
                   <Button
                     variant={aiReplyPreferredFormat === "text" ? "default" : "outline"}
-                    onClick={() => adminAiReplyMutation.mutate({ format: "text", text: aiReplyDraft })}
+                    onClick={() => adminAiReplyMutation.mutate({ format: "text", text: aiReplyDraft, advisorName: aiReplyAdvisorValue })}
                     disabled={!aiReplyDraft.trim() || adminAiReplyMutation.isPending}
                     data-testid="button-ai-reply-send-text"
                   >
@@ -3164,7 +3185,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                   </Button>
                   <Button
                     variant={aiReplyPreferredFormat === "audio" ? "default" : "outline"}
-                    onClick={() => adminAiReplyMutation.mutate({ format: "audio", text: aiReplyDraft })}
+                    onClick={() => adminAiReplyMutation.mutate({ format: "audio", text: aiReplyDraft, advisorName: aiReplyAdvisorValue })}
                     disabled={!aiReplyDraft.trim() || adminAiReplyMutation.isPending}
                     data-testid="button-ai-reply-send-audio"
                   >
