@@ -228,6 +228,10 @@ export class DatabaseStorage implements IStorage {
       ALTER TABLE conversations
       ADD COLUMN IF NOT EXISTS delivery_comprobante TEXT
     `);
+    await db.execute(sql`
+      ALTER TABLE conversations
+      ADD COLUMN IF NOT EXISTS is_candidate BOOLEAN NOT NULL DEFAULT false
+    `);
     this.reminderColumnsEnsured = true;
   }
 

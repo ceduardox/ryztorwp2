@@ -1696,7 +1696,7 @@ function getAutomaticAudioBlockReason(responseText: string): string | null {
 
 // ============ PEDIDO LISTO -> aviso por WhatsApp al repartidor/admin ============
 const DELIVERY_TOKEN_REGEX =
-  /\[(?:PEDIDO_LISTO|LLAMAR|NECESITO_HUMANO|IMAGEN:[^\]]*|BOTONES:[^\]]*|LISTA:[^\]]*)\]/gi;
+  /\[(?:PEDIDO_LISTO|LLAMAR|NECESITO_HUMANO|CANDIDATA|IMAGEN:[^\]]*|BOTONES:[^\]]*|LISTA:[^\]]*)\]/gi;
 
 interface DeliveryNotifyParams {
   conversationId: number;
@@ -2142,6 +2142,14 @@ async function processAiResponse(data: BufferedMessage) {
         );
       }
 
+      if (aiResult.isCandidate) {
+        updateData.isCandidate = true;
+        updateData.orderStatus = null;
+        updateData.shouldCall = false;
+        updateData.needsHumanAttention = false;
+        console.log("=== CANDIDATE DETECTED ===", conversationId);
+      }
+
       await storage.updateConversation(conversationId, updateData);
 
       console.log("=== AI RESPONSE SENT (BUFFERED) ===");
@@ -2518,7 +2526,7 @@ function normalizeTextForTts(rawText: string): string {
 
   const normalized = (parsedInteractive.cleanText || repairedText)
     .replace(/\[IMAGEN:\s*[^\]]+\]/gi, " ")
-    .replace(/\[(?:PEDIDO_LISTO|LLAMAR|NECESITO_HUMANO)\]/gi, " ")
+    .replace(/\[(?:PEDIDO_LISTO|LLAMAR|NECESITO_HUMANO|CANDIDATA)\]/gi, " ")
     .replace(/https?:\/\/\S+/gi, " ")
     .replace(/\bwww\.\S+/gi, " ")
     .replace(/\*(.*?)\*/g, "$1")
@@ -4466,6 +4474,7 @@ export async function registerRoutes(
       let replyText = providedText;
       let replyOrderReady = false;
       let replyShouldCall = false;
+      let replyIsCandidate = false;
 
       if (!replyText) {
         if (!messageForAi) {
@@ -4487,6 +4496,7 @@ export async function registerRoutes(
         replyText = aiResult.response.replace(/\[IMAGEN:[^\]]*\]?/gi, "").trim();
         replyOrderReady = Boolean(aiResult.orderReady);
         replyShouldCall = Boolean(aiResult.shouldCall);
+        replyIsCandidate = Boolean(aiResult.isCandidate);
       }
 
       if (!replyText) {
@@ -4527,7 +4537,14 @@ export async function registerRoutes(
         };
         if (replyOrderReady) updateData.orderStatus = "ready";
         if (replyShouldCall) updateData.shouldCall = true;
-        await storage.updateConversation(conversationId, updateData);
+        if (replyIsCandidate) {
+          updateData.isCandidate = true;
+          updateData.orderStatus = null;
+          updateData.shouldCall = false;
+          updateData.needsHumanAttention = false;
+        }
+
+      await storage.updateConversation(conversationId, updateData);
         return res.json({ success: true, messageId: waMessageId, response: replyText, format: "text" });
       }
 
@@ -4581,6 +4598,12 @@ export async function registerRoutes(
       };
       if (replyOrderReady) updateData.orderStatus = "ready";
       if (replyShouldCall) updateData.shouldCall = true;
+      if (replyIsCandidate) {
+        updateData.isCandidate = true;
+        updateData.orderStatus = null;
+        updateData.shouldCall = false;
+        updateData.needsHumanAttention = false;
+      }
       await storage.updateConversation(conversationId, updateData);
 
       res.json({
@@ -6321,7 +6344,7 @@ Reglas:
   app.patch("/api/conversations/:id/kanban-status", requireAuth, async (req, res) => {
     const id = parseInt(req.params.id);
     const parsed = z.object({
-      column: z.enum(["humano", "nuevo", "llamar", "proceso", "listo", "entregado"]),
+      column: z.enum(["humano", "nuevo", "llamar", "proceso", "listo", "entregado", "candidatas"]),
     }).safeParse(req.body);
 
     if (!parsed.success) {
@@ -6337,17 +6360,19 @@ Reglas:
     let updates: Record<string, any>;
 
     if (column === "humano") {
-      updates = { needsHumanAttention: true, shouldCall: false, orderStatus: null };
+      updates = { needsHumanAttention: true, shouldCall: false, orderStatus: null, isCandidate: false };
     } else if (column === "nuevo") {
-      updates = { needsHumanAttention: false, shouldCall: false, orderStatus: null };
+      updates = { needsHumanAttention: false, shouldCall: false, orderStatus: null, isCandidate: false };
     } else if (column === "llamar") {
-      updates = { needsHumanAttention: false, shouldCall: true, orderStatus: null };
+      updates = { needsHumanAttention: false, shouldCall: true, orderStatus: null, isCandidate: false };
     } else if (column === "proceso") {
-      updates = { needsHumanAttention: false, shouldCall: false, orderStatus: "pending" };
+      updates = { needsHumanAttention: false, shouldCall: false, orderStatus: "pending", isCandidate: false };
     } else if (column === "listo") {
-      updates = { needsHumanAttention: false, shouldCall: false, orderStatus: "ready" };
+      updates = { needsHumanAttention: false, shouldCall: false, orderStatus: "ready", isCandidate: false };
+    } else if (column === "candidatas") {
+      updates = { needsHumanAttention: false, shouldCall: false, orderStatus: null, isCandidate: true };
     } else {
-      updates = { needsHumanAttention: false, shouldCall: false, orderStatus: "delivered" };
+      updates = { needsHumanAttention: false, shouldCall: false, orderStatus: "delivered", isCandidate: false };
     }
 
     const updated = await storage.updateConversation(id, updates);

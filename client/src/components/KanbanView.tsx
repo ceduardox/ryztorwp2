@@ -76,7 +76,7 @@ interface ColumnProps {
   items: Conversation[];
   activeId: number | null;
   onSelect: (id: number) => void;
-  columnType: "humano" | "nuevo" | "llamar" | "proceso" | "listo" | "entregado";
+  columnType: "humano" | "nuevo" | "llamar" | "proceso" | "listo" | "entregado" | "candidatas";
   labels: Label[];
   showAgentAssignment: boolean;
   getAssignedAgentName: (assignedAgentId: number | null) => string | null;
@@ -237,7 +237,7 @@ function KanbanCard({
   conv: Conversation; 
   isActive: boolean; 
   onSelect: () => void;
-  columnType: "humano" | "nuevo" | "llamar" | "proceso" | "listo" | "entregado";
+  columnType: "humano" | "nuevo" | "llamar" | "proceso" | "listo" | "entregado" | "candidatas";
   labels: Label[];
   showAgentAssignment: boolean;
   assignedAgentName: string | null;
@@ -761,7 +761,7 @@ function KanbanColumn({ hideHeader = false, title, items, activeId, onSelect, co
   );
 }
 
-type TabType = "humano" | "nuevo" | "llamar" | "proceso" | "listo" | "entregado";
+type TabType = "humano" | "nuevo" | "llamar" | "proceso" | "listo" | "entregado" | "candidatas";
 
 const tabConfig: { key: TabType; label: string; shortLabel: string; icon: typeof AlertCircle }[] = [
   { key: "humano", label: "Interaccion Humana", shortLabel: "Humano", icon: AlertCircle },
@@ -770,6 +770,7 @@ const tabConfig: { key: TabType; label: string; shortLabel: string; icon: typeof
   { key: "proceso", label: "Pedido en Proceso", shortLabel: "Proceso", icon: Package },
   { key: "listo", label: "Listo para Enviar", shortLabel: "Listo", icon: CheckCircle },
   { key: "entregado", label: "Enviados y Entregados", shortLabel: "Enviado", icon: Truck },
+  { key: "candidatas", label: "Candidatas", shortLabel: "Candidatas", icon: Users },
 ];
 
 export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterChange, onLoadMore, hasMoreConversations, maxDays, columnVisibleLimit, searchQuery, onSearchChange, onClearSearch, onMobileChatOpenChange }: KanbanViewProps) {
@@ -822,6 +823,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
     proceso: null,
     listo: null,
     entregado: null,
+    candidatas: null,
   });
   const { data: activeConversation } = useConversation(activeId);
   const isMobileChatOpen = !!(activeId && activeConversation);
@@ -936,6 +938,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
 
   const getConversationColumn = (conv: Conversation): TabType => {
     if (conv.needsHumanAttention) return "humano";
+    if (conv.isCandidate) return "candidatas";
     if (conv.orderStatus === "delivered") return "entregado";
     if (conv.orderStatus === "ready") return "listo";
     if (conv.orderStatus === "pending") return "proceso";
@@ -1139,27 +1142,31 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
     };
 
     const humano = sortByRecent(filtered.filter((c) => c.needsHumanAttention)).slice(0, displayLimit);
+    const candidatas = sortByRecent(
+      filtered.filter((c) => c.isCandidate && !c.needsHumanAttention),
+    ).slice(0, displayLimit);
     const entregados = sortByRecent(
-      filtered.filter((c) => c.orderStatus === "delivered" && !c.needsHumanAttention),
+      filtered.filter((c) => c.orderStatus === "delivered" && !c.needsHumanAttention && !c.isCandidate),
     ).slice(0, displayLimit);
     const listos = sortByRecent(
-      filtered.filter((c) => c.orderStatus === "ready" && !c.needsHumanAttention),
+      filtered.filter((c) => c.orderStatus === "ready" && !c.needsHumanAttention && !c.isCandidate),
     ).slice(0, displayLimit);
     const llamar = sortByRecent(
       filtered.filter(
         (c) =>
           c.shouldCall &&
           !c.needsHumanAttention &&
+          !c.isCandidate &&
           c.orderStatus !== "pending" &&
           c.orderStatus !== "ready" &&
           c.orderStatus !== "delivered",
       ),
     ).slice(0, displayLimit);
     const enProceso = sortByRecent(
-      filtered.filter((c) => c.orderStatus === "pending" && !c.needsHumanAttention),
+      filtered.filter((c) => c.orderStatus === "pending" && !c.needsHumanAttention && !c.isCandidate),
     ).slice(0, displayLimit);
     const nuevos = sortByRecent(
-      filtered.filter((c) => !c.orderStatus && !c.shouldCall && !c.needsHumanAttention),
+      filtered.filter((c) => !c.orderStatus && !c.shouldCall && !c.needsHumanAttention && !c.isCandidate),
     ).slice(0, displayLimit);
 
     return {
@@ -1169,6 +1176,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
       proceso: { items: enProceso, title: columnTitles["proceso"] },
       listo: { items: listos, title: columnTitles["listo"] },
       entregado: { items: entregados, title: columnTitles["entregado"] },
+      candidatas: { items: candidatas, title: columnTitles["candidatas"] },
     };
   }, [filtered, assignedSpotlightIds, displayLimit, columnTitles]);
 
@@ -1189,6 +1197,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
       proceso: isActive ? "bg-amber-500/20 text-amber-400 border-amber-500/50" : "text-slate-500 border-transparent",
       listo: isActive ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/50" : "text-slate-500 border-transparent",
       entregado: isActive ? "bg-slate-500/20 text-slate-400 border-slate-500/50" : "text-slate-500 border-transparent",
+      candidatas: isActive ? "bg-violet-500/20 text-violet-300 border-violet-500/50" : "text-slate-500 border-transparent",
     };
     return colors[tab];
   };

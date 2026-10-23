@@ -369,7 +369,7 @@ export async function generateAiResponse(
   systemPromptOverride?: string | null,
   forcedProductId?: number | null,
   imageMimeType?: string | null,
-): Promise<{ response: string; imageUrl?: string; tokensUsed: number; orderReady?: boolean; needsHuman?: boolean; shouldCall?: boolean } | null> {
+): Promise<{ response: string; imageUrl?: string; tokensUsed: number; orderReady?: boolean; needsHuman?: boolean; shouldCall?: boolean; isCandidate?: boolean } | null> {
   try {
     const [settings, allProducts, learnedRules] = await Promise.all([
       storage.getAiSettings(),
@@ -675,6 +675,12 @@ ${productContext ? `\n=== PRODUCTOS ===\n${productContext}` : ""}`;
       console.log("=== SHOULD CALL DETECTED ===", { conversationId });
     }
 
+    const isCandidate = cleanResponse.includes("[CANDIDATA]");
+    if (isCandidate) {
+      cleanResponse = cleanResponse.replace(/\[CANDIDATA\]/gi, "").trim();
+      console.log("=== CANDIDATE DETECTED ===", { conversationId });
+    }
+
     storage.createAiLog({
       conversationId,
       userMessage,
@@ -683,7 +689,7 @@ ${productContext ? `\n=== PRODUCTOS ===\n${productContext}` : ""}`;
       success: true,
     }).catch(err => console.error("AI log error:", err));
 
-    return { response: needsHuman ? "" : cleanResponse, imageUrl: needsHuman ? undefined : imageUrl, tokensUsed, orderReady, needsHuman, shouldCall };
+    return { response: needsHuman ? "" : cleanResponse, imageUrl: needsHuman ? undefined : imageUrl, tokensUsed, orderReady, needsHuman, shouldCall, isCandidate };
   } catch (error: any) {
     console.error("AI Error:", error);
     

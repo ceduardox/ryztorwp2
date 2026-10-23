@@ -49,6 +49,7 @@ export const conversations = pgTable("conversations", {
   isPinned: boolean("is_pinned").default(false),
   orderStatus: varchar("order_status", { length: 20 }),
   deliveryComprobante: text("delivery_comprobante"),
+  isCandidate: boolean("is_candidate").default(false),
   aiDisabled: boolean("ai_disabled").default(false),
   needsHumanAttention: boolean("needs_human_attention").default(false),
   shouldCall: boolean("should_call").default(false),
