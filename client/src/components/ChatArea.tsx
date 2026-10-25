@@ -72,6 +72,26 @@ const LABEL_COLORS = [
   { name: "orange", bg: "bg-orange-500", text: "text-white" },
 ];
 
+const KANBAN_COLUMNS = [
+  { column: "humano", label: "Interaccion Humana", icon: AlertCircle, color: "text-red-400", iconClass: "text-red-500" },
+  { column: "nuevo", label: "Esperando Confirmacion", icon: Clock, color: "text-slate-300", iconClass: "text-slate-400" },
+  { column: "llamar", label: "Llamar", icon: Phone, color: "text-emerald-400", iconClass: "text-emerald-500" },
+  { column: "proceso", label: "Pedido en Proceso", icon: Package, color: "text-amber-400", iconClass: "text-amber-500" },
+  { column: "listo", label: "Listo para Enviar", icon: PackageCheck, color: "text-green-400", iconClass: "text-green-500" },
+  { column: "entregado", label: "Enviado y Entregado", icon: Truck, color: "text-blue-400", iconClass: "text-blue-500" },
+  { column: "candidatas", label: "Candidatas", icon: UserRoundCog, color: "text-violet-400", iconClass: "text-violet-500" },
+] as const;
+
+function getConversationKanbanColumn(conv: Conversation): string {
+  if (conv.needsHumanAttention) return "humano";
+  if (conv.isCandidate) return "candidatas";
+  if (conv.orderStatus === "delivered") return "entregado";
+  if (conv.orderStatus === "ready") return "listo";
+  if (conv.orderStatus === "pending") return "proceso";
+  if (conv.shouldCall) return "llamar";
+  return "nuevo";
+}
+
 const recordingWaveCss = `
 .recording-wave-bar {
   width: 3px;
@@ -250,6 +270,9 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   const queryClient = useQueryClient();
   const latestMessage = messages[messages.length - 1] || null;
   const canSendAdminAiReply = isAdmin;
+  const currentKanbanColumn = getConversationKanbanColumn(conversation);
+  const currentColumnMeta = KANBAN_COLUMNS.find((c) => c.column === currentKanbanColumn) ?? KANBAN_COLUMNS[1];
+  const CurrentColumnIcon = currentColumnMeta.icon;
 
   const [replyingToMessage, setReplyingToMessage] = useState<Message | null>(null);
 
@@ -932,22 +955,23 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
     },
   });
 
-  const setOrderStatusMutation = useMutation({
-    mutationFn: async (orderStatus: string | null) => {
-      const res = await fetch(`/api/conversations/${conversation.id}/order-status`, {
+  const setKanbanColumnMutation = useMutation({
+    mutationFn: async (column: string) => {
+      const res = await fetch(`/api/conversations/${conversation.id}/kanban-status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderStatus }),
+        body: JSON.stringify({ column }),
       });
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Error al actualizar estado");
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.error || error.message || "Error al cambiar columna");
       }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
-      toast({ title: "Estado de pedido actualizado" });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations/:id", conversation.id] });
+      toast({ title: "Columna actualizada" });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -2424,44 +2448,36 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
           </DialogContent>
         </Dialog>
 
-        {/* Order Status Dropdown */}
+        {/* Kanban column dropdown (todas las columnas) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button 
-              variant={conversation.orderStatus === 'ready' ? "default" : "ghost"} 
-              size="icon" 
-              className={cn(
-                "flex-shrink-0 h-7 w-7",
-                conversation.orderStatus === 'ready' && "bg-green-500 text-white",
-                conversation.orderStatus === 'pending' && "text-yellow-600",
-                conversation.orderStatus === 'delivered' && "text-blue-600"
-              )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("flex-shrink-0 h-7 w-7", currentColumnMeta.color)}
+              title={`Columna: ${currentColumnMeta.label}`}
               data-testid="button-order-status"
             >
-              {conversation.orderStatus === 'ready' ? <PackageCheck className="h-4 w-4" /> :
-               conversation.orderStatus === 'pending' ? <Package className="h-4 w-4" /> :
-               conversation.orderStatus === 'delivered' ? <Truck className="h-4 w-4" /> :
-               <Package className="h-4 w-4" />}
+              <CurrentColumnIcon className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setOrderStatusMutation.mutate(null)}>
-              <PackageX className="h-4 w-4 mr-2 text-muted-foreground" />
-              Sin pedido
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setOrderStatusMutation.mutate('pending')}>
-              <Package className="h-4 w-4 mr-2 text-yellow-600" />
-              Pedido en proceso
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setOrderStatusMutation.mutate('ready')}>
-              <PackageCheck className="h-4 w-4 mr-2 text-green-600" />
-              Listo para entregar
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setOrderStatusMutation.mutate('delivered')}>
-              <Truck className="h-4 w-4 mr-2 text-blue-600" />
-              Entregado
-            </DropdownMenuItem>
+          <DropdownMenuContent align="end" className="w-56">
+            {KANBAN_COLUMNS.map((col) => {
+              const Icon = col.icon;
+              const isCurrent = currentKanbanColumn === col.column;
+              return (
+                <DropdownMenuItem
+                  key={col.column}
+                  onClick={() => setKanbanColumnMutation.mutate(col.column)}
+                  disabled={setKanbanColumnMutation.isPending}
+                  data-testid={`menu-kanban-column-${col.column}`}
+                >
+                  <Icon className={cn("h-4 w-4 mr-2", col.iconClass)} />
+                  <span className="flex-1">{col.label}</span>
+                  {isCurrent && <Check className="h-4 w-4 text-emerald-400" />}
+                </DropdownMenuItem>
+              );
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
         </div>
