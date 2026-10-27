@@ -915,11 +915,21 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
               className="flex items-center gap-2 flex-1 cursor-pointer min-w-0"
               onClick={() => toggleAgentColumn(tab.key)}
             >
-              <span className={cn("inline-flex shrink-0", checked ? "text-amber-400" : "text-transparent")}>
-                <Check className="h-3.5 w-3.5" />
+              <span
+                className={cn(
+                  "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
+                  checked
+                    ? "border-amber-400 bg-amber-500/25 text-amber-300"
+                    : "border-slate-500 bg-slate-800/60 text-transparent",
+                )}
+              >
+                <Check className="h-3 w-3" />
               </span>
               <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-              <span className="truncate text-xs">{tab.label}</span>
+              <span className={cn("truncate text-xs", checked ? "" : "text-slate-500")}>{tab.label}</span>
+              <span className={cn("ml-auto text-[10px] font-semibold", checked ? "text-emerald-400" : "text-slate-500")}>
+                {checked ? "Activo" : "Oculto"}
+              </span>
             </span>
           </DropdownMenuItem>
         );
