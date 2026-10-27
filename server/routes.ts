@@ -283,6 +283,7 @@ let analyticsViewPermissionsTableEnsured = false;
 let analyticsDepositsTableEnsured = false;
 let conversationAssignmentEventsTableEnsured = false;
 let aiLearnHistoryTableEnsured = false;
+let kanbanSettingsTableEnsured = false;
 const PUSH_SETTINGS_CACHE_TTL_MS = 15000;
 const DEFAULT_PUBLIC_BASE_URL = "https://ryzapp.org";
 
@@ -1490,6 +1491,35 @@ async function ensurePushSettingsTable() {
     VALUES (1)
     ON CONFLICT (id) DO NOTHING
   `);
+}
+
+const KANBAN_COLUMN_KEYS = ["humano", "nuevo", "llamar", "proceso", "listo", "entregado", "candidatas"];
+
+async function ensureKanbanSettingsTable() {
+  if (kanbanSettingsTableEnsured) return;
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS kanban_settings (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      agent_columns TEXT NOT NULL DEFAULT 'humano,nuevo,llamar,proceso,listo,entregado,candidatas',
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      CONSTRAINT kanban_settings_singleton CHECK (id = 1)
+    )
+  `);
+  await db.execute(sql`
+    INSERT INTO kanban_settings (id)
+    VALUES (1)
+    ON CONFLICT (id) DO NOTHING
+  `);
+  kanbanSettingsTableEnsured = true;
+}
+
+function parseKanbanAgentColumns(raw: unknown): string[] {
+  const list = String(raw ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => KANBAN_COLUMN_KEYS.includes(value));
+  const unique = Array.from(new Set(list));
+  return unique.length > 0 ? unique : [...KANBAN_COLUMN_KEYS];
 }
 
 function normalizeReminderLeadMinutes(raw: unknown): number[] {
@@ -6416,6 +6446,44 @@ Reglas:
       );
     }
     res.json(updated);
+  });
+
+  // Column visibility for agents (configured by admin)
+  app.get("/api/kanban/settings", requireAuth, async (_req, res) => {
+    try {
+      await ensureKanbanSettingsTable();
+      const rows: any = await db.execute(sql`
+        SELECT agent_columns FROM kanban_settings WHERE id = 1
+      `);
+      res.json({ agentColumns: parseKanbanAgentColumns(rows?.rows?.[0]?.agent_columns) });
+    } catch (error) {
+      console.error("Error fetching kanban settings:", error);
+      res.status(500).json({ message: "No se pudo cargar la configuracion del kanban" });
+    }
+  });
+
+  app.patch("/api/kanban/settings", requireAdmin, async (req, res) => {
+    try {
+      const parsed = z.object({
+        agentColumns: z.array(z.enum([
+          "humano", "nuevo", "llamar", "proceso", "listo", "entregado", "candidatas",
+        ])).min(1),
+      }).safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Columnas invalidas" });
+      }
+      await ensureKanbanSettingsTable();
+      const value = Array.from(new Set(parsed.data.agentColumns));
+      await db.execute(sql`
+        UPDATE kanban_settings
+        SET agent_columns = ${value.join(",")}, updated_at = NOW()
+        WHERE id = 1
+      `);
+      res.json({ agentColumns: value });
+    } catch (error) {
+      console.error("Error updating kanban settings:", error);
+      res.status(500).json({ message: "No se pudo guardar la configuracion del kanban" });
+    }
   });
 
   // Regenerate the delivery comprobante by having the AI re-read the conversation

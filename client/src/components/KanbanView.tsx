@@ -851,6 +851,82 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
     enabled: isAdmin,
   });
 
+  const { data: kanbanSettings } = useQuery<{ agentColumns: TabType[] }>({
+    queryKey: ["/api/kanban/settings"],
+    enabled: isAdmin || isAgent,
+  });
+  const [agentColumns, setAgentColumns] = useState<Set<TabType>>(
+    () => new Set(tabConfig.map((tab) => tab.key)),
+  );
+  useEffect(() => {
+    const list = Array.isArray(kanbanSettings?.agentColumns) ? kanbanSettings.agentColumns : null;
+    if (!list) return;
+    const valid = list.filter((key): key is TabType => tabConfig.some((tab) => tab.key === key));
+    setAgentColumns(new Set(valid.length ? valid : tabConfig.map((tab) => tab.key)));
+  }, [kanbanSettings]);
+  const agentColumnsMutation = useMutation({
+    mutationFn: async (columns: TabType[]) => {
+      const res = await fetch("/api/kanban/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentColumns: columns }),
+      });
+      if (!res.ok) throw new Error("No se pudo guardar la configuracion");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/settings"] });
+      toast({ title: "Columnas de agentes actualizadas" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+  const toggleAgentColumn = (column: TabType) => {
+    if (agentColumns.size === 1 && agentColumns.has(column)) {
+      toast({ title: "Los agentes deben ver al menos una columna" });
+      return;
+    }
+    const next = new Set(agentColumns);
+    if (next.has(column)) next.delete(column);
+    else next.add(column);
+    setAgentColumns(next);
+    agentColumnsMutation.mutate(Array.from(next));
+  };
+
+  const renderAgentColumnsAdminSection = () => (
+    <>
+      <div className="my-1 border-t border-slate-800/80" />
+      <div className="px-2 py-1 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
+        Columnas visibles para agentes
+      </div>
+      {tabConfig.map((tab) => {
+        const Icon = tab.icon;
+        const checked = agentColumns.has(tab.key);
+        return (
+          <DropdownMenuItem
+            key={`agent-column-${tab.key}`}
+            onSelect={(event) => event.preventDefault()}
+            disabled={agentColumnsMutation.isPending}
+            data-testid={`agent-column-${tab.key}`}
+            className="!text-slate-300 focus:bg-slate-700 !focus:text-slate-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-slate-100 flex items-center justify-between gap-2"
+          >
+            <span
+              className="flex items-center gap-2 flex-1 cursor-pointer min-w-0"
+              onClick={() => toggleAgentColumn(tab.key)}
+            >
+              <span className={cn("inline-flex shrink-0", checked ? "text-amber-400" : "text-transparent")}>
+                <Check className="h-3.5 w-3.5" />
+              </span>
+              <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <span className="truncate text-xs">{tab.label}</span>
+            </span>
+          </DropdownMenuItem>
+        );
+      })}
+    </>
+  );
+
   const agentNameById = useMemo(() => {
     const map = new Map<number, string>();
     for (const agent of agents) {
@@ -1023,8 +1099,38 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
     [columnOrder, columnTitles],
   );
 
-  const shouldShowDesktopColumn = (column: TabType) =>
-    activeId ? activeColumn === column : visibleColumns.has(column);
+  const effectiveVisibleColumns = useMemo(() => {
+    if (isAdmin) return visibleColumns;
+    const next = new Set<TabType>();
+    visibleColumns.forEach((column) => {
+      if (agentColumns.has(column)) next.add(column);
+    });
+    return next.size > 0 ? next : agentColumns;
+  }, [isAdmin, visibleColumns, agentColumns]);
+
+  const menuTabConfig = useMemo(
+    () => (isAdmin ? orderedTabConfig : orderedTabConfig.filter((tab) => agentColumns.has(tab.key))),
+    [isAdmin, orderedTabConfig, agentColumns],
+  );
+
+  const mobileColumnOrder = useMemo(
+    () => (isAdmin ? columnOrder : columnOrder.filter((key) => agentColumns.has(key))),
+    [isAdmin, columnOrder, agentColumns],
+  );
+
+  useEffect(() => {
+    const keys = menuTabConfig.map((tab) => tab.key);
+    if (keys.length > 0 && !keys.includes(mobileTab)) {
+      setMobileTab(keys[0]);
+    }
+  }, [menuTabConfig, mobileTab]);
+
+  const shouldShowDesktopColumn = (column: TabType) => {
+    if (activeId) {
+      return activeColumn === column && (isAdmin || agentColumns.has(column));
+    }
+    return effectiveVisibleColumns.has(column);
+  };
 
   useEffect(() => {
     if (hasAppliedUrlConversation.current) return;
@@ -1203,7 +1309,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
   };
 
   const moveMobileTab = (direction: "next" | "prev") => {
-    const order: TabType[] = columnOrder;
+    const order: TabType[] = mobileColumnOrder;
     const currentIndex = order.indexOf(mobileTab);
     const nextIndex = direction === "next"
       ? Math.min(order.length - 1, currentIndex + 1)
@@ -1518,15 +1624,15 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
             >
               <Columns3 className="h-4 w-4 text-slate-300" />
               <span className="ml-2 text-xs hidden sm:inline">
-                Columnas {visibleColumns.size}/{tabConfig.length}
+                Columnas {effectiveVisibleColumns.size}/{menuTabConfig.length}
               </span>
               <span className="ml-2 text-xs sm:hidden">
-                {visibleColumns.size}/{tabConfig.length}
+                {effectiveVisibleColumns.size}/{menuTabConfig.length}
               </span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-80 !bg-slate-900 !border-slate-700 !text-slate-200 [&_svg]:!text-slate-300">
-            {orderedTabConfig.map((tab, idx) => (
+            {menuTabConfig.map((tab, idx) => (
               <DropdownMenuItem
                 key={tab.key}
                 onSelect={(event) => event.preventDefault()}
@@ -1570,7 +1676,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
                 ) : (
                   <>
                     <span className="flex items-center gap-2 flex-1 cursor-pointer min-w-0" onClick={() => toggleColumnVisibility(tab.key)}>
-                      <span className={cn("inline-flex shrink-0", visibleColumns.has(tab.key) ? "text-emerald-400" : "text-transparent")}>
+                      <span className={cn("inline-flex shrink-0", effectiveVisibleColumns.has(tab.key) ? "text-emerald-400" : "text-transparent")}>
                         <Check className="h-3.5 w-3.5" />
                       </span>
                       <span className="truncate text-xs">{tab.label}</span>
@@ -1597,7 +1703,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
                       </button>
                       <button
                         type="button"
-                        disabled={idx === orderedTabConfig.length - 1}
+                        disabled={idx === menuTabConfig.length - 1}
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveColumnOrder(tab.key, 1); }}
                         className="p-1 rounded hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Mover derecha"
@@ -1610,9 +1716,10 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
                 )}
               </DropdownMenuItem>
             ))}
+            {isAdmin ? renderAgentColumnsAdminSection() : null}
             <DropdownMenuItem
               onClick={showAllColumns}
-              disabled={visibleColumns.size === tabConfig.length}
+              disabled={effectiveVisibleColumns.size === menuTabConfig.length}
               data-testid="show-all-columns"
               className="!text-cyan-300 focus:bg-slate-700 !focus:text-cyan-100 data-[highlighted]:bg-slate-700 !data-[highlighted]:text-cyan-100"
             >
@@ -1823,9 +1930,9 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
             )}
             <div className="px-2.5 py-1.5 text-[11px] font-semibold tracking-wider text-slate-400 uppercase border-b border-slate-800/80 mb-1 flex items-center justify-between">
               <span>Columnas</span>
-              <span className="text-emerald-400 font-bold">{visibleColumns.size}/{tabConfig.length}</span>
+              <span className="text-emerald-400 font-bold">{effectiveVisibleColumns.size}/{menuTabConfig.length}</span>
             </div>
-            {orderedTabConfig.map((tab, idx) => (
+            {menuTabConfig.map((tab, idx) => (
               <DropdownMenuItem key={tab.key} onSelect={(event) => event.preventDefault()} data-testid={`toggle-column-${tab.key}-mobile`} className="!text-slate-300 focus:bg-slate-800 !focus:text-slate-100 data-[highlighted]:bg-slate-800 !data-[highlighted]:text-slate-100 flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-xs">
                 {editingColumnKey === tab.key ? (
                   <span className="flex items-center gap-1.5 flex-1" onClick={(e) => e.preventDefault()}>
@@ -1867,7 +1974,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
                 ) : (
                   <>
                     <span className="flex items-center gap-2 flex-1 cursor-pointer min-w-0" onClick={() => toggleColumnVisibility(tab.key)}>
-                      <span className={cn("inline-flex shrink-0", visibleColumns.has(tab.key) ? "text-emerald-400" : "text-transparent")}>
+                      <span className={cn("inline-flex shrink-0", effectiveVisibleColumns.has(tab.key) ? "text-emerald-400" : "text-transparent")}>
                         <Check className="h-3.5 w-3.5" />
                       </span>
                       <span className="truncate text-xs font-medium">{tab.label}</span>
@@ -1901,7 +2008,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
                       </button>
                       <button
                         type="button"
-                        disabled={idx === orderedTabConfig.length - 1}
+                        disabled={idx === menuTabConfig.length - 1}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -1917,8 +2024,9 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
                 )}
               </DropdownMenuItem>
             ))}
+            {isAdmin ? renderAgentColumnsAdminSection() : null}
             <div className="my-1 border-t border-slate-800/80" />
-            <DropdownMenuItem onClick={showAllColumns} disabled={visibleColumns.size === tabConfig.length} className="!text-cyan-300 focus:bg-slate-800 !focus:text-cyan-100 data-[highlighted]:bg-slate-800 !data-[highlighted]:text-cyan-100 rounded-lg text-xs font-medium">Mostrar todas</DropdownMenuItem>
+            <DropdownMenuItem onClick={showAllColumns} disabled={effectiveVisibleColumns.size === menuTabConfig.length} className="!text-cyan-300 focus:bg-slate-800 !focus:text-cyan-100 data-[highlighted]:bg-slate-800 !data-[highlighted]:text-cyan-100 rounded-lg text-xs font-medium">Mostrar todas</DropdownMenuItem>
             <DropdownMenuItem onClick={resetColumnOrder} className="!text-slate-400 focus:bg-slate-800 !focus:text-slate-100 data-[highlighted]:bg-slate-800 !data-[highlighted]:text-slate-100 rounded-lg text-xs font-medium"><RotateCcw className="h-3.5 w-3.5 mr-2" />Restablecer orden</DropdownMenuItem>
             <DropdownMenuItem onClick={resetColumnTitles} className="!text-slate-400 focus:bg-slate-800 !focus:text-slate-100 data-[highlighted]:bg-slate-800 !data-[highlighted]:text-slate-100 rounded-lg text-xs font-medium"><RotateCcw className="h-3.5 w-3.5 mr-2" />Restablecer nombres</DropdownMenuItem>
           </DropdownMenuContent>
@@ -1927,7 +2035,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
 
       {/* Mobile: Tab bar - oculto KISS */}
       <div className="hidden">
-        {orderedTabConfig.map((tab) => {
+        {menuTabConfig.map((tab) => {
           const Icon = tab.icon;
           const count = columnData[tab.key].items.length;
           return (
@@ -1963,7 +2071,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
           variant="ghost"
           size="icon"
           className="h-9 w-9 shrink-0 rounded-xl border border-slate-700/40 bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 hover:text-white active:scale-95 disabled:opacity-25 disabled:pointer-events-none transition-all shadow-sm"
-          disabled={columnOrder.indexOf(mobileTab) === 0}
+          disabled={mobileColumnOrder.indexOf(mobileTab) === 0}
           onClick={() => moveMobileTab("prev")}
           aria-label="Columna anterior"
           data-testid="mobile-prev-column"
@@ -1979,7 +2087,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
             >
               <span className="flex items-center gap-2 truncate min-w-0">
                 {(() => {
-                  const currentTabObj = orderedTabConfig.find((t) => t.key === mobileTab) || tabConfig.find((t) => t.key === mobileTab);
+                  const currentTabObj = menuTabConfig.find((t) => t.key === mobileTab) || tabConfig.find((t) => t.key === mobileTab);
                   const Icon = currentTabObj?.icon;
                   return Icon ? (
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-400">
@@ -1996,7 +2104,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="center" className="w-64 !bg-slate-900/95 backdrop-blur-xl !border-slate-800 rounded-xl p-1.5 shadow-2xl !text-slate-200">
-            {orderedTabConfig.map((tab) => {
+            {menuTabConfig.map((tab) => {
               const TabIcon = tab.icon;
               const isSelected = mobileTab === tab.key;
               return (
@@ -2033,7 +2141,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
           variant="ghost"
           size="icon"
           className="h-9 w-9 shrink-0 rounded-xl border border-slate-700/40 bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 hover:text-white active:scale-95 disabled:opacity-25 disabled:pointer-events-none transition-all shadow-sm"
-          disabled={columnOrder.indexOf(mobileTab) === columnOrder.length - 1}
+          disabled={mobileColumnOrder.indexOf(mobileTab) === mobileColumnOrder.length - 1}
           onClick={() => moveMobileTab("next")}
           aria-label="Columna siguiente"
           data-testid="mobile-next-column"
@@ -2086,8 +2194,8 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
               onCancelEditTitle={() => setEditingColumnKey(null)}
               onSaveEditTitle={(k) => saveColumnTitle(k, editingColumnTitle)}
               onMoveColumn={moveColumnOrder}
-              canMoveLeft={columnOrder.indexOf(mobileTab) > 0}
-              canMoveRight={columnOrder.indexOf(mobileTab) < columnOrder.length - 1}
+              canMoveLeft={mobileColumnOrder.indexOf(mobileTab) > 0}
+              canMoveRight={mobileColumnOrder.indexOf(mobileTab) < mobileColumnOrder.length - 1}
             />
           </div>
 
