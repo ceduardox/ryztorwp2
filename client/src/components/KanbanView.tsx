@@ -666,7 +666,7 @@ function KanbanColumn({ hideHeader = false, title, items, activeId, onSelect, co
             </span>
           ) : (
             <>
-              <span className="font-semibold text-sm truncate">{title}</span>
+              <span className="font-semibold text-sm truncate min-w-0">{title}</span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm font-bold shrink-0">
                 {items.length}
               </span>
@@ -674,36 +674,45 @@ function KanbanColumn({ hideHeader = false, title, items, activeId, onSelect, co
                 <button
                   type="button"
                   onClick={() => onStartEditTitle(columnType)}
-                  className="ml-1 p-1 rounded hover:bg-white/20 opacity-70 hover:opacity-100 shrink-0"
-                  title="Renombrar columna"
+                  className="ml-auto p-1 rounded hover:bg-white/20 opacity-80 hover:opacity-100 shrink-0"
+                  title="Editar texto"
                   data-testid={`rename-header-${columnType}`}
                 >
                   <Pencil className="h-3 w-3" />
                 </button>
               )}
               {onMoveColumn && (
-                <>
-                  <button
-                    type="button"
-                    disabled={!canMoveLeft}
-                    onClick={() => onMoveColumn(columnType, -1)}
-                    className="p-1 rounded hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-                    title="Mover izquierda"
-                    data-testid={`move-header-left-${columnType}`}
-                  >
-                    <ChevronUp className="h-3 w-3 -rotate-90" />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!canMoveRight}
-                    onClick={() => onMoveColumn(columnType, 1)}
-                    className="p-1 rounded hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-                    title="Mover derecha"
-                    data-testid={`move-header-right-${columnType}`}
-                  >
-                    <ChevronDown className="h-3 w-3 -rotate-90" />
-                  </button>
-                </>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => e.stopPropagation()}
+                      className={cn("p-1 rounded hover:bg-white/20 shrink-0", !onStartEditTitle && "ml-auto")}
+                      title="Mover columna"
+                      data-testid={`column-options-${columnType}`}
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem
+                      disabled={!canMoveLeft}
+                      onClick={() => onMoveColumn(columnType, -1)}
+                      data-testid={`move-header-left-${columnType}`}
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5 mr-2" />
+                      Mover a la izquierda
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={!canMoveRight}
+                      onClick={() => onMoveColumn(columnType, 1)}
+                      data-testid={`move-header-right-${columnType}`}
+                    >
+                      <ChevronRight className="h-3.5 w-3.5 mr-2" />
+                      Mover a la derecha
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </>
           )}
