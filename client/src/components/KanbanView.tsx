@@ -694,21 +694,26 @@ function KanbanColumn({ hideHeader = false, title, items, activeId, onSelect, co
                       <ChevronDown className="h-3.5 w-3.5" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-52 !bg-slate-900 !border-slate-700 !text-slate-200 rounded-lg shadow-2xl p-1"
+                  >
                     <DropdownMenuItem
                       disabled={!canMoveLeft}
                       onClick={() => onMoveColumn(columnType, -1)}
                       data-testid={`move-header-left-${columnType}`}
+                      className="!text-xs !font-normal !text-slate-200 !px-2 !py-1.5 gap-2 rounded-md focus:bg-slate-800 data-[highlighted]:bg-slate-800 data-[highlighted]:!text-slate-100 [&_svg]:!h-3.5 [&_svg]:!w-3.5"
                     >
-                      <ChevronLeft className="h-3.5 w-3.5 mr-2" />
+                      <ChevronLeft className="h-3.5 w-3.5" />
                       Mover a la izquierda
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       disabled={!canMoveRight}
                       onClick={() => onMoveColumn(columnType, 1)}
                       data-testid={`move-header-right-${columnType}`}
+                      className="!text-xs !font-normal !text-slate-200 !px-2 !py-1.5 gap-2 rounded-md focus:bg-slate-800 data-[highlighted]:bg-slate-800 data-[highlighted]:!text-slate-100 [&_svg]:!h-3.5 [&_svg]:!w-3.5"
                     >
-                      <ChevronRight className="h-3.5 w-3.5 mr-2" />
+                      <ChevronRight className="h-3.5 w-3.5" />
                       Mover a la derecha
                     </DropdownMenuItem>
                   </DropdownMenuContent>
