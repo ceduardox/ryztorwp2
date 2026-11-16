@@ -155,10 +155,6 @@ const AD_PRODUCT_ROUTE_OPTIONS = [
   { value: "creatina", label: "Creatina" },
 ] as const;
 
-function getAdProductRouteLabel(route?: string | null): string {
-  return AD_PRODUCT_ROUTE_OPTIONS.find((option) => option.value === route)?.label || "Sin producto directo";
-}
-
 // Auto-selecciona el prompt de anuncio segun el producto del anuncio.
 const AD_NO_PROMPT = "__none__";
 const AD_ROUTE_TO_PROMPT_NAME: Record<string, string> = {
@@ -288,6 +284,33 @@ export default function AgentsPage() {
       return res.json();
     },
   });
+
+  const { data: routingProducts = [] } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["/api/products"],
+    queryFn: async () => {
+      const res = await fetch("/api/products", { credentials: "include" });
+      if (!res.ok) throw new Error("No se pudieron cargar los productos");
+      return res.json();
+    },
+  });
+
+  const dynamicAdProductRouteOptions = routingProducts
+    .filter((product) => {
+      const name = product.name.trim().toLowerCase();
+      return !AD_PRODUCT_ROUTE_OPTIONS.some((option) => option.label.trim().toLowerCase() === name);
+    })
+    .map((product) => ({ value: `product:${product.id}`, label: product.name }));
+
+  const allAdProductRouteOptions = [...AD_PRODUCT_ROUTE_OPTIONS, ...dynamicAdProductRouteOptions];
+
+  const getAdProductRouteLabel = (route?: string | null) => {
+    if (!route) return "Sin producto directo";
+    if (route.startsWith("product:")) {
+      const id = Number(route.slice("product:".length));
+      return routingProducts.find((product) => product.id === id)?.name || "Producto";
+    }
+    return allAdProductRouteOptions.find((option) => option.value === route)?.label || "Sin producto directo";
+  };
 
   const { data: analyticsViewPermissions = [] } = useQuery<AnalyticsViewPermission[]>({
     queryKey: ["/api/analytics-view-permissions"],
@@ -1015,7 +1038,7 @@ export default function AgentsPage() {
               data-testid="select-ad-routing-product-route"
             >
               <option value="">Sin producto directo</option>
-              {AD_PRODUCT_ROUTE_OPTIONS.map((option) => (
+              {allAdProductRouteOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
