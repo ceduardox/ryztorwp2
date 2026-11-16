@@ -148,6 +148,7 @@ const glowAnimation = `
 
 const AD_PRODUCT_ROUTE_OPTIONS = [
   { value: "diabetes", label: "Berberina" },
+  { value: "berberina_rc", label: "Berberina RC Nutrition" },
   { value: "diabetes_y_peso", label: "Berberina + Bitter Melon" },
   { value: "dolor_y_estres", label: "Citrato de Magnesio" },
   { value: "dolor_articular", label: "Boswellia Serrata" },

@@ -369,7 +369,7 @@ export async function generateAiResponse(
   systemPromptOverride?: string | null,
   forcedProductId?: number | null,
   imageMimeType?: string | null,
-): Promise<{ response: string; imageUrl?: string; tokensUsed: number; orderReady?: boolean; needsHuman?: boolean; shouldCall?: boolean; isCandidate?: boolean } | null> {
+): Promise<{ response: string; imageUrl?: string; tokensUsed: number; orderReady?: boolean; needsHuman?: boolean; shouldCall?: boolean; isCandidate?: boolean; cotizarEnvio?: boolean } | null> {
   try {
     const [settings, allProducts, learnedRules] = await Promise.all([
       storage.getAiSettings(),
@@ -488,6 +488,8 @@ ${instructions}
 - IMPORTANTE: Cuando el cliente confirme el pedido con TODOS los datos requeridos según la modalidad de envío, escribe [PEDIDO_LISTO] al final de tu respuesta para marcar que hay un pedido listo para entregar.
 - Para ciudades con delivery, un pedido está listo cuando tienes: producto, cantidad, nombre y dirección de entrega o ubicación GPS.
 - Para ciudades, pueblos o departamentos sin delivery que se atienden por encomienda/transportadora, un pedido está listo cuando tienes: producto, cantidad, nombre y ciudad, pueblo o departamento de destino. En estos casos NO exijas dirección ni ubicación GPS.
+- COTIZACION DE ENVIO: si el cliente ya envió su ubicación (GPS o dirección/referencia) y el costo del envío debe calcularse por distancia, escribe [COTIZAR_ENVIO] al final de tu respuesta. En ese caso NO confirmes el método, NO confirmes que es gratis y NO des ningún monto; solo agradece la ubicación en una línea.
+- Si el cliente pregunta el costo del envío y todavía NO dio su ubicación, pídesela (GPS o dirección/referencia). Nunca inventes costos de envío.
 - Si NO puedes responder la pregunta con la información disponible, escribe exactamente [NECESITO_HUMANO] y no respondas nada más.
 - Si el cliente pide que lo llamen, menciona llamada telefónica, o detectas que una llamada cerraría la venta (NEUROVENTA), escribe [LLAMAR] al final. Recuerda: ya tienes su número de WhatsApp, NO le pidas número.
 ${learnedRulesContext}
@@ -681,6 +683,13 @@ ${productContext ? `\n=== PRODUCTOS ===\n${productContext}` : ""}`;
       console.log("=== CANDIDATE DETECTED ===", { conversationId });
     }
 
+    // Shipping quote: the client already sent a location and a human must price the delivery.
+    const cotizarEnvio = cleanResponse.includes("[COTIZAR_ENVIO]");
+    if (cotizarEnvio) {
+      cleanResponse = cleanResponse.replace(/\[COTIZAR_ENVIO\]/gi, "").trim();
+      console.log("=== SHIPPING QUOTE NEEDED ===", { conversationId });
+    }
+
     storage.createAiLog({
       conversationId,
       userMessage,
@@ -689,7 +698,7 @@ ${productContext ? `\n=== PRODUCTOS ===\n${productContext}` : ""}`;
       success: true,
     }).catch(err => console.error("AI log error:", err));
 
-    return { response: needsHuman ? "" : cleanResponse, imageUrl: needsHuman ? undefined : imageUrl, tokensUsed, orderReady, needsHuman, shouldCall, isCandidate };
+    return { response: needsHuman ? "" : cleanResponse, imageUrl: needsHuman ? undefined : imageUrl, tokensUsed, orderReady, needsHuman, shouldCall, isCandidate, cotizarEnvio };
   } catch (error: any) {
     console.error("AI Error:", error);
     

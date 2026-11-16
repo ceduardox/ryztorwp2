@@ -49,6 +49,11 @@ interface AdPromptItem {
   isActive: boolean;
 }
 
+interface ProductItem {
+  id: number;
+  name: string;
+}
+
 const NO_PROMPT = "__none__";
 
 interface AgentItem {
@@ -59,15 +64,14 @@ interface AgentItem {
 
 const AD_PRODUCT_ROUTE_OPTIONS = [
   { value: "diabetes", label: "Berberina" },
+  { value: "berberina_rc", label: "Berberina RC Nutrition" },
   { value: "diabetes_y_peso", label: "Berberina + Bitter Melon" },
   { value: "dolor_y_estres", label: "Citrato de Magnesio" },
   { value: "dolor_articular", label: "Boswellia Serrata" },
   { value: "creatina", label: "Creatina" },
 ] as const;
 
-function getAdProductRouteLabel(route?: string | null): string {
-  return AD_PRODUCT_ROUTE_OPTIONS.find((o) => o.value === route)?.label || "Sin producto";
-}
+const DYNAMIC_PRODUCT_ROUTE_PREFIX = "product:";
 
 export function AdRoutingModal() {
   const { isAdmin } = useAuth();
@@ -93,6 +97,28 @@ export function AdRoutingModal() {
     queryKey: ["/api/ad-prompts"],
     enabled: isAdmin && open,
   });
+  const { data: products = [] } = useQuery<ProductItem[]>({
+    queryKey: ["/api/products"],
+    enabled: isAdmin && open,
+  });
+
+  const dynamicProductOptions = products
+    .filter((product) => {
+      const name = product.name.trim().toLowerCase();
+      return !AD_PRODUCT_ROUTE_OPTIONS.some((option) => option.label.trim().toLowerCase() === name);
+    })
+    .map((product) => ({ value: `${DYNAMIC_PRODUCT_ROUTE_PREFIX}${product.id}`, label: product.name }));
+
+  const allProductOptions = [...AD_PRODUCT_ROUTE_OPTIONS, ...dynamicProductOptions];
+
+  const getRouteLabel = (route?: string | null) => {
+    if (!route) return "Sin producto";
+    if (route.startsWith(DYNAMIC_PRODUCT_ROUTE_PREFIX)) {
+      const id = Number(route.slice(DYNAMIC_PRODUCT_ROUTE_PREFIX.length));
+      return products.find((product) => product.id === id)?.name || "Producto";
+    }
+    return allProductOptions.find((option) => option.value === route)?.label || "Sin producto";
+  };
 
   const activeAgentIds = agents.filter((a) => a.isActive !== false).map((a) => a.id);
 
@@ -193,7 +219,7 @@ export function AdRoutingModal() {
                 <SelectValue placeholder="Elegir..." />
               </SelectTrigger>
               <SelectContent className="bg-slate-900 border-slate-700 text-slate-100">
-                {AD_PRODUCT_ROUTE_OPTIONS.map((o) => (
+                {allProductOptions.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     {o.label}
                   </SelectItem>
@@ -273,7 +299,7 @@ export function AdRoutingModal() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-white">{rule.adId}</p>
                 <p className="text-xs text-slate-400">
-                  {getAdProductRouteLabel(rule.productRoute)}
+                    {getRouteLabel(rule.productRoute)}
                   {rule.promptProfile
                     ? ` · ${rule.promptProfile === "secondary" ? "Alternativo" : rule.promptProfile === "tertiary" ? "Antigravity" : "Principal"}`
                     : rule.promptId

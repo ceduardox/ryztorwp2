@@ -107,6 +107,30 @@ Preferiblemente con comida.
 Rendimiento referencial: aprox 30 dias por frasco.
 [LISTA: Opciones Berberina | Beneficios, Indicaciones, Precio y envio, Quiero hacer mi pedido, Quiero hablar con alguien, Tengo otra consulta]`,
   },
+  berberina_rc: {
+    productName: "Berberina RC Nutrition",
+    imageUrl: "https://ryzapp.org/uploads/products/1794803257374-833483-suplemento-berberina-sobre-m-rmol.png",
+    listText: "",
+    responseText: `*Berberina RC Nutrition* — industria brasileña
+120 cápsulas de 500 mg | 1 al día | rinde 3 meses
+- Prediabetes y diabetes: ayuda a regular los niveles de azúcar y glucosa.
+- Peso y grasa: reducción de peso y pérdida de grasa; también reduce antojos.
+- Grasas e hígado: apoya en hígado graso, colesterol y triglicéridos.
+- Confort muscular: alivia dolores, fatiga y calambres.
+
+🧪 1 frasco: *170 Bs*
+⭐ 2 frascos: *300 Bs* — el frasco le sale a *150 Bs*
+
+¿Su caso es más por azúcar/prediabetes, por peso y antojos, o por hígado graso y colesterol?`,
+    benefitsText: `*Beneficios Berberina RC Nutrition*
+- Ayuda a regular los niveles de azúcar y glucosa.
+- Apoya el metabolismo de las grasas y reduce antojos.
+- Apoya hígado graso, colesterol y triglicéridos.
+- Apoyo al confort muscular.`,
+    indicationsText: `*Indicaciones Berberina RC Nutrition*
+Adultos: 1 cápsula al día, preferentemente con una comida principal.
+Rinde 3 meses por frasco.`,
+  },
   diabetes_y_peso: {
     productName: "Berberina + Bitter Melon RYZTOR",
     imageUrl: BITTER_IMAGE_URL,
@@ -721,13 +745,24 @@ function normalizeAdId(raw: unknown): string {
     .replace(/\s+/g, "");
 }
 
-const AD_PRODUCT_ROUTE_KEYS = new Set(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular", "creatina"]);
+const AD_PRODUCT_ROUTE_KEYS = new Set(["diabetes", "berberina_rc", "diabetes_y_peso", "dolor_y_estres", "dolor_articular", "creatina"]);
+const AD_PRODUCT_ROUTE_DYNAMIC_PREFIX = "product:";
 
 function normalizeAdProductRoute(raw: unknown): string | null {
   const value = String(raw ?? "").trim();
   if (!value) return null;
-  return AD_PRODUCT_ROUTE_KEYS.has(value) ? value : null;
+  if (AD_PRODUCT_ROUTE_KEYS.has(value)) return value;
+  if (/^product:\d+$/.test(value)) return value;
+  return null;
 }
+
+const adProductRouteSchema = z
+  .union([
+    z.enum(["diabetes", "berberina_rc", "diabetes_y_peso", "dolor_y_estres", "dolor_articular", "creatina"]),
+    z.string().regex(/^product:\d+$/),
+  ])
+  .nullable()
+  .optional();
 
 function normalizeReportDate(raw: unknown): string | null {
   const value = String(raw ?? "").trim();
@@ -1442,9 +1477,31 @@ function getForcedFirstContactRouteResponse(
   return null;
 }
 
-function getAdProductRouteResponse(productRoute?: string | null) {
+async function getAdProductRouteResponse(productRoute?: string | null) {
   const route = normalizeAdProductRoute(productRoute);
   if (!route) return null;
+
+  // Ruta dinámica: cualquier producto creado en el CRM -> "product:<id>"
+  if (route.startsWith(AD_PRODUCT_ROUTE_DYNAMIC_PREFIX)) {
+    const productId = Number(route.slice(AD_PRODUCT_ROUTE_DYNAMIC_PREFIX.length));
+    const product = Number.isFinite(productId) ? await storage.getProduct(productId) : undefined;
+    if (!product) return null;
+    const description = product.description ? `\n${product.description}` : "";
+    const priceLine = product.price ? `\n\n🧪 1 frasco: *${product.price}*` : "";
+    const comboLine =
+      product.comboQty && product.comboPrice
+        ? `\n⭐ ${product.comboQty} por *${product.comboPrice}*`
+        : "";
+    return {
+      productName: product.name,
+      imageUrl: product.imageUrl || "",
+      listText: "",
+      responseText: `*${product.name}*${description}${priceLine}${comboLine}\n\n¿Le gustaría hacer su pedido?`,
+      benefitsText: product.description || "",
+      indicationsText: "",
+    };
+  }
+
   return FIRST_CONTACT_ROUTE_RESPONSES[route as keyof typeof FIRST_CONTACT_ROUTE_RESPONSES] || null;
 }
 
@@ -1726,7 +1783,7 @@ function getAutomaticAudioBlockReason(responseText: string): string | null {
 
 // ============ PEDIDO LISTO -> aviso por WhatsApp al repartidor/admin ============
 const DELIVERY_TOKEN_REGEX =
-  /\[(?:PEDIDO_LISTO|LLAMAR|NECESITO_HUMANO|CANDIDATA|IMAGEN:[^\]]*|BOTONES:[^\]]*|LISTA:[^\]]*)\]/gi;
+  /\[(?:PEDIDO_LISTO|LLAMAR|NECESITO_HUMANO|CANDIDATA|COTIZAR_ENVIO|IMAGEN:[^\]]*|BOTONES:[^\]]*|LISTA:[^\]]*)\]/gi;
 
 interface DeliveryNotifyParams {
   conversationId: number;
@@ -1832,10 +1889,60 @@ async function notifyDeliveryOrder(params: DeliveryNotifyParams): Promise<void> 
   }
 }
 
+// ============ COTIZACION DE ENVIO: ACUSE + ESPERA (evita silencio) ============
+const SHIPPING_HOLD_COOLDOWN_MS = 3 * 60 * 1000;
+const shippingHoldLastSentAt = new Map<number, number>();
+const SHIPPING_HOLD_TEXT =
+  "Gracias por escribir. Sigo confirmando el costo del envío con el repartidor; en cuanto lo tenga le confirmo por aquí. 🙌";
+
+async function sendShippingQuoteHoldMessage(
+  conversation: { id: number; waId: string; contactName?: string | null },
+  from: string,
+) {
+  const now = Date.now();
+  const lastSent = shippingHoldLastSentAt.get(conversation.id) || 0;
+  if (now - lastSent < SHIPPING_HOLD_COOLDOWN_MS) return;
+  shippingHoldLastSentAt.set(conversation.id, now);
+
+  try {
+    const waResponse = await sendToWhatsApp(from, "text", { text: SHIPPING_HOLD_TEXT });
+    await storage.createMessage({
+      conversationId: conversation.id,
+      waMessageId: waResponse?.messages?.[0]?.id || `hold_${now}`,
+      direction: "out",
+      type: "text",
+      text: SHIPPING_HOLD_TEXT,
+      timestamp: Math.floor(now / 1000).toString(),
+      status: "sent",
+      rawJson: { source: "shipping_quote_hold" },
+    });
+    await storage.updateConversation(conversation.id, {
+      lastMessage: SHIPPING_HOLD_TEXT,
+      lastMessageTimestamp: new Date(),
+    });
+    void sendPushNotification(
+      "Cotización de Envío pendiente",
+      `${conversation.contactName || from}: el cliente sigue esperando el costo del envío`,
+      { conversationId: conversation.id.toString(), waId: from, event: "shipping_quote_pending" },
+    );
+  } catch (error) {
+    console.error("[COTIZAR_ENVIO] No se pudo enviar el acuse de espera:", error);
+  }
+}
+
 async function processAiResponse(data: BufferedMessage) {
   const { conversationId, messageForAi, from, name, imageBase64ForAi, wasAudioMessage, adProductRoute } = data;
   const conversation = await storage.getConversation(conversationId);
-  if (!conversation || conversation.aiDisabled) return;
+  if (!conversation) return;
+
+  // Si el chat está esperando cotización de envío, NO llamamos al modelo:
+  // enviamos un acuse de espera (rate-limited) para que el cliente nunca quede sin respuesta.
+  if (conversation.orderStatus === "cotizacion") {
+    await sendShippingQuoteHoldMessage(conversation, from);
+    return;
+  }
+
+  if (conversation.aiDisabled) return;
   let assignedAgentName: string | null = null;
   if (conversation.assignedAgentId) {
     const assignedAgent = await storage.getAgent(conversation.assignedAgentId);
@@ -1855,7 +1962,7 @@ async function processAiResponse(data: BufferedMessage) {
     const promptProductId = adContext.promptProductId ?? null;
 
     const adRouteResponse = fixedCommerceFlowEnabled && !promptOverride && !imageBase64ForAi && !wasAudioMessage
-      ? getAdProductRouteResponse(adProductRoute)
+      ? await getAdProductRouteResponse(adProductRoute)
       : null;
     const hasOutboundHistory = recentMessages.slice(-10).some(message => message.direction === "out");
     if (adRouteResponse && !hasOutboundHistory) {
@@ -2140,7 +2247,18 @@ async function processAiResponse(data: BufferedMessage) {
         lastMessageTimestamp: new Date(),
       };
 
-      if (aiResult.orderReady) {
+      if (aiResult.cotizarEnvio) {
+        updateData.orderStatus = "cotizacion";
+        updateData.needsHumanAttention = true;
+        updateData.shouldCall = false;
+        updateData.isCandidate = false;
+        console.log("=== MARKING AS SHIPPING QUOTE ===", conversationId);
+        void sendPushNotification(
+          "Cotización de Envío",
+          `${name}: el cliente envió su ubicación, calcular el envío`,
+          { conversationId: conversationId.toString(), waId: from, event: "shipping_quote_pending" },
+        );
+      } else if (aiResult.orderReady) {
         const wasAlreadyReady = conversation.orderStatus === "ready";
         updateData.orderStatus = 'ready';
         console.log("=== MARKING ORDER AS READY ===", conversationId);
@@ -2556,7 +2674,7 @@ function normalizeTextForTts(rawText: string): string {
 
   const normalized = (parsedInteractive.cleanText || repairedText)
     .replace(/\[IMAGEN:\s*[^\]]+\]/gi, " ")
-    .replace(/\[(?:PEDIDO_LISTO|LLAMAR|NECESITO_HUMANO|CANDIDATA)\]/gi, " ")
+    .replace(/\[(?:PEDIDO_LISTO|LLAMAR|NECESITO_HUMANO|CANDIDATA|COTIZAR_ENVIO)\]/gi, " ")
     .replace(/https?:\/\/\S+/gi, " ")
     .replace(/\bwww\.\S+/gi, " ")
     .replace(/\*(.*?)\*/g, "$1")
@@ -4505,6 +4623,7 @@ export async function registerRoutes(
       let replyOrderReady = false;
       let replyShouldCall = false;
       let replyIsCandidate = false;
+      let replyCotizarEnvio = false;
 
       if (!replyText) {
         if (!messageForAi) {
@@ -4527,6 +4646,7 @@ export async function registerRoutes(
         replyOrderReady = Boolean(aiResult.orderReady);
         replyShouldCall = Boolean(aiResult.shouldCall);
         replyIsCandidate = Boolean(aiResult.isCandidate);
+        replyCotizarEnvio = Boolean(aiResult.cotizarEnvio);
       }
 
       if (!replyText) {
@@ -4566,6 +4686,12 @@ export async function registerRoutes(
           needsHumanAttention: false,
         };
         if (replyOrderReady) updateData.orderStatus = "ready";
+        if (replyCotizarEnvio) {
+          updateData.orderStatus = "cotizacion";
+          updateData.needsHumanAttention = true;
+          updateData.shouldCall = false;
+          updateData.isCandidate = false;
+        }
         if (replyShouldCall) updateData.shouldCall = true;
         if (replyIsCandidate) {
           updateData.isCandidate = true;
@@ -4627,6 +4753,12 @@ export async function registerRoutes(
         needsHumanAttention: false,
       };
       if (replyOrderReady) updateData.orderStatus = "ready";
+      if (replyCotizarEnvio) {
+        updateData.orderStatus = "cotizacion";
+        updateData.needsHumanAttention = true;
+        updateData.shouldCall = false;
+        updateData.isCandidate = false;
+      }
       if (replyShouldCall) updateData.shouldCall = true;
       if (replyIsCandidate) {
         updateData.isCandidate = true;
@@ -6374,7 +6506,7 @@ Reglas:
   app.patch("/api/conversations/:id/kanban-status", requireAuth, async (req, res) => {
     const id = parseInt(req.params.id);
     const parsed = z.object({
-      column: z.enum(["humano", "nuevo", "llamar", "proceso", "listo", "entregado", "candidatas"]),
+      column: z.enum(["humano", "cotizacion", "nuevo", "llamar", "proceso", "listo", "entregado", "candidatas"]),
     }).safeParse(req.body);
 
     if (!parsed.success) {
@@ -6391,6 +6523,8 @@ Reglas:
 
     if (column === "humano") {
       updates = { needsHumanAttention: true, shouldCall: false, orderStatus: null, isCandidate: false };
+    } else if (column === "cotizacion") {
+      updates = { needsHumanAttention: true, shouldCall: false, orderStatus: "cotizacion", isCandidate: false };
     } else if (column === "nuevo") {
       updates = { needsHumanAttention: false, shouldCall: false, orderStatus: null, isCandidate: false };
     } else if (column === "llamar") {
@@ -7811,7 +7945,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         agentIds: z.array(z.number().int().positive()).min(1).max(50),
         isActive: z.boolean().optional(),
         isExclusive: z.boolean().optional(),
-        productRoute: z.enum(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular", "creatina"]).nullable().optional(),
+        productRoute: adProductRouteSchema,
         promptId: z.number().int().positive().nullable().optional(),
         promptProfile: z.enum(["primary", "secondary", "tertiary"]).nullable().optional(),
       }).parse(req.body);
@@ -7858,7 +7992,7 @@ Maximo 2 lineas. Se especifico y practico.`;
         agentIds: z.array(z.number().int().positive()).min(1).max(50),
         isActive: z.boolean().optional(),
         isExclusive: z.boolean().optional(),
-        productRoute: z.enum(["diabetes", "diabetes_y_peso", "dolor_y_estres", "dolor_articular", "creatina"]).nullable().optional(),
+        productRoute: adProductRouteSchema,
         promptId: z.number().int().positive().nullable().optional(),
         promptProfile: z.enum(["primary", "secondary", "tertiary"]).nullable().optional(),
       }).parse(req.body);
