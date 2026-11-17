@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft, Volume2, Lock, LockOpen, RefreshCw, ChevronDown, Smile, MessageSquare } from "lucide-react";
+import { Send, Image as ImageIcon, Mic, Plus, Check, CheckCheck, MapPin, Bug, Copy, ExternalLink, X, Zap, Tag, Trash2, Package, PackageCheck, Truck, PackageX, Bot, BotOff, AlertCircle, Phone, Lightbulb, Loader2, UserRoundCog, Clock, Pencil, FileText, Video, CornerUpLeft, Volume2, Lock, LockOpen, RefreshCw, ChevronDown, Smile, MessageSquare, MoreVertical } from "lucide-react";
 import type { Conversation, Message, Label, QuickMessage, Agent, Product } from "@shared/schema";
 import {
   DropdownMenu,
@@ -228,6 +228,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
   const [reminderAtInput, setReminderAtInput] = useState("");
   const [reminderNoteInput, setReminderNoteInput] = useState("");
   const [showLearnModal, setShowLearnModal] = useState(false);
+  const [showClearAttentionDialog, setShowClearAttentionDialog] = useState(false);
   const [learnFocus, setLearnFocus] = useState("");
   const [learnMessageCount, setLearnMessageCount] = useState(10);
   const [suggestedRule, setSuggestedRule] = useState("");
@@ -1153,20 +1154,6 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
     lockConversationMutation.mutate({ locked: !conversation.locked, password });
   };
 
-  const clearAttentionMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/conversations/${conversation.id}/clear-attention`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-      });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
-      toast({ title: "Alerta despejada" });
-    },
-  });
-
   const toggleShouldCallMutation = useMutation({
     mutationFn: async (shouldCall: boolean) => {
       const res = await fetch(`/api/conversations/${conversation.id}/should-call`, {
@@ -1939,7 +1926,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
         {isAdmin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="flex-shrink-0 h-7 w-7" data-testid="button-reassign-agent">
+              <Button variant="ghost" size="icon" className="hidden md:inline-flex flex-shrink-0 h-7 w-7" data-testid="button-reassign-agent">
                 <UserRoundCog className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -1966,7 +1953,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="relative flex-shrink-0 h-7 w-7"
+          className="hidden md:inline-flex relative flex-shrink-0 h-7 w-7"
           onClick={openReminderEditor}
           title={conversation.reminderAt ? "Editar recordatorio" : "Agregar recordatorio"}
           data-testid="button-reminder"
@@ -1984,7 +1971,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="flex-shrink-0 h-7 w-7"
+            className="hidden md:inline-flex flex-shrink-0 h-7 w-7"
             onClick={() => setShowDeliveryComprobanteDialog(true)}
             title="Ver comprobante de entrega"
             data-testid="button-delivery-comprobante"
@@ -1997,7 +1984,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
         <Dialog>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="flex-shrink-0 h-7 w-7">
+              <Button variant="ghost" size="icon" className="hidden md:inline-flex flex-shrink-0 h-7 w-7">
                 <Tag className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -2237,7 +2224,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="flex-shrink-0 h-7 w-7 text-violet-600 hover:text-violet-700"
+              className="hidden md:inline-flex flex-shrink-0 h-7 w-7 text-violet-600 hover:text-violet-700"
               onClick={() => {
                 setAiReplyPreferredFormat("text");
                 generateAiReplyMutation.mutate({ advisorName: aiReplyAdvisorValue });
@@ -2253,7 +2240,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="flex-shrink-0 h-7 w-7 text-violet-600 hover:text-violet-700"
+              className="hidden md:inline-flex flex-shrink-0 h-7 w-7 text-violet-600 hover:text-violet-700"
               onClick={() => {
                 setAiReplyPreferredFormat("audio");
                 generateAiReplyMutation.mutate({ advisorName: aiReplyAdvisorValue });
@@ -2292,20 +2279,58 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
             variant="default" 
             size="icon" 
             className="flex-shrink-0 h-7 w-7 bg-red-500 text-white"
-            onClick={() => clearAttentionMutation.mutate()}
-            title="La IA no pudo responder - Click para despejar alerta"
+            onClick={() => setShowClearAttentionDialog(true)}
+            title="La IA no pudo responder - Elige a qué columna mover"
             data-testid="button-clear-attention"
           >
             <AlertCircle className="h-4 w-4" />
           </Button>
         )}
 
+        <Dialog open={showClearAttentionDialog} onOpenChange={setShowClearAttentionDialog}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Despejar alerta</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              ¿A qué columna quieres mover este chat?
+            </p>
+            <div className="mt-2 space-y-1">
+              {KANBAN_COLUMNS.filter((col) => col.column !== "humano").map((col) => {
+                const Icon = col.icon;
+                return (
+                  <Button
+                    key={col.column}
+                    variant="ghost"
+                    className="w-full justify-start gap-2"
+                    onClick={() => {
+                      setKanbanColumnMutation.mutate(col.column);
+                      setShowClearAttentionDialog(false);
+                    }}
+                    disabled={setKanbanColumnMutation.isPending}
+                    data-testid={`clear-attention-move-${col.column}`}
+                  >
+                    <Icon className={cn("h-4 w-4", col.iconClass)} />
+                    <span className="flex-1 text-left">{col.label}</span>
+                    {currentKanbanColumn === col.column && <Check className="h-4 w-4 text-emerald-400" />}
+                  </Button>
+                );
+              })}
+            </div>
+            <div className="mt-2 flex justify-end">
+              <Button variant="outline" onClick={() => setShowClearAttentionDialog(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Should Call Toggle */}
         <Button 
           variant={conversation.shouldCall ? "default" : "ghost"} 
           size="icon" 
           className={cn(
-            "flex-shrink-0 h-7 w-7",
+            "hidden md:inline-flex flex-shrink-0 h-7 w-7",
             conversation.shouldCall && "bg-green-500 text-white"
           )}
           onClick={() => toggleShouldCallMutation.mutate(!conversation.shouldCall)}
@@ -2320,7 +2345,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
             variant="ghost"
             size="icon"
             className={cn(
-              "flex-shrink-0 h-7 w-7",
+              "hidden md:inline-flex flex-shrink-0 h-7 w-7",
               conversation.locked
                 ? "bg-red-500/20 text-red-300"
                 : "text-slate-400 hover:text-red-300",
@@ -2337,7 +2362,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="flex-shrink-0 h-7 w-7 text-red-400"
+            className="hidden md:inline-flex flex-shrink-0 h-7 w-7 text-red-400"
             onClick={() => {
               if (confirm("¿Eliminar esta conversación y todos sus mensajes?")) {
                 deleteConversationMutation.mutate();
@@ -2363,7 +2388,7 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="flex-shrink-0 h-7 w-7"
+              className="hidden md:inline-flex flex-shrink-0 h-7 w-7"
               title="Aprender de esta conversación"
               data-testid="button-learn"
             >
@@ -2479,6 +2504,144 @@ export function ChatArea({ conversation, messages, onClose }: ChatAreaProps) {
                 </DropdownMenuItem>
               );
             })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Mobile: menú de acciones secundarias */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="flex-shrink-0 h-7 w-7 md:hidden"
+              title="Más opciones"
+              data-testid="button-more-actions"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            {isAdmin && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <UserRoundCog className="h-4 w-4 mr-2" /> Reasignar agente
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={() => reassignMutation.mutate(null)}>
+                    Sin agente
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {agentsData.map((agent) => (
+                    <DropdownMenuItem
+                      key={agent.id}
+                      onClick={() => reassignMutation.mutate(agent.id)}
+                      className={cn(conversation.assignedAgentId === agent.id && "font-bold")}
+                    >
+                      {agent.name} {conversation.assignedAgentId === agent.id ? "(actual)" : ""}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+
+            <DropdownMenuItem onClick={openReminderEditor}>
+              <Clock className="h-4 w-4 mr-2 text-amber-400" /> Recordatorio
+            </DropdownMenuItem>
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Tag className="h-4 w-4 mr-2" /> Etiquetas
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onClick={() => setLabelMutation.mutate([])}>
+                  <span className={cn("mr-2 inline-flex", currentLabelIds.length === 0 ? "text-emerald-500" : "text-transparent")}>
+                    <Check className="h-3.5 w-3.5" />
+                  </span>
+                  Sin etiqueta
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {ownedLabels.map((label) => (
+                  <DropdownMenuItem key={label.id} onClick={() => toggleConversationLabel(label.id)}>
+                    <span className={cn("mr-2 inline-flex", currentLabelIds.includes(label.id) ? "text-emerald-500" : "text-transparent")}>
+                      <Check className="h-3.5 w-3.5" />
+                    </span>
+                    <div className={cn("w-3 h-3 rounded-full mr-2", LABEL_COLORS.find(c => c.name === label.color)?.bg)} />
+                    {label.name}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowLabelManagerDialog(true)}>
+                  <Pencil className="h-4 w-4 mr-2" /> Gestionar etiquetas
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            {canSendAdminAiReply && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    setAiReplyPreferredFormat("text");
+                    generateAiReplyMutation.mutate({ advisorName: aiReplyAdvisorValue });
+                  }}
+                  disabled={generateAiReplyMutation.isPending}
+                >
+                  <MessageSquare className="h-4 w-4 mr-2 text-violet-600" /> Respuesta IA (texto)
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setAiReplyPreferredFormat("audio");
+                    generateAiReplyMutation.mutate({ advisorName: aiReplyAdvisorValue });
+                  }}
+                  disabled={generateAiReplyMutation.isPending}
+                >
+                  <Volume2 className="h-4 w-4 mr-2 text-violet-600" /> Respuesta IA (audio)
+                </DropdownMenuItem>
+              </>
+            )}
+
+            {(conversation.deliveryComprobante ||
+              conversation.orderStatus === "ready" ||
+              conversation.orderStatus === "delivered") && (
+              <DropdownMenuItem onClick={() => setShowDeliveryComprobanteDialog(true)}>
+                <Truck className="h-4 w-4 mr-2 text-emerald-400" /> Comprobante de entrega
+              </DropdownMenuItem>
+            )}
+
+            <DropdownMenuItem onClick={() => toggleShouldCallMutation.mutate(!conversation.shouldCall)}>
+              <Phone className="h-4 w-4 mr-2" />
+              {conversation.shouldCall ? "Quitar marcar para llamar" : "Marcar para llamar"}
+            </DropdownMenuItem>
+
+            <DropdownMenuItem onClick={() => setShowLearnModal(true)}>
+              <Lightbulb className="h-4 w-4 mr-2" /> Aprender de esta conversación
+            </DropdownMenuItem>
+
+            {isAdmin && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleToggleLock}>
+                  {conversation.locked ? (
+                    <LockOpen className="h-4 w-4 mr-2" />
+                  ) : (
+                    <Lock className="h-4 w-4 mr-2" />
+                  )}
+                  {conversation.locked ? "Desbloquear chat" : "Cerrar chat"}
+                </DropdownMenuItem>
+                {!conversation.locked && (
+                  <DropdownMenuItem
+                    className="text-red-500"
+                    onClick={() => {
+                      if (confirm("¿Eliminar esta conversación y todos sus mensajes?")) {
+                        deleteConversationMutation.mutate();
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Eliminar conversación
+                  </DropdownMenuItem>
+                )}
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
         </div>
