@@ -69,6 +69,11 @@ export default function InboxPage() {
 
   const filteredByRangeAndSearch = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
+    const phoneDigits = searchQuery
+      .replace(/^wa\.me\//i, "")
+      .replace(/[\s\-().+]/g, "");
+    const isPhoneQuery = /^\d{7,}$/.test(phoneDigits);
+    const phoneTail = phoneDigits.slice(-8);
     const merged = forcedConversation && !conversations.some((c) => c.id === forcedConversation.id)
       ? [forcedConversation, ...conversations]
       : conversations;
@@ -103,6 +108,10 @@ export default function InboxPage() {
 
     const filtered = merged.filter((c) => {
       if (query) {
+        if (isPhoneQuery) {
+          const normalizedWaId = (c.waId || "").replace(/\D/g, "");
+          return normalizedWaId.includes(phoneTail);
+        }
         const nameMatch = c.contactName?.toLowerCase().includes(query);
         const messageMatch = c.lastMessage?.toLowerCase().includes(query);
         const phoneMatch = c.waId?.includes(query);
@@ -135,7 +144,7 @@ export default function InboxPage() {
     let delivered = 0;
 
     for (const conversation of filteredByRangeAndSearch) {
-      if (conversation.needsHumanAttention) {
+      if (conversation.needsHumanAttention || conversation.orderStatus === "cotizacion") {
         humano++;
       } else if (conversation.orderStatus === "pending") {
         pending++;

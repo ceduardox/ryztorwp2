@@ -84,6 +84,7 @@ const KANBAN_COLUMNS = [
 
 function getConversationKanbanColumn(conv: Conversation): string {
   if (conv.needsHumanAttention) return "humano";
+  if (conv.orderStatus === "cotizacion") return "humano";
   if (conv.isCandidate) return "candidatas";
   if (conv.orderStatus === "delivered") return "entregado";
   if (conv.orderStatus === "ready") return "listo";

@@ -1038,6 +1038,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
 
   const getConversationColumn = (conv: Conversation): TabType => {
     if (conv.needsHumanAttention) return "humano";
+    if (conv.orderStatus === "cotizacion") return "humano";
     if (conv.isCandidate) return "candidatas";
     if (conv.orderStatus === "delivered") return "entregado";
     if (conv.orderStatus === "ready") return "listo";
@@ -1271,7 +1272,9 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
       return mapped.map((x) => x.item);
     };
 
-    const humano = sortByRecent(filtered.filter((c) => c.needsHumanAttention)).slice(0, displayLimit);
+    const humano = sortByRecent(
+      filtered.filter((c) => c.needsHumanAttention || c.orderStatus === "cotizacion"),
+    ).slice(0, displayLimit);
     const candidatas = sortByRecent(
       filtered.filter((c) => c.isCandidate && !c.needsHumanAttention),
     ).slice(0, displayLimit);
@@ -1287,6 +1290,7 @@ export function KanbanView({ conversations, isLoading, dateFilter, onDateFilterC
           c.shouldCall &&
           !c.needsHumanAttention &&
           !c.isCandidate &&
+          c.orderStatus !== "cotizacion" &&
           c.orderStatus !== "pending" &&
           c.orderStatus !== "ready" &&
           c.orderStatus !== "delivered",

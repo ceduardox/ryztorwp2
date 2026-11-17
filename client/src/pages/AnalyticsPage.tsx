@@ -309,8 +309,8 @@ export default function AnalyticsPage() {
   };
 
   const stats = useMemo(() => {
-    const humano = filteredConversations.filter(c => c.needsHumanAttention).length;
-    const llamar = filteredConversations.filter(c => c.shouldCall && !c.needsHumanAttention).length;
+    const humano = filteredConversations.filter(c => c.needsHumanAttention || c.orderStatus === "cotizacion").length;
+    const llamar = filteredConversations.filter(c => c.shouldCall && !c.needsHumanAttention && c.orderStatus !== "cotizacion").length;
     const listo = filteredConversations.filter(c => c.orderStatus === "ready" && !c.needsHumanAttention).length;
     const entregado = filteredConversations.filter(c => c.orderStatus === "delivered" && !c.needsHumanAttention).length;
     const nuevos = filteredConversations.filter(c => !c.orderStatus && !c.shouldCall && !c.needsHumanAttention).length;

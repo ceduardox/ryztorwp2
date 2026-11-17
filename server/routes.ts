@@ -6498,7 +6498,11 @@ Reglas:
     if (conversation?.locked) {
       return res.status(403).json({ error: "Este chat está cerrado y no se puede mover" });
     }
-    const updated = await storage.updateConversation(id, { needsHumanAttention: false });
+    const updates: Record<string, any> = { needsHumanAttention: false };
+    if (conversation?.orderStatus === "cotizacion") {
+      updates.orderStatus = null;
+    }
+    const updated = await storage.updateConversation(id, updates);
     res.json(updated);
   });
 
