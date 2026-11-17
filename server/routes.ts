@@ -3924,16 +3924,27 @@ export async function registerRoutes(
                   lastMessageTimestamp: new Date(parseInt(msg.timestamp) * 1000),
                   lastFollowUpAt: null,
                 });
-                // Backfill: la conversacion ya existia y todavia no tenia prompt de anuncio.
+                // El anuncio mas reciente manda: si el cliente vuelve a entrar por un
+                // anuncio distinto, refrescar ad_id, snapshot y producto de la conversacion.
                 if (incomingAdId) {
                   const adCtx = await getConversationAdContext(conversation.id);
-                  if (!adCtx.adId && !adCtx.promptSnapshot) {
+                  const adChanged = incomingAdId !== adCtx.adId;
+                  const missingContext = !adCtx.adId && !adCtx.promptSnapshot;
+                  if (adChanged || missingContext) {
                     const adRouting = await getNextAgentForAdIdRouting(incomingAdId);
                     const { snapshot, productId } = await buildAdSnapshotForRule(adRouting.rule);
-                    if (snapshot) {
-                      await setConversationAdSnapshot(conversation.id, incomingAdId, snapshot, productId);
-                      console.log(`[AdPrompt][Backfill] conv=${conversation.id} ad_id=${incomingAdId} snapshot=${snapshot.length} chars`);
+                    await setConversationAdSnapshot(
+                      conversation.id,
+                      incomingAdId,
+                      snapshot ?? null,
+                      productId ?? null,
+                    );
+                    if (adRouting.rule?.productRoute) {
+                      adProductRouteForAi = adRouting.rule.productRoute;
                     }
+                    console.log(
+                      `[AdPrompt][Refresh] conv=${conversation.id} ad_id=${incomingAdId} prev=${adCtx.adId || "none"} snapshot=${snapshot ? snapshot.length : 0} chars`,
+                    );
                   }
                 }
               }
